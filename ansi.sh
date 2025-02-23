@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # ANSI escape code warper
+# https://raw.githubusercontent.com/barabasz/lib/main/ansi.sh
 #
 # SGR (Select Graphic Rendition) parameters of ANSI escape codes
 # man: https://man7.org/linux/man-pages/man4/console_codes.4.html

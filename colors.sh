@@ -1,6 +1,10 @@
 #!/bin/zsh
 
 # ANSI colors for functions
+# https://raw.githubusercontent.com/barabasz/lib/main/colors.sh
+#
+# ⛔ THIS LIB IS OBSOLETE, USE lib/ansi.sh INSTEAD
+#
 
 # http://jafrog.com/2013/11/23/colors-in-terminal.html
 # https://gist.github.com/JBlond/2fea43a3049b38287e5e9cefc87b2124

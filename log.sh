@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # Simple log library for stdrout
-# 
+# https://raw.githubusercontent.com/barabasz/lib/main/log.sh
 
 # Color and icon assignments
 #

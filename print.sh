@@ -1,6 +1,8 @@
 #!/bin/zsh
 
 # Print library
+# https://raw.githubusercontent.com/barabasz/lib/main/print.sh
+
 hs='─'        # header
 hc='white'    # header
 print::header() {
@@ -31,6 +33,10 @@ function printt() {
 function printh() {
     output="\n${yellowb}"$*"${reset}\n"
     printf "$output"
+}
+
+function printh2() {
+    printf "\n$(ansi bold bright yellow)%s$(ansi reset)\n" "$*";
 }
 
 # Print red error

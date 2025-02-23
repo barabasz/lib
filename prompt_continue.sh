@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # Function to prompt the user for continuation
+# https://raw.githubusercontent.com/barabasz/lib/main/prompt_continue.sh
+
 prompt_continue() {
   while true; do
       read "yn?Do you want to continue? (Y/N): "
