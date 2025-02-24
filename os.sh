@@ -2,22 +2,6 @@
 #
 # Functions for OS detection and shell information
 
-# Display OS name
-function osname() {
-    local ostype=$(uname -s | tr '[:upper:]' '[:lower:]')
-    if [[ $ostype == 'darwin' ]]; then
-        printf "macos"
-    elif [[ $ostype == 'linux' ]]; then
-        if [[ -f /etc/os-release ]]; then
-            # awk -F= '/^ID=/{print $2}' /etc/os-release
-            local id=$(cat /etc/os-release | grep "^ID=")
-            printf "${id#*=}"
-        fi
-    else
-        printf "unknown"
-    fi
-}
-
 # Display macOS codename
 function macosname() {
     local version=$(sw_vers -productVersion)
@@ -32,21 +16,6 @@ function macosname() {
     esac
 }
 
-# Get shell name
-function shellname() {
-    case "$(ps -p $$ -o comm=)" in
-        *zsh)
-            echo "zsh"
-            ;;
-        *bash)
-            echo "bash"
-            ;;
-        *)
-            echo "unknown"
-            ;;
-    esac
-}
-
 # Get shell version
 function shellver() {
     if [[ $(shellname) == 'zsh' ]]; then
@@ -58,7 +27,7 @@ function shellver() {
         echo "extractver: unknown shell"
         return 1
     fi
-    echo $(getver $version)
+    echo $(extract_version $version)
 }
 
 # Forcing full system update

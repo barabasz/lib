@@ -25,3 +25,12 @@ function params() {
     echo "Second parameter: $2"
     echo "Last parameter: ${@: -1}"
 }
+
+# Extract version number from string
+# REPLACED - Use 'extract_version' instead
+function getver() {
+    local verstr=$1
+    verstr=$(echo "$verstr" | sed 's/^[^0-9]*//')
+    verstr=$(echo "$verstr" | grep -oE '[0-9]+(\.[0-9]+)*' | head -1)
+    echo "$verstr"
+}

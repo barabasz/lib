@@ -17,6 +17,18 @@ function verinfo() {
     local args=$(checkargs $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
 
+    # check if the command is the same as the last one
+    [[ "$1" == "$verinfo_lastcmd" ]] && return 0
+
+    export verinfo_lastcmd="$1"
+    local msg=""
+    local apppath=""
+    local verstr=""
+    local ver=""
+    local cliname=""
+    local appname=""
+    local vercmmd=""
+
     if [[ -z "$2" ]]; then
         cliname=$1; appname=$1; vercmmd="--version"
     elif [[ -z "$3" ]]; then
@@ -40,14 +52,23 @@ function verinfo() {
     fi
     if [[ $type = 'alias' ]]; then
         msg='is an alias for'
-        als="${green}$cliname${reset} $msg ${purple}$(alias $cliname | sed "s/.*=//")${reset}"
+        definition="$(alias $cliname | sed "s/.*=//")"
+        printf "${green}$cliname${reset} $msg ${purple}$definition${reset}\n"
+        definition="${definition//[\'\"]}" # remove quotes
+        definition="${definition%% *}"     # remove everything after space
+        verinfo "$definition"
+    fi
+    if [[ $type = 'function' ]]; then
+        msg='is a function in'
+        funcpath=$(whence -f $cliname)
+        als="${green}$cliname${reset} $msg ${purple}$type${reset}"
         echo -e "$als"
     fi
-    if [[ $type = 'function' || $type = 'keyword' || $type = 'builtin' ]]; then
+    if [[ $type = 'keyword' || $type = 'builtin' ]]; then
         msg='is a'
         als="${green}$cliname${reset} $msg ${purple}$type${reset}"
         echo -e "$als"
-    fi    
+    fi  
 }
 
 # Display login information
@@ -124,4 +145,16 @@ function loginfiles() {
         done
     fi
     printf "\n"
+}
+
+# Calculate uptime in hours
+function uptimeh() {
+    if [[ $(osname) == "macos" ]]; then
+        boot_timestamp=$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ',')
+        current_timestamp=$(date +%s)
+        uptime_seconds=$((current_timestamp - boot_timestamp))
+        printf "%.2f\n" $(echo "$uptime_seconds / 3600" | bc -l)
+    else
+        printf $(awk '{printf "%.2f\n", $1/3600}' /proc/uptime)
+    fi
 }
