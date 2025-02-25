@@ -75,11 +75,11 @@ function makeconfln() {
 function installapp() {
     if [[ -z $1 ]]; then
         log::error "No arguments provided."
-        printinfo "Usage: installapp <cli-name> [brew-name] [pkg-name] [app-name]"
+        printi "Usage: installapp <cli-name> [brew-name] [pkg-name] [app-name]"
         return 1
     elif [[ $# -gt 4 ]]; then
         log::error "Too many arguments."
-        printinfo "Usage: installapp <cli-name> [brew-name] [pkg-name] [app-name]"
+        printi "Usage: installapp <cli-name> [brew-name] [pkg-name] [app-name]"
         return 1
     fi
 
