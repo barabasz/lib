@@ -12,13 +12,13 @@ function verinfo() {
     # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
-    local usage=$(usage $thisf $fargs)
+    local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
 
     # check if the command is the same as the last one
-    [[ "$1" == "$verinfo_lastcmd" ]] && return 0
+    # [[ "$1" == "$verinfo_lastcmd" ]] && return 0
 
     export verinfo_lastcmd="$1"
     local msg=""

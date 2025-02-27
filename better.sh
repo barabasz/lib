@@ -11,12 +11,12 @@ function lns() {
     local fargs="<destination> <source>"
     local finfo="$fname info:"
     local ferror="$fname error:"
-    local fusage=$(usage $fname $fargs)
+    local fusage=$(make_fn_usage $fname $fargs)
     local minargs=2
     local maxargs=2
     
     # argument check
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && log::error $ferror $args && log::info $fusage && return 1
 
     #main
@@ -113,9 +113,9 @@ function utype() {
     # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
-    local usage=$(usage $thisf $fargs)
+    local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
 
     if [[ $(shellname) == 'bash' ]]; then
@@ -157,9 +157,9 @@ function uwhich() {
     # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
-    local usage=$(usage $thisf $fargs)
+    local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
 
     local type=$(utype $1)
@@ -203,7 +203,7 @@ function wheref() {
     [[ -n $f_switches ]] && fusage="${fusage}Switches: ${p}$f_switches${r}\n"
     local fver="$fname version $f_ver\n"
     # argument check
-    local args=$(checkargs $f_min_args $f_max_args $#)
+    local args=$(check_fn_args $f_min_args $f_max_args $#)
     [[ $args != "ok" ]] && log::error "$f_name: $args" && printf $fusage && return 1
     # handle switches
     [[ $1 == "--help" ]] && printf "$finfo" && printf "$fusage" && return 0

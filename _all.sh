@@ -334,12 +334,12 @@ function lns() {
     local fargs="<destination> <source>"
     local finfo="$fname info:"
     local ferror="$fname error:"
-    local fusage=$(usage $fname $fargs)
+    local fusage=$(make_fn_usage $fname $fargs)
     local minargs=2
     local maxargs=2
     
     # argument check
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && log::error $ferror $args && log::info $fusage && return 1
 
     #main
@@ -436,9 +436,9 @@ function utype() {
     # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
-    local usage=$(usage $thisf $fargs)
+    local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
 
     if [[ $(shellname) == 'bash' ]]; then
@@ -480,9 +480,9 @@ function uwhich() {
     # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
-    local usage=$(usage $thisf $fargs)
+    local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
 
     local type=$(utype $1)
@@ -526,7 +526,7 @@ function wheref() {
     [[ -n $f_switches ]] && fusage="${fusage}Switches: ${p}$f_switches${r}\n"
     local fver="$fname version $f_ver\n"
     # argument check
-    local args=$(checkargs $f_min_args $f_max_args $#)
+    local args=$(check_fn_args $f_min_args $f_max_args $#)
     [[ $args != "ok" ]] && log::error "$f_name: $args" && printf $fusage && return 1
     # handle switches
     [[ $1 == "--help" ]] && printf "$finfo" && printf "$fusage" && return 0
@@ -663,35 +663,26 @@ bgwhitei='\e[0;107m'
 #
 # Helper functions for the script functions
 
-### FUNCTION TEMPLATE
-function __TEMPLATE() {
-### function header
-    local f_name="tmp" f_args="<agrument>" f_switches=("--help" "--version")
-    local f_info="is a template for functions."
-    local f_min_args=1 f_max_args=1 f_ver="0.1"
-    local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
-    local fname="$g${f_name}$r" fargs="$c${f_args}$r"
-    [[ -n $f_switches ]] && fargs+=" ${p}[<switches>...]${r}"
-    local finfo="$fname $f_info\n" fusage="Usage: $fname $fargs\n"
-    [[ -n $f_switches ]] && fusage="${fusage}Switches: ${p}$f_switches${r}\n"
-    local fver="$fname version $f_ver\n"
-    local args=$(checkargs $f_min_args $f_max_args $#)
-    [[ $args != "ok" ]] && log::error "$f_name: $args" && printf $fusage && return 1
-    [[ $1 == "--help" ]] && printf "$finfo" && printf "$fusage" && return 0
-    [[ $1 == "--version" ]] && printf "$fver" && return 0
-    [[ $1 == --* ]] && log::error "$f_name: unknown switch $1" && return 1
-### main function
-    echo $1
+# Generate usage message for functions
+# Usage: make_fn_usage <function-name> <function-arguments> [function-switches]
+# Returns: usage message
+# It is intended to be used by other scripts and not run directly
+function make_fn_usage() {
+    local fname=$1 fargs=$2 fswitches=$3
+    local g=$(ansi bold green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
+    local usage="Usage: $g$fname$r "
+    [[ -n $fswitches ]] && usage+="${p}[switches]${r}"
+    [[ -n $fargs ]] && usage+=" $c$fargs$r"
+    [[ -n $fswitches ]] && usage+="\nSwitches: $p" && { for s in ${(z)fswitches}; do; usage+="--$s "; done } && usage+="$r"
+    printf "$usage\n"
 }
 
 # Check number of parameters
-function checkargs() {
-    if [[ $# -ne 3 ]]; then
-        printf "${redi}checkargs error${reset}: not enough arguments (expected 3, given $#)\n"
-        printf "checkargs usage: ${yellow}checkargs${reset} ${green}<min> <max> <actual>${reset}\n"
-        return 1
-    fi
-
+# Usage: check_fn_args <min> <max> <actual>
+# Returns: "ok" if actual is within min and max, else an error message
+# It is intended to be used by other scripts and not run directly
+function check_fn_args() {
+    [[ $# -ne 3 ]] && log::error "check_fn_args: not enough arguments (expected 3, given $#)" && return 1
     local min=$1
     local max=$2
     local given=$3
@@ -727,11 +718,7 @@ function checkargs() {
     return 0
 }
 
-# Usage message for functions
-function usage() {
-    local fname=$1 fargs=$2
-    printf "$1 usage: ${yellow}$1${reset} ${green}$2${reset}\n"
-}
+
 #
 # File: /Users/barabasz/lib/helpers.sh
 #
@@ -876,13 +863,13 @@ function verinfo() {
     # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
-    local usage=$(usage $thisf $fargs)
+    local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(checkargs $minargs $maxargs $#)
+    local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
 
     # check if the command is the same as the last one
-    [[ "$1" == "$verinfo_lastcmd" ]] && return 0
+    # [[ "$1" == "$verinfo_lastcmd" ]] && return 0
 
     export verinfo_lastcmd="$1"
     local msg=""
@@ -1101,33 +1088,41 @@ function makeconfln() {
 
 # Install application
 function installapp() {
-    if [[ -z $1 ]]; then
-        log::error "No arguments provided."
-        printi "Usage: installapp <cli-name> [brew-name] [pkg-name] [app-name]"
-        return 1
-    elif [[ $# -gt 4 ]]; then
-        log::error "Too many arguments."
-        printi "Usage: installapp <cli-name> [brew-name] [pkg-name] [app-name]"
-        return 1
-    fi
-
-    cliname=$1
-    brewname=${2:-$1}
-    aptname=${3:-$1}
-    appname=${4:-$1}
-    osname=$(osname)
-    isapp=$(isinstalled $cliname)
-    isbrew=$(isinstalled brew)
+### function header
+    local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
+    local f_name="installapp" f_args="<cli-name> <brew-name> <apt-name> <app-name> [ver-switch]" f_switches="help ver"
+    local f_info="is a script helper function for installing apps via brew or apt."
+    f_info+="\nIt is intended to be used by installer scripts ${g}install-*${r} and not run directly."
+    local f_min_args=4 f_max_args=5 f_ver="0.1"
+    local fname="$g${f_name}$r" fargs="$c${f_args}$r"
+    [[ -n $f_switches ]] && fargs+=" ${p}[switch]${r}"
+    local finfo="$fname $f_info\n"
+    local fusage="$(make_fn_usage "$f_name" "$f_args" "$f_switches")\n"
+    local fver="$fname version $f_ver\n"
+    local args=$(check_fn_args $f_min_args $f_max_args $#)
+    [[ $1 == "--help" ]] && printf "$finfo" && printf "$fusage" && return 0
+    [[ $1 == --* ]] && log::error "$f_name: unknown switch $1" && return 1
+    [[ $args != "ok" ]] && log::error "$f_name: $args" && printf $fusage && return 1
+### main function
+    local cliname=$1
+    local brewname=$2
+    local aptname=$3
+    local appname=$4
+    local default_verswitch='--version'
+    local verswitch=${5:-$default_verswitch}
+    local osname=$(osname)
+    local isapp=$(isinstalled $cliname)
+    local isbrew=$(isinstalled brew)
 
     if [[ "$brewname" == "null" && "$aptname" == "null" ]]; then
-        log::error "No package name provided."
+        log::error "$f_name: no package name provided."
         return 1
     elif [[ "$brewname" == "null" && "$osname" == "macos" ]]; then
         log::info "No brew package name provided."
-        log::error "$appname is not available for macOS."
+        log::error "$f_name: $appname is not available for macOS."
         return 1
     elif [[ "$aptname" == "null" && "$brewname" != "null" && "$osname" != "macos" && "$isbrew" -eq 0 ]]; then
-        log::error "$appname is not available for Linux without brew."
+        log::error "$f_name: $appname is not available for Linux without brew."
         return 1
     fi
 
@@ -1141,21 +1136,18 @@ function installapp() {
             elif [[ "$brewname" != "null" && "$isbrew" -eq 1 ]]; then
                 brew install -q $brewname
             else
-                log::error "Brew is not installed."
+                log::error "$f_name: Brew is not installed."
                 return 1
             fi
         fi
         if [[ $? -eq 0 ]]; then
-            log::ok "$appname successfully installed."
+            log::ok "$f_name: $appname successfully installed.\n"
         else
-            log::error "Failed to install $appname."
+            log::error "$f_name: failed to install $appname."
             return 1
         fi
-    else
-        log::info "$appname is already installed."
     fi
-
-    verinfo $cliname
+    verinfo "$cliname" "$appname" "$verswitch"
 }
 #
 # File: /Users/barabasz/lib/interactive.sh
