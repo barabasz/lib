@@ -4,66 +4,58 @@
 
 ### FUNCTION TEMPLATE
 
-function __TEMPLATE2() {  # without switches
-### function header
-    local f_name="tmp"
-    local f_args="agrument1 argument2"
-    local f_args_opt="agrument3"
-    local f_switches="help version"
-    local f_info="is a template for functions."
-    local f_min_args=1 f_max_args=1 f_ver="0.1"
+function _fn_tpl_short() {
 ### function properties
+    local f_name="_fn_tpl_short" f_file="lib/_templates.sh"
+    local f_args="agrument1 argument2" f_args_opt="agrument3"
+    local f_info="is a template for functions."
+    local f_min_args=1 f_max_args=1
+### function strings
     local name="$(make_fn_name $f_name)"
-    local usage="$(make_fn_usage $f_name $f_args $f_args_opt $f_switches)"
-    local info="$(make_fn_info $f_name $f_info)\n$usage"
-    local version="$(make_fn_version $f_name $f_ver)"
+    local header="$(make_fn_title $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
+    local info="$(make_fn_info $header $usage "" compact)" iserror=0
+### function args and switches
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
     local args="$(check_fn_args $f_min_args $f_max_args $#)"
-    [[ $args != "ok" ]] && log::error "$name: $args" && printf $info && return 1
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $usage && return 1
 ### main function
-    echo $1
+    echo "This is the output of the $name function."
 }
 
-function __TEMPLATE2() {
-### function header
-    local f_name="tmp"
+function _fn_tpl() {
+### function properties
+    local f_name="_fn_tpl"
+    local f_file="lib/_templates.sh"
     local f_args="agrument1 argument2"
     local f_args_opt="agrument3"
-    local f_switches="help version"
+    local f_switches="info help version"
     local f_info="is a template for functions."
-    local f_min_args=1 f_max_args=1 f_ver="0.1"
-
+    local f_help="" # content of help
+    local f_min_args=1 f_max_args=1
+    local f_author="gh/barabasz" f_ver="0.1" f_date="2025-02-28"
+### function strings
     local name="$(make_fn_name $f_name)"
-    local usage="$(make_fn_usage $f_name $f_args $f_args_opt $f_switches)"
-    local info="$(make_fn_info $f_name $f_info)\n$usage"
-    local help=""
-    local version="$(make_fn_version $f_name $f_ver)"
+    local header="$(make_fn_title $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches")"
+    local errinf="$(make_fn_errinf $name "$f_switches" $f_file)"
+    local version="$(make_fn_version $name $f_ver)"
+    local footer="$(make_fn_author $f_author $f_date $version)"
+    local info="$(make_fn_info $header $usage $footer)"
+    local help="$(make_fn_help $info $f_help)"
+    local iserror=0
+### function args and switches
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == "--help" || $1 == "-h" ]] && echo "$help" && return 0
+    [[ $1 == "--version" || $1 == "-v" ]] && echo "$version" && return 0
+    [[ $1 == "--switch" || $1 == "-s" ]] && echo "SWITCH" && shift # example
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
     local args="$(check_fn_args $f_min_args $f_max_args $#)"
-
-    
-    [[ $1 == "--help" ]] && printf "$help" && shift
-    [[ $1 == "--version" ]] && printf "$version" && shift
-    [[ $1 == --* ]] && log::error "$name: unknown switch $1" && return 1
-    [[ $args != "ok" ]] && log::error "$name: $args" && printf $fusage && return 1
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $errinf && return 1
 ### main function
-    echo $1
+    echo "This is the output of the $name function."
 }
 
-function __TEMPLATE() {
-### function header
-    local f_name="tmp" f_args="<agrument>" f_switches=("--help" "--version")
-    local f_info="is a template for functions."
-    local f_min_args=1 f_max_args=1 f_ver="0.1"
-    local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
-    local fname="$g${f_name}$r" fargs="$c${f_args}$r"
-    [[ -n $f_switches ]] && fargs+=" ${p}[<switches>...]${r}"
-    local finfo="$fname $f_info\n" fusage="Usage: $fname $fargs\n"
-    [[ -n $f_switches ]] && fusage="${fusage}Switches: ${p}$f_switches${r}\n"
-    local fver="$fname version $f_ver\n"
-    local args=$(check_fn_args $f_min_args $f_max_args $#)
-    [[ $args != "ok" ]] && log::error "$f_name: $args" && printf $fusage && return 1
-    [[ $1 == "--help" ]] && printf "$finfo" && printf "$fusage" && return 0
-    [[ $1 == "--version" ]] && printf "$fver" && return 0
-    [[ $1 == --* ]] && log::error "$f_name: unknown switch $1" && return 1
-### main function
-    echo $1
-}

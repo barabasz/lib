@@ -17,14 +17,16 @@ function relib() {
     [[ $e -ne 0 ]] && return 1 || make_all_file && return 0
 }
 
+# Generate all.sh file (concatenate all files in the lib directory)
 make_all_file() {
     output_file="${LIBDIR}/_all.sh"
     : >"$output_file"  # Truncate the output file
     echo "#!/bin/zsh\n" >>"$output_file"
     for f in "$LIBDIR"/*.sh; do
-        if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
-            echo "#\n# File: $f\n#\n" >>"$output_file"
-            cat "$f" >>"$output_file"
+        sf=$(basename "$f")
+        if [[ -f "$f" && ! "$sf" =~ ^_ ]]; then
+            echo "#\n# File: $sf\n#\n" >>"$output_file"
+            grep -v '^\s*#' "$f" | grep -v '^\s*$' >>"$output_file"
             echo "" >>"$output_file"
         fi
     done

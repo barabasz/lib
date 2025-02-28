@@ -11,7 +11,7 @@ ansi::info() {
     \cat << EOF
 $(ansi bold yellow)ANSI escape code warper$(ansi reset)
 
-$(ansi bold)Usage$(ansi reset): 
+$(ansi bold)Usage$(ansi reset):
   $(ansi yellow)ansi$(ansi reset) help                 show help
   $(ansi yellow)ansi$(ansi reset) info                 show this info
   $(ansi yellow)ansi$(ansi reset) example              show examples

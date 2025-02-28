@@ -1,23 +1,13 @@
 #!/bin/zsh
 
 #
-# File: /Users/barabasz/lib/ansi.sh
+# File: ansi.sh
 #
 
-#!/bin/zsh
-#
-# ANSI escape code warper
-# https://raw.githubusercontent.com/barabasz/lib/main/ansi.sh
-#
-# SGR (Select Graphic Rendition) parameters of ANSI escape codes
-# man: https://man7.org/linux/man-pages/man4/console_codes.4.html
-
-# Function to display information about the script
 ansi::info() {
     \cat << EOF
 $(ansi bold yellow)ANSI escape code warper$(ansi reset)
-
-$(ansi bold)Usage$(ansi reset): 
+$(ansi bold)Usage$(ansi reset):
   $(ansi yellow)ansi$(ansi reset) help                 show help
   $(ansi yellow)ansi$(ansi reset) info                 show this info
   $(ansi yellow)ansi$(ansi reset) example              show examples
@@ -26,55 +16,42 @@ $(ansi bold)Usage$(ansi reset):
   $(ansi yellow)ansi$(ansi reset) bg <background>      set background color
   $(ansi yellow)ansi$(ansi reset) reset [option]       reset style
   $(ansi yellow)ansi$(ansi reset) show <command>       only show ANSI code
-
 EOF
 }
-
-# Function to display help information
 ansi::help() {
     ansi::info
     \cat << EOF
 $(ansi bold)Expected arguments order$(ansi reset):
   $(ansi yellow)ansi$(ansi reset) [style] [[bright] <foreground>] [bg <background>] [reset [style]]
-
 $(ansi bold)Style$(ansi reset):
   style:                    ansi $(ansi bold purple)<style>$(ansi reset)
-
 $(ansi bold)Foreground$(ansi reset):
   color:                    $(echo "\e[33mansi\e[39m") $(ansi bold cyan)<color>$(ansi reset)
   bright color:             $(echo "\e[33mansi\e[39m") bright $(ansi bold cyan)<color>$(ansi reset)
   8-bit color:              $(echo "\e[33mansi\e[39m") 8bit {0..255}
   rgb color:                $(echo "\e[33mansi\e[39m") rgb {0..255} {0..255} {0..255}
   default color:            $(echo "\e[33mansi\e[39m") default
-
 $(ansi bold)Background$(ansi reset):
   color:                    $(echo "\e[33mansi\e[39m") bg $(ansi bold cyan)<color>$(ansi reset)
   8-bit color:              $(echo "\e[33mansi\e[39m") bg 8bit {0..255}
   rgb color:                $(echo "\e[33mansi\e[39m") bg rgb {0..255} {0..255} {0..255}
   default color:            $(echo "\e[33mansi\e[39m") bg default
-
 $(ansi bold)Reset$(ansi reset):
   reset style:              $(echo "\e[33mansi\e[39m") reset $(ansi bold purple)<style>$(ansi reset)
   reset all:                $(echo "\e[33mansi\e[39m") reset
-
 $(ansi bold cyan)Colors$(ansi reset):
   black     red     yellow
   white     green   magenta = purple
   default   blue    cyan
-
 $(ansi bold purple)Styles$(ansi reset):
   bold      underline      dim
   italic    strikethrough  blink
   reverse   overline       invisible
-
 $(ansi bold)Examples$(ansi reset):
   printf "\$(ansi bold red)bold red\$(ansi reset) reset"
   echo "\$(ansi yellow)yellow \$(ansi reverse)reverse\$(ansi reset reverse) normal\$(ansi default) default"
-
 EOF
 }
-
-# Function to display examples
 ansi::example() {
     ansi::info
     \cat << EOF
@@ -89,28 +66,22 @@ $(ansi bold)Styles$(ansi reset):
   • $(ansi blink)blink$(ansi reset blink)
   • $(ansi invisible)red$(ansi reset invisible) (invisible)
   • $(ansi default)default$(ansi reset)
-
 $(ansi bold)Foreground$(ansi reset):
   • $(ansi red)red$(ansi default)
   • $(ansi bright red)bright red $(ansi default)
   • $(ansi 8bit 196)8bit 196$(ansi default)
   • $(ansi rgb 255 0 0)rgb 255 0 0$(ansi default)
-
 $(ansi bold)Background$(ansi reset)
   • $(ansi bg green)bg green$(ansi bg default)
   • $(ansi bg 8bit 196)bg 8bit 196$(ansi bg default)
   • $(ansi bg rgb 0 0 255)bg rgb 0 0 255$(ansi bg default)
-
 $(ansi bold)Compound expression$(ansi reset):
   • $(ansi bold yellow)bold yellow$(ansi reset)
   • $(ansi italic cyan)italic cyan $(ansi reset)
   • $(ansi bg rgb 0 255 0 red)bg rgb 0 255 red$(ansi reset)
   • $(ansi italic yellow bg blue)italic yellow bg blue$(ansi reset)
-
 EOF
 }
-
-# Function to set style
 ansi::style() {
     case "$1" in
         regular) mod=0 ;;
@@ -127,8 +98,6 @@ ansi::style() {
         overline) mod=53 ;;
     esac
 }
-
-# Function to reset style
 ansi::reset() {
     case "$1" in
         all) mod=0 ;;
@@ -144,8 +113,6 @@ ansi::reset() {
         *) echo "Invalid reset style: $1"; return 1 ;;
     esac
 }
-
-# Function to set foreground color {30..37}
 ansi::foreground() {
     shift=1
     case "$1" in
@@ -165,8 +132,6 @@ ansi::foreground() {
     esac
     shift $shift
 }
-
-# Function to set background color {40..47}
 ansi::background() {
     shift=1
     case "$1" in
@@ -184,8 +149,6 @@ ansi::background() {
         *) echo "Invalid background color: $1"; return 1 ;;
     esac
 }
-
-# Function to set bright foreground color {90..97}
 ansi::bright() {
     case "$1" in
         black) color=90 ;;
@@ -199,23 +162,14 @@ ansi::bright() {
         *) echo "Invalid bright color name: $1"; return 1 ;;
     esac
 }
-
-# Function to generate ANSI code
 ansi::code() {
-    # ANSI escape code prefix and suffix
     local prefix="\e["
     local suffix="m"
-
-    # ANSI code components
     mod=${mod:+$mod}
     bcolor=${bcolor:+$bcolor}
     color=${color:+$color}
-
-    # Determine the separator for each component
     local sep1=${mod:+${${color:-${bcolor:+;}}:+;}}
     local sep2=${color:+${bcolor:+;}}
-    
-    # Output the ANSI code
     local ansi_code="${prefix}${mod}${sep1}${bcolor}${sep2}${color}${suffix}"
     unset mod color bcolor
     if [[ $show -eq 1 ]]; then
@@ -224,10 +178,7 @@ ansi::code() {
         echo -n "$ansi_code"
     fi
 }
-
-# Function to process styling arguments
 ansi::make() {
-    # reset
     if [[ "$*" == "reset"* ]]; then
         shift
         if (( $# == 0 )); then
@@ -237,15 +188,11 @@ ansi::make() {
             shift
         fi
     fi
-    # set style or color
     if (( $# > 0 )); then
-        # style
         ansi::style $@
         if [[ -n $mod ]]; then
             shift
         fi
-
-        # background
         if [[ "$*" == "bg"* ]]; then
             if [[ $# -eq 1 ]]; then
                 echo "Missing background color name"
@@ -256,8 +203,6 @@ ansi::make() {
             shift $shift
             unset shift
         fi 
-
-        # foreground
         if [[ "$*" == "bright"* ]]; then
             if [[ $# -eq 1 ]]; then
                 echo "Missing bright color name"
@@ -273,8 +218,6 @@ ansi::make() {
                 unset shift
             fi
         fi
- 
-        # background again (when set with foreground)
         if [[ "$*" == "bg"* ]]; then
             if [[ $# -eq 1 ]]; then
                 echo "Missing background color name"
@@ -285,15 +228,12 @@ ansi::make() {
             shift $shift
             unset shift
         fi 
-
         if (( $# > 0 )); then
             echo "Too many arguments: $@"
             return 1
         fi
     fi
 }
-
-# Function process main arguments
 ansi::args() {
     unset mod color bcolor show shift
     if [[ $# == 0 || $1 == "info" ]]; then
@@ -312,24 +252,15 @@ ansi::args() {
     ansi::make "$@" || return 1
     ansi::code
 }   
-
-# Main function to handle user input
 ansi() {
     eval "ansi::args $*"
 }
+
 #
-# File: /Users/barabasz/lib/better.sh
+# File: better.sh
 #
 
-#!/bin/zsh
-#
-# Better versions of some functions
-# Unless otherwise noted, they work with both bash and zsh
-
-# Better ln command for creating symbolic links
 function lns() {
-    
-    # function properties
     local fname="lns"
     local fargs="<destination> <source>"
     local finfo="$fname info:"
@@ -337,12 +268,8 @@ function lns() {
     local fusage=$(make_fn_usage $fname $fargs)
     local minargs=2
     local maxargs=2
-    
-    # argument check
     local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && log::error $ferror $args && log::info $fusage && return 1
-
-    #main
     local dst="$1"
     local src="$2"
     local dst_c="${cyan}$dst${reset}"
@@ -351,8 +278,6 @@ function lns() {
     local src_dir_c="${cyan}$src_dir${reset}"
     local arr="${yellowi}→${reset}"
     local errors=0
-
-    # Check if both the destination and source are provided as absolute paths.
     if [[ "$dst" != /* ]]; then
         printf "${error} the destination $dst_c must be an absolute path.\n"
         ((errors+=1))
@@ -361,49 +286,33 @@ function lns() {
         printf "${error} the source $src_c must be an absolute path.\n"
         ((errors+=1))
     fi
-
-    # Check if the destination is different from the source
     if [[ "$dst" == "$src" ]]; then
         printf "${error} destination and source cannot be the same.\n"
         ((errors+=1))
     fi
-
-    # Check if the destination exists
     if [[ ! -e "$dst" ]]; then
         printf "${error} destination $dst_c does not exist.\n"
         ((errors+=1))
     fi
-
-    # Check if the destination is readable
     if [[ ! -r "$dst" ]]; then
         printf "${error} destination $dst_c is not readable.\n"
         ((errors+=1))
     fi
-
-    # Check if the destination is a folder or file
     if [[ ! -d "$dst" ]] && [[ ! -f "$dst" ]]; then
         printf "${error} destination $dst_c is neither a directory nor a file.\n"
         ((errors+=1))
     fi
-
-    # Check if the current process can write to the source's folder
     if [[ ! -w "$src_dir" ]]; then
         printf "${error} cannot write to the source's folder $src_dir_c\n"
         ((errors+=1))
     fi
-
-    # Exit if there are errors
     if [[ $errors > 0 ]]; then
         return 1
     fi
-    
-    # Check if exactly such a symbolic link does not already exist
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
         printf "${info} symbolic link $src_c $arr $dst_c already exists.\n"
         return 0
     fi
-
-    # Remove the existing source (file, folder, or wrong symbolic link)
     if [[ -e "$src" ]]; then
         rm -rf "$src"
         if [[ $? -ne 0 ]]; then
@@ -413,8 +322,6 @@ function lns() {
              printf "${info} removed existing source $src_c.\n"
         fi
     fi
-
-    # Create the symbolic link
     ln -s "$dst" "$src"
     if [[ $? != 0 ]]; then
         printf "${error} failed to create symbolic link (error rissed by ln).\n"
@@ -423,24 +330,17 @@ function lns() {
         printf "${info} created symbolic link: $src_c $arr $dst_c\n"
         return 0
     fi
-
 }
-
-# Universal better type command for bash and zsh
-# returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'
 function utype() {
-    # function properties
     local fargs="<command>"
     local minargs=0
     local maxargs=1
-    # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
     local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
     local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
-
     if [[ $(shellname) == 'bash' ]]; then
         output=$(type -t $1)
         if [[ -z $output ]]; then
@@ -467,24 +367,18 @@ function utype() {
         echo "utype: unsupported shell"
         return 1
     fi
-
     echo $output
 }
-
-# Universal better which command for bash and zsh
 function uwhich() {
-    # function properties
     local fargs="<command>"
     local minargs=0
     local maxargs=1
-    # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
     local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
     local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
-
     local type=$(utype $1)
     if [[ $type == "file" ]]; then
         echo $(which $1)
@@ -502,12 +396,7 @@ function uwhich() {
         return 1
     fi
 }
-
-# Finds the file where a function is defined
-# Returns absolute path, 'not a function' or 'not found'
 function wheref() {
-    ### function header
-    # function properties
     local f_name="wheref"
     local f_args="<function_name>"
     local f_switches=("--help" "--version")
@@ -515,9 +404,7 @@ function wheref() {
     local f_ver="0.1"
     local f_min_args=1
     local f_max_args=1
-    # ansi colors
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
-    # strings
     local fname="$g${f_name}$r"
     local fargs="$c${f_args}$r"
     [[ -n $f_switches ]] && fargs+=" ${p}[<switches>...]${r}"
@@ -525,50 +412,24 @@ function wheref() {
     local fusage="Usage: $fname $fargs\n"
     [[ -n $f_switches ]] && fusage="${fusage}Switches: ${p}$f_switches${r}\n"
     local fver="$fname version $f_ver\n"
-    # argument check
     local args=$(check_fn_args $f_min_args $f_max_args $#)
     [[ $args != "ok" ]] && log::error "$f_name: $args" && printf $fusage && return 1
-    # handle switches
     [[ $1 == "--help" ]] && printf "$finfo" && printf "$fusage" && return 0
     [[ $1 == "--version" ]] && printf "$fver" && return 0
     [[ $1 == --* ]] && log::error "$f_name: unknown switch $1" && return 1
-    ### end of function header
-
-    ### main function
-
-    # chech if function name is valid
     if [[ $(check_function_name $1) -eq 0 ]]; then
         log::error "$f_name: function name must start with a letter or an underscore."
         return 1
     fi
-
     if [[ $(osname) == "macos" ]]; then
-        
     fi
-
     echo $1
     return 0
 }
-#
-# File: /Users/barabasz/lib/colors.sh
-#
 
-#!/bin/zsh
-
-# ANSI colors for functions
-# https://raw.githubusercontent.com/barabasz/lib/main/colors.sh
 #
-# ⛔ THIS LIB IS OBSOLETE, USE lib/ansi.sh INSTEAD
+# File: colors.sh
 #
-
-# http://jafrog.com/2013/11/23/colors-in-terminal.html
-# https://gist.github.com/JBlond/2fea43a3049b38287e5e9cefc87b2124
-
-# To list all colors available in 256 color mode with their codes run
-# 256-color mode — foreground: ESC[38;5;#m   background: ESC[48;5;#m
-# for code in {0..255}
-#     do echo -e "\e[38;5;${code}m"'\\e[38;5;'"$code"m"\e[0m"
-# done
 
 function showcolors() {
     printh "Standard colors"
@@ -583,19 +444,14 @@ function showcolors() {
     printf "${bgredi}red${reset}, ${bggreeni}green${reset}, ${bgyellowi}yellow${reset}, ${bgbluei}blue${reset}, ${bgpurplei}purple${reset}, ${bgcyani}cyan${reset}, ${bgwhitei}white${reset}"
     printf "\n"
 }
-
 function showcolors256() {
     printh "256 colors"
     for code in {0..255}
         do echo -e "\e[38;5;${code}m"'\\e[38;5;'"$code"m"\e[0m"
     done
 }
-
-## clear all
 clear='\e[0m'
 reset='\e[0m'
-
-## text standard
 black='\e[0;30m'
 red='\e[0;31m'
 green='\e[0;32m'
@@ -604,8 +460,6 @@ blue='\e[0;34m'
 purple='\e[0;35m'
 cyan='\e[0;36m'
 white='\e[0;37m'
-
-## text bold
 blackb='\e[1;30m'
 redb='\e[1;31m'
 greenb='\e[1;32m'
@@ -614,8 +468,6 @@ blueb='\e[1;34m'
 purpleb='\e[1;35m'
 cyanb='\e[1;36m'
 whiteb='\e[1;37m'
-
-## text intensive
 blacki='\e[0;90m'
 redi='\e[0;91m'
 greeni='\e[0;92m'
@@ -624,8 +476,6 @@ bluei='\e[0;94m'
 purplei='\e[0;95m'
 cyani='\e[0;96m'
 whitei='\e[0;97m'
-
-## text bold intensive
 blackbi='\e[1;90m'
 redbi='\e[1;91m'
 greenbi='\e[1;92m'
@@ -634,8 +484,6 @@ bluebi='\e[1;94m'
 purplebi='\e[1;95m'
 cyanbi='\e[1;96m'
 whitebi='\e[1;97m'
-
-## background standard
 bgblack='\e[40m'
 bgred='\e[41m'
 bggreen='\e[42m'
@@ -644,8 +492,6 @@ bgblue='\e[44m'
 bgpurple='\e[45m'
 bgcyan='\e[46m'
 bgwhite='\e[47m'
-
-## background intensive
 bgblacki='\e[0;100m'
 bgredi='\e[0;101m'
 bggreeni='\e[0;102m'
@@ -656,46 +502,78 @@ bgcyani='\e[0;106m'
 bgwhitei='\e[0;107m'
 
 #
-# File: /Users/barabasz/lib/fn.sh
+# File: fn.sh
 #
 
-#!/bin/zsh
-#
-# Helper functions for the script functions
-
-# Generate usage message for functions
-# Usage: make_fn_usage <function-name> <function-arguments> [function-switches]
-# Returns: usage message
-# It is intended to be used by other scripts and not run directly
+function make_fn_name() {
+    local name=$1
+    echo "$(ansi green)$name$(ansi reset)"
+}
+function make_fn_footer() {
+    local author=$1 date=$2 version=$3
+    echo "$version copyright © 1999-${date:0:4} $(ansi yellow)$author$(ansi reset)"
+    echo "MIT License : https://opensource.org/licenses/MIT"
+}
+function make_fn_errinf() {
+    local name=$1 switches=$2 file=$3 c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
+    [[ "$switches" == *"info"* ]] && echo -n "Run $name ${p}--info$r for usage information." && return 0
+    [[ "$switches" == *"help"* ]] && echo -n "Run $name ${p}--help$r for usage information." && return 0
+    echo "Check source code for usage information ($c$file$r)."
+}
+function make_fn_info() {
+    local title=$1 usage=$2 footer=$3 compact=$4
+    if [[ $compact == "compact" ]]; then
+        echo "$title\n$usage"
+    else
+        echo "$title\n\n$usage\n\n$footer"
+    fi
+}
+function make_fn_version() {
+    local name=$1 ver=$2
+    printf "$name ver. $(ansi yellow)$ver$(ansi reset)\n\n"
+}
+function make_fn_header() {
+    local name=$1 info=$2
+    echo "$name $info"
+}
+function make_fn_help() {
+    local info=$1 help=$2
+    [[ -z $help ]] && help="$(ansi red)No help available.$(ansi reset)"
+    echo "$info\n\n$help"
+}
 function make_fn_usage() {
-    local fname=$1 fargs=$2 fswitches=$3
-    local g=$(ansi bold green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
-    local usage="Usage: $g$fname$r "
-    [[ -n $fswitches ]] && usage+="${p}[switches]${r}"
-    [[ -n $fargs ]] && usage+=" $c$fargs$r"
-    [[ -n $fswitches ]] && usage+="\nSwitches: $p" && { for s in ${(z)fswitches}; do; usage+="--$s "; done } && usage+="$r"
+    local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
+    local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
+    local usage="Usage: $name "
+    if [[ $compact == "compact" ]]; then
+        usage+="$c"
+        [[ -n $args ]] && usage+="$c" && { for s in ${(z)args}; do; usage+="<$s> "; done } && usage+="$r"
+        [[ -n $argsopt ]] && usage+="$c" && { for s in ${(z)argsopt}; do; usage+="[$s] "; done } && usage+="$r"
+        usage+="$r"
+    else
+        [[ -n $switches ]] && usage+="${p}[switches]${r} "
+        [[ -n $args ]] && usage+="${c}<arguments>${r}"
+        [[ -n $switches ]] && usage+="\nSwitches: $p" && { for s in ${(z)switches}; do; usage+="--$s "; done } && usage+="$r"
+        [[ -n $switches ]] && usage+="or $p" && { for s in ${(z)switches}; do; usage+="-${s:0:1} "; done } && usage+="$r"
+        [[ -n $args || -n $argsopt ]] && usage+="\nArguments: "
+        [[ -n $args ]] && usage+="$c" && { for s in ${(z)args}; do; usage+="<$s> "; done } && usage+="$r"
+        [[ -n $argsopt ]] && usage+="$c" && { for s in ${(z)argsopt}; do; usage+="[$s] "; done } && usage+="$r"
+    fi
     printf "$usage\n"
 }
-
-# Check number of parameters
-# Usage: check_fn_args <min> <max> <actual>
-# Returns: "ok" if actual is within min and max, else an error message
-# It is intended to be used by other scripts and not run directly
 function check_fn_args() {
     [[ $# -ne 3 ]] && log::error "check_fn_args: not enough arguments (expected 3, given $#)" && return 1
     local min=$1
     local max=$2
     local given=$3
     local msg1=""; local msg2=""
-
     if [[ $min -gt $max ]]; then
-        echo "checkargs: min number of arguments cannot be greater than max"
+        echo "check_fn_args: min number of arguments cannot be greater than max"
         return 1
     elif [[ $given -lt 0 ]]; then
-        echo "checkargs: actual number of arguments cannot be negative"
+        echo "check_fn_args: actual number of arguments cannot be negative"
         return 1
     fi
-
     if [[ $given -eq 0 ]]; then
         msg1="no arguments given"
     elif [[ $given -lt $min ]]; then
@@ -703,7 +581,6 @@ function check_fn_args() {
     elif [[ $given -gt $max ]]; then
         msg1="too many arguments"
     fi
-
     if [[ $given -lt $min || $given -gt $max ]]; then
         if [[ $1 == $2 ]]; then
             msg2="expected $min"
@@ -713,21 +590,14 @@ function check_fn_args() {
         echo "$msg1 ($msg2, given $given)"
         return 1
     fi
-
     echo "ok"
     return 0
 }
 
-
 #
-# File: /Users/barabasz/lib/helpers.sh
+# File: helpers.sh
 #
 
-#!/bin/zsh
-#
-# Helper functions for the script functions
-
-# Source file if exists
 function sourceif() {
     [[ $# -eq 0 ]] && echo "Usage: sourceif <file> [error message]" && return 1
     if [[ $# -eq 1 ]]; then
@@ -735,7 +605,6 @@ function sourceif() {
     else
         script="${redi}sourceif error${reset} in ${yellow}$2${reset}"
     fi
-
     if [[ -f $1 ]]; then
         source $1
     else
@@ -744,8 +613,6 @@ function sourceif() {
         return 1
     fi
 }
-
-# Display OS name
 function osname() {
     local ostype=$(uname -s | tr '[:upper:]' '[:lower:]')
     if [[ $ostype == 'darwin' ]]; then
@@ -759,8 +626,6 @@ function osname() {
         printf "unknown"
     fi
 }
-
-# Get shell name
 function shellname() {
     case "$(ps -p $$ -o comm=)" in
         *zsh) echo "zsh" ;;
@@ -768,19 +633,12 @@ function shellname() {
         *) echo "unknown" ;;
     esac
 }
-
-# Execute external script
 function extscript() {
     /bin/bash -c "$(curl -fsSL $1)"
 }
-
-# Source external file
 function extsource() {
     source /dev/stdin <<< "$(curl -fsSL $1)"
 }
-
-# Check if the function name starts with an allowed character
-# Returns 1 if it does, 0 if it doesn't
 check_function_name() {
     local name=$1
     if [[ $name =~ ^[a-zA-Z_] ]]; then
@@ -789,23 +647,14 @@ check_function_name() {
         echo "0" && return 1
     fi
 }
-
-# Convert unix timestamp to ISO 8601 date
-# Returns: ISO 8601 date string in UTC
 utime2iso() {
     local timestamp=$1
     date -r $timestamp -u +"%Y-%m-%dT%H:%M:%SZ"
 }
-
-# Convert ISO 8601 date to unix timestamp
-# Returns: Unix timestamp
 iso2utime() {
     local date=$1
     date -j -f "%Y-%m-%dT%H:%M:%SZ" $date "+%s"
 }
-
-# Extract URL from a string
-# Returns: URL if found, or an error message
 extract_url() {
     local input_string=$1
     local url
@@ -816,9 +665,6 @@ extract_url() {
         echo "No URL found in the given string." && return 1
     fi
 }
-
-# Extracts the path from a string
-# Returns the path if found, or an error message
 extract_path() {
     local input_string=$1
     local path
@@ -829,9 +675,6 @@ extract_path() {
         echo "No path found in the given string." && return 1
     fi
 }
-
-# Extract version number from a string
-# Returns: Version number if found, or an error message
 extract_version() {
     local input=$1
     local match
@@ -846,31 +689,19 @@ alias extractver=extract_version
 alias getver=extract_version
 
 #
-# File: /Users/barabasz/lib/info.sh
+# File: info.sh
 #
 
-#!/bin/zsh
-#
-# Functions for information
-
-# Short version info, usage: verinfo cliname appname versioncommand
-# Example: verinfo gzip "GNU Zip" --version
 function verinfo() {
-    # function properties
     local fargs="<cliname> [appname] [versioncommand]"
     local minargs=0
     local maxargs=3
-    # argument check
     local thisf="${funcstack[1]}"
     local error="${redi}$thisf error:${reset}"
     local usage=$(make_fn_usage $thisf $fargs)
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
     local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
-
-    # check if the command is the same as the last one
-    # [[ "$1" == "$verinfo_lastcmd" ]] && return 0
-
     export verinfo_lastcmd="$1"
     local msg=""
     local apppath=""
@@ -879,7 +710,6 @@ function verinfo() {
     local cliname=""
     local appname=""
     local vercmmd=""
-
     if [[ -z "$2" ]]; then
         cliname=$1; appname=$1; vercmmd="--version"
     elif [[ -z "$3" ]]; then
@@ -887,13 +717,11 @@ function verinfo() {
     else
         cliname=$1; appname=$2; vercmmd=$3
     fi
-
     local type=$(utype $cliname)
     if [[ $type == "not found" ]]; then
         printf "$yellow$cliname$reset not found\n"
         return 1
     fi
-
     if [[ "$(uwhich $cliname)" == /* ]]; then
         msg='is installed in'
         apppath="$(uwhich $cliname)"
@@ -921,8 +749,6 @@ function verinfo() {
         echo -e "$als"
     fi  
 }
-
-# Display login information
 function logininfo() {
     local user=$(whoami)
     local userc=$yellow$user$reset
@@ -942,15 +768,12 @@ function logininfo() {
     local ipc=$green$ip$reset
     printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }
-
-# Display system info
 function sysinfo() {
     local os_kernel=$(uname -r)
     local os_shell=$(shellname)
     local os_shell_ver=$(shellver)
     local os_arch=$(uname -m)
     local os_uptime=$(uptimeh)
-
     if [[ $(osname) == "macos" ]]; then
         local os_name="macOS"
         local os_version=$(sw_vers -productVersion)
@@ -962,8 +785,6 @@ function sysinfo() {
     fi
     printf "This is ${yellowi}$os_name${reset} $os_version (${(C)os_codename}) with ${yellow}$os_shell${reset} $os_shell_ver running on ${yellow}$os_arch${reset} for $os_uptime hrs\n"
 }
-
-# Show arguments with numbers
 function argsinfo() {
     local y=$(ansi bright yellow)
     local r=$(ansi reset)
@@ -979,8 +800,6 @@ function argsinfo() {
         echo "$y#$((++j))$r: $i"
     done
 }
-
-# Display login files and its order
 function loginfiles() {
     printf "Login files: "
     if [[ -z $zsh_files ]]; then
@@ -997,8 +816,6 @@ function loginfiles() {
     fi
     printf "\n"
 }
-
-# Calculate uptime in hours
 function uptimeh() {
     if [[ $(osname) == "macos" ]]; then
         boot_timestamp=$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ',')
@@ -1009,15 +826,11 @@ function uptimeh() {
         printf $(awk '{printf "%.2f\n", $1/3600}' /proc/uptime)
     fi
 }
+
 #
-# File: /Users/barabasz/lib/install.sh
+# File: install.sh
 #
 
-#!/bin/zsh
-#
-# Functions for installing applications
-
-# Check if programm is installed
 function isinstalled() {
     if [[ $(utype $1) == 'file' || "$(uwhich $1)" == /* ]]; then
         echo 1
@@ -1025,8 +838,6 @@ function isinstalled() {
         echo 0
     fi
 }
-
-# Check if package is installed by Brew
 function isinstalledbybrew() {
     brew list $1 &>/dev/null
     if [ $? -eq 0 ]; then
@@ -1035,14 +846,10 @@ function isinstalledbybrew() {
         echo 1
     fi
 }
-
-# Check if oh-my-zsh is installed
 function isomzinstalled() {
     if [[ -d $ZSH ]] && [[ $(omz version | grep -o 'master' | head -1) = 'master' ]];
     then echo 1; else echo 0; fi
 }
-
-# Install oh-my-zsh plugin
 function installomzplugin() {
     local repo=https://github.com/zsh-users/$1.git
     local pdir=$ZSH_CUSTOM/plugins/$1
@@ -1050,8 +857,6 @@ function installomzplugin() {
     [[ -d $pdir ]] && rm -rf $pdir
     git clone $repo $pdir
 }
-
-# apt unattended quiet install
 function aptinstall() {
     [[ $(isinstalled needrestart) -eq 1 ]] && needrestart-quiet
     export NEEDRESTART_MODE=a 
@@ -1062,8 +867,6 @@ function aptinstall() {
     sudo apt-get install $aptopt $@ | grep $grpopt $filter
     [[ $(isinstalled needrestart) -eq 1 ]] && needrestart-verbose
 }
-
-# Create symbolic link to config file
 function makeconfln() {
     local source=$GHCONFDIR/$1
     local target=$CONFDIR/$1
@@ -1085,10 +888,7 @@ function makeconfln() {
         echo "symlink $target_c $arrow $source_c created"
     fi
 }
-
-# Install application
 function installapp() {
-### function header
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
     local f_name="installapp" f_args="<cli-name> <brew-name> <apt-name> <app-name> [ver-switch]" f_switches="help ver"
     local f_info="is a script helper function for installing apps via brew or apt."
@@ -1103,7 +903,6 @@ function installapp() {
     [[ $1 == "--help" ]] && printf "$finfo" && printf "$fusage" && return 0
     [[ $1 == --* ]] && log::error "$f_name: unknown switch $1" && return 1
     [[ $args != "ok" ]] && log::error "$f_name: $args" && printf $fusage && return 1
-### main function
     local cliname=$1
     local brewname=$2
     local aptname=$3
@@ -1113,7 +912,6 @@ function installapp() {
     local osname=$(osname)
     local isapp=$(isinstalled $cliname)
     local isbrew=$(isinstalled brew)
-
     if [[ "$brewname" == "null" && "$aptname" == "null" ]]; then
         log::error "$f_name: no package name provided."
         return 1
@@ -1125,7 +923,6 @@ function installapp() {
         log::error "$f_name: $appname is not available for Linux without brew."
         return 1
     fi
-
     if [[ "$isapp" -eq 0 ]]; then
         printhead "Installing $appname..."
         if [[ "$osname" == "macos" ]]; then
@@ -1149,14 +946,10 @@ function installapp() {
     fi
     verinfo "$cliname" "$appname" "$verswitch"
 }
-#
-# File: /Users/barabasz/lib/interactive.sh
-#
 
-#!/bin/bash
-
-# Function to prompt the user for continuation
-# https://raw.githubusercontent.com/barabasz/lib/main/prompt_continue.sh
+#
+# File: interactive.sh
+#
 
 prompt_continue() {
   while true; do
@@ -1170,38 +963,12 @@ prompt_continue() {
 }
 
 #
-# File: /Users/barabasz/lib/log.sh
+# File: log.sh
 #
 
-#!/bin/zsh
-
-# Simple log library for stdrout
-# https://raw.githubusercontent.com/barabasz/lib/main/log.sh
-
-# Color and icon assignments
-#
-# 1. Error:          red     - critical issues that need immediate attention
-# 2. Warning:        yellow  - potential issues that should be noted
-# 3. Information:    cyan    - general information or updates
-# 4. Success:        green   - successful operations or confirmations
-# 5. Debug:          magenta - debugging information
-# 6. Note (general): blue    - status updates or non-critical messages
-#
-# Required: ansi.sh library
-#
-# Usage: log::success "Success message"
-#        log::error "Error message"
-#        log::warning "Warning message"
-#        log::info "Info message"
-#        log::note "Note message"
-#        log::demo
-
-# Configuration
 LOG_SHOW_ICONS=${LOG_SHOW_ICONS:-1}
 LOG_EMOJI_ICONS=${LOG_EMOJI_ICONS:-0}
 LOG_COLOR_TEXTS=${LOG_COLOR_TEXTS:-1}
-
-# Log colors
 log::color() {
     case "$1" in
         error) echo "bright red" ;;
@@ -1213,8 +980,6 @@ log::color() {
         *) echo "Invalid log name: $1"; return 1 ;;
     esac
 }
-
-# Log demo
 log::demo() {
     local e_name="Error"
     local w_name="Warning"
@@ -1239,8 +1004,6 @@ log::demo() {
     printf "${green}log::note${reset} $n_name message    $sep"
         log::note "$n_name message"
 }
-
-# Prepare log icon
 log::icon() {
     if (( $LOG_SHOW_ICONS == 0 )); then
         echo ""
@@ -1253,7 +1016,6 @@ log::icon() {
         local prefix_color="$(ansi $ps_color)"
         local suffix_color="$(ansi $ps_color)"
         local reset="$(ansi reset)"
-
         local color=""
         case "$1" in
             error) color=$(log::color error) ;;
@@ -1265,7 +1027,6 @@ log::icon() {
             *) echo "Invalid color name: $1"; return 1 ;;
         esac
         color="$(ansi $color)"
-
         local icon=""
         if (( $LOG_EMOJI_ICONS == 0 )); then
             case "$1" in
@@ -1295,8 +1056,6 @@ log::icon() {
         echo "$icon "
     fi
 }
-
-# Prepare log message
 log::message() {
     if (( $LOG_COLOR_TEXTS == 0 )); then
         shift
@@ -1316,8 +1075,6 @@ log::message() {
         echo "$(ansi $color)$*$(ansi reset)"
     fi
 }
-
-# Main function
 log::log() {
     local type="$1"; shift
     local message="$*"
@@ -1325,8 +1082,6 @@ log::log() {
     message="$(log::message $type $message)"
     printf "$icon$message\n"
 }
-
-# External functions
 log::error() {
     log::log error "$*"
 }
@@ -1345,22 +1100,15 @@ log::debug() {
 log::note() {
     log::log note "$*"
 }
-
-# Aliases
 alias log::ok=log::success
 alias log::err=log::error
 alias log::fail=log::error
 alias log::warn=log::warning
 
 #
-# File: /Users/barabasz/lib/os.sh
+# File: os.sh
 #
 
-#!/bin/zsh
-#
-# Functions for OS detection and shell information
-
-# Display macOS codename
 function macosname() {
     local version=$(sw_vers -productVersion)
     local major=$(echo $version | cut -d. -f1)
@@ -1373,8 +1121,6 @@ function macosname() {
         *)  printf "Unknown" ;;
     esac
 }
-
-# Get shell version
 function shellver() {
     if [[ $(shellname) == 'zsh' ]]; then
         local version=$(zsh --version)
@@ -1387,39 +1133,30 @@ function shellver() {
     fi
     echo $(extract_version $version)
 }
-
-# Forcing full system update
 function sysupdate() {
     if [[ ! "$(osname)" == "macos" ]]; then
         envopt="NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive"
         aptopt="-qq"
         filter1='^Hit|^Get'
         filter2='^NEEDRESTART|^update|Reading'
-
         sudo apt-get update | grep -Ev $filter1
         sudo $envopt apt-get $aptopt upgrade | grep -Ev $filter2
         sudo $envopt apt-get $aptopt dist-upgrade
-
         sudo apt-get $aptopt clean
         sudo apt-get $aptopt autoclean
         sudo apt-get $aptopt autoremove
         sudo sync
     fi
-
     if [[ $(isinstalled brew) -eq 1 ]]; then
         brew update --auto-update
         brew upgrade
         brew cleanup
     fi
 }
-#
-# File: /Users/barabasz/lib/print.sh
-#
 
-#!/bin/zsh
-
-# Print library
-# https://raw.githubusercontent.com/barabasz/lib/main/print.sh
+#
+# File: print.sh
+#
 
 hs='─'        # header
 hc='white'    # header
@@ -1436,8 +1173,6 @@ print::line() {
     printf " $1 "
     printf "%${right}s" '' | tr ' ' $hs
 }
-
-# Print title in frame
 function printt() {
     local str=$1; local len=${#str}; local lc="─"
     local tl="┌──"; local tr="──┐";
@@ -1446,77 +1181,54 @@ function printt() {
     local ll=$(printf "%${len}s" | sed "s/ /${lc}/g")
     printf "$tl$ll$tr\n$ml$redi$str$reset$mr\n$bl$ll$br\n"
 }
-
-# Print yellow header
 function printh() {
     output="\n${yellowb}"$*"${reset}\n"
     printf "$output"
 }
-
 function printh2() {
     printf "\n$(ansi bold bright yellow)%s$(ansi reset)\n" "$*";
 }
-
-# Print red error
 function printe() {
     output="${redb}"$*"${reset}\n"
     printf "$output"
 }
-
-# Print cyan info
 function printc() {
     output="${cyani}"$*"${reset}\n"
     printf "$output"
 }
-
-# Print blue info
 function printb() {
     output="${bluei}"$*"${reset}\n"
     printf "$output"
 }
-
-# Print green info
 function printi() {
     output="${greeni}"$*"${reset}\n"
     printf "$output"
 }
-
-# Print purple info
 function printp() {
     output="${purplei}"$*"${reset}\n"
     printf "$output"
 }
-
-# Print white info
 function printw() {
     output="${whitei}"$*"${reset}\n"
     printf "$output"
 }
-
-# Print red info
 function printr() {
     output="${redi}"$*"${reset}\n"
     printf "$output"
 }
-
-# Print yellow info
 function printy() {
     output="${yellowi}"$*"${reset}\n"
     printf "$output"
 }
-
 alias printhead=printh
 alias printtitle=printt
 alias printinfo=printi
 alias printerror=printe
 
 #
-# File: /Users/barabasz/lib/varia.sh
+# File: varia.sh
 #
 
-#!/bin/zsh
-
-# Resource library files
 function relib() {
     local f="" i=0 e=0 t="" t1=$(date +%s%3N) t2=""
     for f in "$LIBDIR"/*.sh; do
@@ -1532,59 +1244,48 @@ function relib() {
     log::info "Loaded $i library *.sh files from $LIBDIR in $t ms"
     [[ $e -ne 0 ]] && return 1 || make_all_file && return 0
 }
-
 make_all_file() {
     output_file="${LIBDIR}/_all.sh"
     : >"$output_file"  # Truncate the output file
     echo "#!/bin/zsh\n" >>"$output_file"
     for f in "$LIBDIR"/*.sh; do
-        if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
-            echo "#\n# File: $f\n#\n" >>"$output_file"
-            cat "$f" >>"$output_file"
+        sf=$(basename "$f")
+        if [[ -f "$f" && ! "$sf" =~ ^_ ]]; then
+            echo "#\n# File: $sf\n#\n" >>"$output_file"
+            grep -v '^\s*#' "$f" | grep -v '^\s*$' >>"$output_file"
             echo "" >>"$output_file"
         fi
     done
 }
-
-# Search man with fzf
 function fman() {
     man -k . | fzf -q "$1" --prompt='man> ' --preview $'echo {} | tr -d \'()\' | awk \'{printf "%s ", $2} {print $1}\' | xargs -r man | col -bx | bat -l man -p --color always' | tr -d '()' | awk '{printf "%s ", $2} {print $1}' | xargs -r man
 }
-
-# Download and unzip file from URL
 function dlunzip() {
     if [ $# -ne 2 ]; then
         echo "dlunzip (download and extract)"
         echo "Usage: dlunzip <url> <folder>"
         return 1
     fi
-
     url="$1"
     folder="$2"
-
     [[ ! $folder == /* ]] && folder="$(pwd)/$folder"
     [[ -z "$TEMP" ]] && tempdir="$HOME/.temp" || tempdir="$DLDIR"
     filename=$(basename "$url")
     tempfile="$tempdir/$filename"
     extdir="${folder}/$(basename $filename .zip)"
-
     mkdir -p "$folder"
     mkdir -p "$tempdir" && cd $_
-
     wget -q $url
     if [ $? -ne 0 ]; then
         echo "Failed to download $url"
         return 1
     fi
-
     unzip -q $tempfile -d $folder
     if [ $? -ne 0 ]; then
         echo "Failed to extract $tempfile to $folder"
         return 1
     fi
-
     rm $tempfile
-
     echo $extdir
 }
 

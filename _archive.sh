@@ -34,3 +34,17 @@ function getver() {
     verstr=$(echo "$verstr" | grep -oE '[0-9]+(\.[0-9]+)*' | head -1)
     echo "$verstr"
 }
+
+# Generate all.sh file (concatenate all files in the lib directory)
+make_all_file() {
+    output_file="${LIBDIR}/_all.sh"
+    : >"$output_file"  # Truncate the output file
+    echo "#!/bin/zsh\n" >>"$output_file"
+    for f in "$LIBDIR"/*.sh; do
+        if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
+            echo "#\n# File: $f\n#\n" >>"$output_file"
+            cat "$f" >>"$output_file"
+            echo "" >>"$output_file"
+        fi
+    done
+}
