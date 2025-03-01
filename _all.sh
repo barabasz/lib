@@ -1291,14 +1291,14 @@ get_default_shell() {
     echo $(basename $USER_SHELL)
 }
 set_default_shell() {
-    local shell=$1
+    local shell=$1 shell_path=$(uwhich $1)
     [[ -z $1 ]] && echo "No shell name provided" && return 1
-    [[ ! -x "$(uwhich $shell)" ]] && echo "Shell '$shell' not found or not executable" && return 1
+    [[ ! -x "$shell_path" ]] && echo "Shell '$shell' not found or not executable" && return 1
     [[ "$(get_default_shell)" = "$shell" ]] && echo "Shell '$shell' is already the default shell" && return 1
     if [[ "$(uname)" = "Darwin" ]]; then
-        sudo dscl . -create /Users/$(whoami) UserShell $shell
+        sudo dscl . -create /Users/$(whoami) UserShell $shell_path
     else
-        sudo usermod -s $shell $(whoami)
+        sudo usermod -s $shell_path $(whoami)
     fi
 }
 
