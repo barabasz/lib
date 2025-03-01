@@ -19,8 +19,8 @@ function verinfo() {
 
     # check if the command is the same as the last one
     # [[ "$1" == "$verinfo_lastcmd" ]] && return 0
+    # export verinfo_lastcmd="$1"
 
-    export verinfo_lastcmd="$1"
     local msg=""
     local apppath=""
     local verstr=""
@@ -54,9 +54,9 @@ function verinfo() {
         msg='is an alias for'
         definition="$(alias $cliname | sed "s/.*=//")"
         printf "${green}$cliname${reset} $msg ${purple}$definition${reset}\n"
-        definition="${definition//[\'\"]}" # remove quotes
-        definition="${definition%% *}"     # remove everything after space
-        verinfo "$definition"
+        #definition="${definition//[\'\"]}" # remove quotes
+        #definition="${definition%% *}"     # remove everything after space
+        #verinfo "$definition"
     fi
     if [[ $type = 'function' ]]; then
         msg='is a function in'

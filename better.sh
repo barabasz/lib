@@ -5,21 +5,23 @@
 
 # Better ln command for creating symbolic links
 function lns() {
-    
-    # function properties
-    local fname="lns"
-    local fargs="<destination> <source>"
-    local finfo="$fname info:"
-    local ferror="$fname error:"
-    local fusage=$(make_fn_usage $fname $fargs)
-    local minargs=2
-    local maxargs=2
-    
-    # argument check
-    local args=$(check_fn_args $minargs $maxargs $#)
-    [[ $args != "ok" ]] && log::error $ferror $args && log::info $fusage && return 1
-
-    #main
+### function properties
+    local f_name="lns" f_file="better/_templates.sh"
+    local f_args="destination source"
+    local f_info="creates sybolic link if not exists."
+    local f_min_args=2 f_max_args=2
+### function strings
+    local name="$(make_fn_name $f_name)"
+    local header="$(make_fn_header $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
+    local info="$(make_fn_info $header $usage "" compact)" iserror=0
+### function args and switches
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    local args="$(check_fn_args $f_min_args $f_max_args $#)"
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $usage && return 1
+### main
     local dst="$1"
     local src="$2"
     local dst_c="${cyan}$dst${reset}"
@@ -76,7 +78,7 @@ function lns() {
     
     # Check if exactly such a symbolic link does not already exist
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
-        printf "${info} symbolic link $src_c $arr $dst_c already exists.\n"
+        printf "rsymbolic link $src_c $arr $dst_c already exists.\n"
         return 0
     fi
 
@@ -84,7 +86,7 @@ function lns() {
     if [[ -e "$src" ]]; then
         rm -rf "$src"
         if [[ $? -ne 0 ]]; then
-            printf "${error} failed while rmoving $src_c (error rissed by rm).\n"
+            log::error "$name: failed while rmoving $src_c (error rissed by rm).\n"
             return 1
         else
              printf "${info} removed existing source $src_c.\n"
@@ -94,13 +96,12 @@ function lns() {
     # Create the symbolic link
     ln -s "$dst" "$src"
     if [[ $? != 0 ]]; then
-        printf "${error} failed to create symbolic link (error rissed by ln).\n"
+        log::error "$name: failed to create symbolic link (error rissed by ln).\n"
         return 1
     else
-        printf "${info} created symbolic link: $src_c $arr $dst_c\n"
+        printf "symbolic link $src_c $arr $dst_c created.\n"
         return 0
     fi
-
 }
 
 # Universal better type command for bash and zsh

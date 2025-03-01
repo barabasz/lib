@@ -75,7 +75,7 @@ function makeconfln() {
 function installapp() {
 ### function header
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
-    local f_name="installapp" f_args="<cli-name> <brew-name> <apt-name> <app-name> [ver-switch]" f_switches="help ver"
+    local f_name="installapp" f_args="<cli-name> <brew-name> <apt-name> <app-name>" f_switches="help ver"
     local f_info="is a script helper function for installing apps via brew or apt."
     f_info+="\nIt is intended to be used by installer scripts ${g}install-*${r} and not run directly."
     local f_min_args=4 f_max_args=5 f_ver="0.1"
@@ -93,8 +93,6 @@ function installapp() {
     local brewname=$2
     local aptname=$3
     local appname=$4
-    local default_verswitch='--version'
-    local verswitch=${5:-$default_verswitch}
     local osname=$(osname)
     local isapp=$(isinstalled $cliname)
     local isbrew=$(isinstalled brew)
@@ -132,5 +130,5 @@ function installapp() {
             return 1
         fi
     fi
-    verinfo "$cliname" "$appname" "$verswitch"
+
 }

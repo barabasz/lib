@@ -51,7 +51,7 @@ function make_fn_version() {
 }
 
 # Generate colored function header
-# Usage: make_fn_title <function-name> <function-info>
+# Usage: make_fn_header <function-name> <function-info>
 # Returns: colored function header
 function make_fn_header() {
     local name=$1 info=$2

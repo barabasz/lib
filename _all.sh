@@ -261,15 +261,19 @@ ansi() {
 #
 
 function lns() {
-    local fname="lns"
-    local fargs="<destination> <source>"
-    local finfo="$fname info:"
-    local ferror="$fname error:"
-    local fusage=$(make_fn_usage $fname $fargs)
-    local minargs=2
-    local maxargs=2
-    local args=$(check_fn_args $minargs $maxargs $#)
-    [[ $args != "ok" ]] && log::error $ferror $args && log::info $fusage && return 1
+    local f_name="lns" f_file="better/_templates.sh"
+    local f_args="destination source"
+    local f_info="creates sybolic link if not exists."
+    local f_min_args=2 f_max_args=2
+    local name="$(make_fn_name $f_name)"
+    local header="$(make_fn_header $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
+    local info="$(make_fn_info $header $usage "" compact)" iserror=0
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    local args="$(check_fn_args $f_min_args $f_max_args $#)"
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $usage && return 1
     local dst="$1"
     local src="$2"
     local dst_c="${cyan}$dst${reset}"
@@ -310,13 +314,13 @@ function lns() {
         return 1
     fi
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
-        printf "${info} symbolic link $src_c $arr $dst_c already exists.\n"
+        printf "rsymbolic link $src_c $arr $dst_c already exists.\n"
         return 0
     fi
     if [[ -e "$src" ]]; then
         rm -rf "$src"
         if [[ $? -ne 0 ]]; then
-            printf "${error} failed while rmoving $src_c (error rissed by rm).\n"
+            log::error "$name: failed while rmoving $src_c (error rissed by rm).\n"
             return 1
         else
              printf "${info} removed existing source $src_c.\n"
@@ -324,10 +328,10 @@ function lns() {
     fi
     ln -s "$dst" "$src"
     if [[ $? != 0 ]]; then
-        printf "${error} failed to create symbolic link (error rissed by ln).\n"
+        log::error "$name: failed to create symbolic link (error rissed by ln).\n"
         return 1
     else
-        printf "${info} created symbolic link: $src_c $arr $dst_c\n"
+        printf "symbolic link $src_c $arr $dst_c created.\n"
         return 0
     fi
 }
@@ -613,6 +617,13 @@ function sourceif() {
         return 1
     fi
 }
+function source_remote() {
+    local url=$1 name=$(basename $1) file_content=""
+    file_content=$(wget -q -O - $url)
+    [[ $? -ne 0 ]] && { echo "Error getting $name ($url)."; return 1; }
+    source /dev/stdin <<< "$file_content"
+    [[ $? -ne 0 ]] && { echo "Error sourcing $name."; return 1; }
+}
 function extscript() {
     /bin/bash -c "$(curl -fsSL $1)"
 }
@@ -707,7 +718,6 @@ function verinfo() {
     [[ $# -eq 0 ]] && printf "$usage\n" && return 1
     local args=$(check_fn_args $minargs $maxargs $#)
     [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
-    export verinfo_lastcmd="$1"
     local msg=""
     local apppath=""
     local verstr=""
@@ -738,9 +748,6 @@ function verinfo() {
         msg='is an alias for'
         definition="$(alias $cliname | sed "s/.*=//")"
         printf "${green}$cliname${reset} $msg ${purple}$definition${reset}\n"
-        definition="${definition//[\'\"]}" # remove quotes
-        definition="${definition%% *}"     # remove everything after space
-        verinfo "$definition"
     fi
     if [[ $type = 'function' ]]; then
         msg='is a function in'
@@ -755,23 +762,24 @@ function verinfo() {
     fi  
 }
 function logininfo() {
+    local by=$(ansi bright yellow) c=$(ansi cyan) g=$(ansi green) r=$(ansi reset)
     local user=$(whoami)
-    local userc=$yellow$user$reset
+    local userc=$by$user$r
     local host=$(hostname -s)
     local domain=$(hostname -d)
     [[ -n $domain ]] && host="$host.$domain"
-    local hostc=$cyan$host$reset
+    local hostc=$c$host$r
     local tty_icon="\Uf489 "
     local tty=$(tty | sed 's|/dev/||')
-    local ttyc="$tty_icon $green$tty$reset"
+    local ttyc="$tty_icon $g$tty$r"
     local remote=$(who | grep $tty | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)' | tr -d '()')
-    [[ -n $remote ]] && local remotec="from $cyan$remote$reset"
+    [[ -n $remote ]] && local remotec="from $c$remote$r"
     if [[ $(isinstalled ifconfig) -eq 1 ]]; then
-        local ip=$green$(ifconfig | awk '/inet / && !/127.0.0.1/ {print $2}')$reset
+        local ip=$g$(ifconfig | awk '/inet / && !/127.0.0.1/ {print $2}')$r
     else
         local ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d'/' -f1)
     fi
-    local ipc=$green$ip$reset
+    local ipc=$g$ip$r
     printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }
 function sysinfo() {
@@ -804,24 +812,24 @@ function argsinfo() {
     done
 }
 function shellfiles() {
-    local c=$(ansi cyan) g=$(ansi green) y=$(ansi bright yellow) r=$(ansi reset)
+    local c=$(ansi cyan) g=$(ansi gray) y=$(ansi bright yellow) r=$(ansi reset)
     local error="❌ $(ansi bright red)" arrow="$y→$r " f="" 
-    printf "Shell files ($g$ZFILES_COUNT$r): "
+    printf "Shell files ($y$ZFILES_COUNT$r): "
     [[ $ZFILE_ENV -eq 1 ]] && f=$c || f=$error
     printf "${f}zshenv$r $arrow"
-    [[ $ZFILE_VARS -eq 1 ]] && f=$c || f=$error
+    [[ $ZFILE_VARS -eq 1 ]] && f=$g || f=$error
     printf "${f}zvars$r $arrow"
     if [[ $(osname) != "macos" ]]; then
-        [[ $ZFILE_LINUX -eq 1 ]] && f=$c || f=$error
+        [[ $ZFILE_LINUX -eq 1 ]] && f=$g || f=$error
         printf "${f}zlinux$r $arrow"
     fi
-    [[ $ZFILE_LOCALE -eq 1 ]] && f=$c || f=$error
+    [[ $ZFILE_LOCALE -eq 1 ]] && f=$g || f=$error
     printf "${f}zlocale$r $arrow"
     [[ $ZFILE_PROFILE -eq 1 ]] && f=$c || f=$error
     printf "${f}zprofile$r $arrow"
     [[ $ZFILE_RC -eq 1 ]] && f=$c || f=$error
     printf "${f}zshrc$r $arrow"
-    [[ $ZFILE_ALIASES -eq 1 ]] && f=$c || f=$error
+    [[ $ZFILE_ALIASES -eq 1 ]] && f=$g || f=$error
     printf "${f}zaliases$r $arrow"
     [[ $ZFILE_LOGIN -eq 1 ]] && f=$c || f=$error
     printf "${f}zlogin$r"
@@ -891,7 +899,7 @@ function makeconfln() {
 }
 function installapp() {
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
-    local f_name="installapp" f_args="<cli-name> <brew-name> <apt-name> <app-name> [ver-switch]" f_switches="help ver"
+    local f_name="installapp" f_args="<cli-name> <brew-name> <apt-name> <app-name>" f_switches="help ver"
     local f_info="is a script helper function for installing apps via brew or apt."
     f_info+="\nIt is intended to be used by installer scripts ${g}install-*${r} and not run directly."
     local f_min_args=4 f_max_args=5 f_ver="0.1"
@@ -908,8 +916,6 @@ function installapp() {
     local brewname=$2
     local aptname=$3
     local appname=$4
-    local default_verswitch='--version'
-    local verswitch=${5:-$default_verswitch}
     local osname=$(osname)
     local isapp=$(isinstalled $cliname)
     local isbrew=$(isinstalled brew)
@@ -945,7 +951,6 @@ function installapp() {
             return 1
         fi
     fi
-    verinfo "$cliname" "$appname" "$verswitch"
 }
 
 #
@@ -1260,9 +1265,9 @@ alias printerror=printe
 
 function shellname() {
     case "$(ps -p $$ -o comm=)" in
-        *zsh) echo "zsh" ;;
-        *bash) echo "bash" ;;
-        *) echo "unknown" ;;
+    *zsh) echo "zsh" ;;
+    *bash) echo "bash" ;;
+    *) echo "unknown" ;;
     esac
 }
 function shellver() {
@@ -1276,6 +1281,25 @@ function shellver() {
         return 1
     fi
     echo $(extract_version $version)
+}
+get_default_shell() {
+    if [[ "$(uname)" = "Darwin" ]]; then
+        USER_SHELL=$(dscl . -read /Users/$(whoami) UserShell | awk '{print $2}')
+    else
+        USER_SHELL=$(getent passwd $(whoami) | awk -F: '{print $7}')
+    fi
+    echo $(basename $USER_SHELL)
+}
+set_default_shell() {
+    local shell=$1
+    [[ -z $1 ]] && echo "No shell name provided" && return 1
+    [[ ! -x "$(uwhich $shell)" ]] && echo "Shell '$shell' not found or not executable" && return 1
+    [[ "$(get_default_shell)" = "$shell" ]] && echo "Shell '$shell' is already the default shell" && return 1
+    if [[ "$(uname)" = "Darwin" ]]; then
+        sudo dscl . -create /Users/$(whoami) UserShell $shell
+    else
+        sudo usermod -s $shell $(whoami)
+    fi
 }
 
 #

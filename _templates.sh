@@ -12,7 +12,7 @@ function _fn_tpl_short() {
     local f_min_args=1 f_max_args=1
 ### function strings
     local name="$(make_fn_name $f_name)"
-    local header="$(make_fn_title $name $f_info)"
+    local header="$(make_fn_header $name $f_info)"
     local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
     local info="$(make_fn_info $header $usage "" compact)" iserror=0
 ### function args and switches
@@ -38,7 +38,7 @@ function _fn_tpl() {
     local f_author="gh/barabasz" f_ver="0.1" f_date="2025-02-28"
 ### function strings
     local name="$(make_fn_name $f_name)"
-    local header="$(make_fn_title $name $f_info)"
+    local header="$(make_fn_header $name $f_info)"
     local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches")"
     local errinf="$(make_fn_errinf $name "$f_switches" $f_file)"
     local version="$(make_fn_version $name $f_ver)"
