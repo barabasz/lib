@@ -95,18 +95,18 @@ function logininfo() {
 
 # Display system info
 function sysinfo() {
-    local bw=$(ansi bright white) y=$(ansi yellow) by=$(ansi bright yellow) r=$(ansi reset)
+    local bw=$(ansi bright white) c=$(ansi cyan) y=$(ansi yellow) by=$(ansi bright yellow) r=$(ansi reset)
     local os_name=$(osname); os_name="$by$os_name$r"
     local os_icon=$(osicon); os_icon="$bw$os_icon$r"
     local os_kernel=$(uname -r)
     local os_shell=$(shellname); os_shell="$y$os_shell$r"
     local os_shell_ver=$(shellver)
     local os_arch=$(uname -m); os_arch="$y$os_arch$r"
-    local os_uptime=$(uptimeh)
+    local os_uptime=$(uptimeh); os_uptime="$c$os_uptime$r"
     local os_version=$(osversion)
     local os_codename=$(oscodename)
     printf "This is $os_icon $os_name $os_version ($os_codename) "
-    printf "with $os_shell $os_shell_ver running on $os_arch for $os_uptime hrs\n"
+    printf "with $os_shell $os_shell_ver running on $os_arch for $os_uptime\n"
 }
 
 # Show arguments with numbers
@@ -128,38 +128,26 @@ function argsinfo() {
 
 # Display login files and its order
 function shellfiles() {
-    local c=$(ansi cyan) g=$(ansi green) y=$(ansi bright yellow) r=$(ansi reset)
+    local c=$(ansi cyan) g=$(ansi gray) y=$(ansi bright yellow) r=$(ansi reset)
     local error="❌ $(ansi bright red)" arrow="$y→$r " f="" 
     printf "Shell files ($g$ZFILES_COUNT$r): "
     [[ $ZFILE_ENV -eq 1 ]] && f=$c || f=$error
     printf "${f}zshenv$r $arrow"
-    [[ $ZFILE_VARS -eq 1 ]] && f=$c || f=$error
+    [[ $ZFILE_VARS -eq 1 ]] && f=$g || f=$error
     printf "${f}zvars$r $arrow"
     if [[ $(osname) != "macos" ]]; then
-        [[ $ZFILE_LINUX -eq 1 ]] && f=$c || f=$error
+        [[ $ZFILE_LINUX -eq 1 ]] && f=$g || f=$error
         printf "${f}zlinux$r $arrow"
     fi
-    [[ $ZFILE_LOCALE -eq 1 ]] && f=$c || f=$error
+    [[ $ZFILE_LOCALE -eq 1 ]] && f=$g || f=$error
     printf "${f}zlocale$r $arrow"
     [[ $ZFILE_PROFILE -eq 1 ]] && f=$c || f=$error
     printf "${f}zprofile$r $arrow"
     [[ $ZFILE_RC -eq 1 ]] && f=$c || f=$error
     printf "${f}zshrc$r $arrow"
-    [[ $ZFILE_ALIASES -eq 1 ]] && f=$c || f=$error
+    [[ $ZFILE_ALIASES -eq 1 ]] && f=$g || f=$error
     printf "${f}zaliases$r $arrow"
     [[ $ZFILE_LOGIN -eq 1 ]] && f=$c || f=$error
     printf "${f}zlogin$r"
     printf "\n"
-}
-
-# Calculate uptime in hours
-function uptimeh() {
-    if [[ $(osname) == "macos" ]]; then
-        boot_timestamp=$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ',')
-        current_timestamp=$(date +%s)
-        uptime_seconds=$((current_timestamp - boot_timestamp))
-        printf "%.2f\n" $(echo "$uptime_seconds / 3600" | bc -l)
-    else
-        printf $(awk '{printf "%.2f\n", $1/3600}' /proc/uptime)
-    fi
 }

@@ -20,63 +20,6 @@ function sourceif() {
     fi
 }
 
-# Display OS name
-function osname() {
-    local ostype=$(uname -s | tr '[:upper:]' '[:lower:]')
-    if [[ $ostype == 'darwin' ]]; then
-        printf "macos"
-    elif [[ $ostype == 'linux' ]]; then
-        if [[ -f /etc/os-release ]]; then
-            local id=$(cat /etc/os-release | grep "^ID=")
-            printf "${id#*=}"
-        fi
-    else
-        printf "unknown"
-    fi
-}
-
-# Display OS icon
-function osicon() {
-    case $(osname) in
-        macos) printf "\Uf8ff" ;;
-        ubuntu) printf "\Uf31b" ;;
-        debian) printf "\Uf306" ;;
-        redhat) printf "\Uef5d" ;;
-        *) printf "" ;;
-    esac
-}
-
-# Display OS Name (proper case)
-function osName() {
-    local osName=""
-    case $(osname) in
-        macos) echo "macOS" ;;
-        ubuntu) echo "Ubuntu" ;;
-        debian) echo "Debian" ;;
-        *) echo "unknown" ;;
-    esac
-}
-
-# Display OS version
-function osversion() {
-    local osver=""
-    if [[ $(osname) == "macos" ]]; then
-        osver=$(sw_vers -productVersion)
-    else
-        osver=$(awk -F= '/^VERSION_ID=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
-    fi
-    echo $osver
-}
-
-# Get shell name
-function shellname() {
-    case "$(ps -p $$ -o comm=)" in
-        *zsh) echo "zsh" ;;
-        *bash) echo "bash" ;;
-        *) echo "unknown" ;;
-    esac
-}
-
 # Execute external script
 function extscript() {
     /bin/bash -c "$(curl -fsSL $1)"
@@ -156,3 +99,26 @@ extract_version() {
 }
 alias extractver=extract_version
 alias getver=extract_version
+
+# Human readable time
+htime() {
+    local seconds=$1
+    if (( seconds < 60 )); then
+        echo "$seconds sec"
+    elif (( seconds < 3600 )); then
+        local minutes=$(echo "scale=1; $seconds/60" | bc)
+        echo "$minutes min"
+    elif (( seconds <= 86400 )); then
+        local hours=$(echo "scale=1; $seconds/3600" | bc)
+        echo "$hours h"
+    else
+        local days=$(( seconds / 86400 ))
+        local remaining_seconds=$(( seconds % 86400 ))
+        local remaining_time=$(htime $remaining_seconds)
+        if (( days > 1 )); then
+            echo "$days days $remaining_time"
+        else
+            echo "$days day $remaining_time"
+        fi
+    fi
+}

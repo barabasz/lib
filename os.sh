@@ -1,8 +1,34 @@
 #!/bin/zsh
 #
-# Functions for OS detection and shell information
+# Functions for OS detection and information
 
+# Get OS name
+function osname() {
+    local ostype=$(uname -s | tr '[:upper:]' '[:lower:]')
+    if [[ $ostype == 'darwin' ]]; then
+        printf "macos"
+    elif [[ $ostype == 'linux' ]]; then
+        if [[ -f /etc/os-release ]]; then
+            local id=$(cat /etc/os-release | grep "^ID=")
+            printf "${id#*=}"
+        fi
+    else
+        printf "unknown"
+    fi
+}
 
+# Get OS Name (proper case)
+function osName() {
+    local osName=""
+    case $(osname) in
+        macos) echo "macOS" ;;
+        ubuntu) echo "Ubuntu" ;;
+        debian) echo "Debian" ;;
+        *) echo "unknown" ;;
+    esac
+}
+
+# Get OS code name
 function oscodename() {
     local codename=""
     if [[ $(osname) == 'macos' ]]; then
@@ -13,7 +39,7 @@ function oscodename() {
     echo "${(C)codename}"
 }
 
-# Display macOS codename
+# Get macOS codename
 function macosname() {
     local version=$(sw_vers -productVersion)
     local major=$(echo $version | cut -d. -f1)
@@ -27,41 +53,37 @@ function macosname() {
     esac
 }
 
-# Get shell version
-function shellver() {
-    if [[ $(shellname) == 'zsh' ]]; then
-        local version=$(zsh --version)
-    elif [[ $(shellname) == 'bash' ]]; then
-        local version=$(bash --version)
-        version="${version#*version }"
+# Display OS version
+function osversion() {
+    local osver=""
+    if [[ $(osname) == "macos" ]]; then
+        osver=$(sw_vers -productVersion)
     else
-        echo "extractver: unknown shell"
-        return 1
+        osver=$(awk -F= '/^VERSION_ID=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
     fi
-    echo $(extract_version $version)
+    echo $osver
 }
 
-# Forcing full system update
-function sysupdate() {
-    if [[ ! "$(osname)" == "macos" ]]; then
-        envopt="NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive"
-        aptopt="-qq"
-        filter1='^Hit|^Get'
-        filter2='^NEEDRESTART|^update|Reading'
+# Get OS icon
+function osicon() {
+    case $(osname) in
+        macos) printf "\Uf8ff" ;;
+        ubuntu) printf "\Uf31b" ;;
+        debian) printf "\Uf306" ;;
+        redhat) printf "\Uef5d" ;;
+        *) printf "" ;;
+    esac
+}
 
-        sudo apt-get update | grep -Ev $filter1
-        sudo $envopt apt-get $aptopt upgrade | grep -Ev $filter2
-        sudo $envopt apt-get $aptopt dist-upgrade
-
-        sudo apt-get $aptopt clean
-        sudo apt-get $aptopt autoclean
-        sudo apt-get $aptopt autoremove
-        sudo sync
+# Calculate uptime in hours
+function uptimeh() {
+    local uptime=0 boot_timestamp=0 current_timestamp=0
+    if [[ $(osname) == "macos" ]]; then
+        boot_timestamp=$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ',')
+        current_timestamp=$(date +%s)
+        uptime=$((current_timestamp - boot_timestamp))
+    else
+        uptime=$(awk '{printf "%d\n", $1}' /proc/uptime)
     fi
-
-    if [[ $(isinstalled brew) -eq 1 ]]; then
-        brew update --auto-update
-        brew upgrade
-        brew cleanup
-    fi
+    echo "$(htime $uptime)"
 }

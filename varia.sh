@@ -73,3 +73,29 @@ function dlunzip() {
 
     echo $extdir
 }
+
+
+# Forcing full system update
+function sysupdate() {
+    if [[ ! "$(osname)" == "macos" ]]; then
+        envopt="NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive"
+        aptopt="-qq"
+        filter1='^Hit|^Get'
+        filter2='^NEEDRESTART|^update|Reading'
+
+        sudo apt-get update | grep -Ev $filter1
+        sudo $envopt apt-get $aptopt upgrade | grep -Ev $filter2
+        sudo $envopt apt-get $aptopt dist-upgrade
+
+        sudo apt-get $aptopt clean
+        sudo apt-get $aptopt autoclean
+        sudo apt-get $aptopt autoremove
+        sudo sync
+    fi
+
+    if [[ $(isinstalled brew) -eq 1 ]]; then
+        brew update --auto-update
+        brew upgrade
+        brew cleanup
+    fi
+}

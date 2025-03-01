@@ -613,53 +613,6 @@ function sourceif() {
         return 1
     fi
 }
-function osname() {
-    local ostype=$(uname -s | tr '[:upper:]' '[:lower:]')
-    if [[ $ostype == 'darwin' ]]; then
-        printf "macos"
-    elif [[ $ostype == 'linux' ]]; then
-        if [[ -f /etc/os-release ]]; then
-            local id=$(cat /etc/os-release | grep "^ID=")
-            printf "${id#*=}"
-        fi
-    else
-        printf "unknown"
-    fi
-}
-function osicon() {
-    case $(osname) in
-        macos) printf "\Uf8ff" ;;
-        ubuntu) printf "\Uf31b" ;;
-        debian) printf "\Uf306" ;;
-        redhat) printf "\Uef5d" ;;
-        *) printf "" ;;
-    esac
-}
-function osName() {
-    local osName=""
-    case $(osname) in
-        macos) echo "macOS" ;;
-        ubuntu) echo "Ubuntu" ;;
-        debian) echo "Debian" ;;
-        *) echo "unknown" ;;
-    esac
-}
-function osversion() {
-    local osver=""
-    if [[ $(osname) == "macos" ]]; then
-        osver=$(sw_vers -productVersion)
-    else
-        osver=$(awk -F= '/^VERSION_ID=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
-    fi
-    echo $osver
-}
-function shellname() {
-    case "$(ps -p $$ -o comm=)" in
-        *zsh) echo "zsh" ;;
-        *bash) echo "bash" ;;
-        *) echo "unknown" ;;
-    esac
-}
 function extscript() {
     /bin/bash -c "$(curl -fsSL $1)"
 }
@@ -718,6 +671,27 @@ extract_version() {
 }
 alias extractver=extract_version
 alias getver=extract_version
+htime() {
+    local seconds=$1
+    if (( seconds < 60 )); then
+        echo "$seconds sec"
+    elif (( seconds < 3600 )); then
+        local minutes=$(echo "scale=1; $seconds/60" | bc)
+        echo "$minutes min"
+    elif (( seconds <= 86400 )); then
+        local hours=$(echo "scale=1; $seconds/3600" | bc)
+        echo "$hours h"
+    else
+        local days=$(( seconds / 86400 ))
+        local remaining_seconds=$(( seconds % 86400 ))
+        local remaining_time=$(htime $remaining_seconds)
+        if (( days > 1 )); then
+            echo "$days days $remaining_time"
+        else
+            echo "$days day $remaining_time"
+        fi
+    fi
+}
 
 #
 # File: info.sh
@@ -787,7 +761,7 @@ function logininfo() {
     local domain=$(hostname -d)
     [[ -n $domain ]] && host="$host.$domain"
     local hostc=$cyan$host$reset
-    local tty_icon="\Uf489"
+    local tty_icon="\Uf489 "
     local tty=$(tty | sed 's|/dev/||')
     local ttyc="$tty_icon $green$tty$reset"
     local remote=$(who | grep $tty | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)' | tr -d '()')
@@ -798,21 +772,21 @@ function logininfo() {
         local ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d'/' -f1)
     fi
     local ipc=$green$ip$reset
-    printf "Logged in as 🧑 $userc@$hostc ($ipc) on $ttyc $remotec\n"
+    printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }
 function sysinfo() {
-    local bw=$(ansi bright white) r=$(ansi reset) yellow=$(ansi yellow) yellowi=$(ansi bright yellow) cyan=$(ansi cyan)
-    local os_name=$(osname)
-    local os_icon=$(osicon)
+    local bw=$(ansi bright white) c=$(ansi cyan) y=$(ansi yellow) by=$(ansi bright yellow) r=$(ansi reset)
+    local os_name=$(osname); os_name="$by$os_name$r"
+    local os_icon=$(osicon); os_icon="$bw$os_icon$r"
     local os_kernel=$(uname -r)
-    local os_shell=$(shellname)
+    local os_shell=$(shellname); os_shell="$y$os_shell$r"
     local os_shell_ver=$(shellver)
-    local os_arch=$(uname -m)
-    local os_uptime=$(uptimeh)
+    local os_arch=$(uname -m); os_arch="$y$os_arch$r"
+    local os_uptime=$(uptimeh); os_uptime="$c$os_uptime$r"
     local os_version=$(osversion)
     local os_codename=$(oscodename)
-    printf "This is $bw$os_icon$r ${yellowi}$os_name${reset} $os_version (${(C)os_codename}) "
-    printf "with ${yellow}$os_shell${reset} $os_shell_ver running on ${yellow}$os_arch${reset} for $os_uptime hrs\n"
+    printf "This is $os_icon $os_name $os_version ($os_codename) "
+    printf "with $os_shell $os_shell_ver running on $os_arch for $os_uptime\n"
 }
 function argsinfo() {
     local y=$(ansi bright yellow)
@@ -829,10 +803,10 @@ function argsinfo() {
         echo "$y#$((++j))$r: $i"
     done
 }
-function loginfiles() {
+function shellfiles() {
     local c=$(ansi cyan) g=$(ansi green) y=$(ansi bright yellow) r=$(ansi reset)
     local error="❌ $(ansi bright red)" arrow="$y→$r " f="" 
-    printf "Login files ($g$ZFILES_COUNT$r): "
+    printf "Shell files ($g$ZFILES_COUNT$r): "
     [[ $ZFILE_ENV -eq 1 ]] && f=$c || f=$error
     printf "${f}zshenv$r $arrow"
     [[ $ZFILE_VARS -eq 1 ]] && f=$c || f=$error
@@ -852,16 +826,6 @@ function loginfiles() {
     [[ $ZFILE_LOGIN -eq 1 ]] && f=$c || f=$error
     printf "${f}zlogin$r"
     printf "\n"
-}
-function uptimeh() {
-    if [[ $(osname) == "macos" ]]; then
-        boot_timestamp=$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ',')
-        current_timestamp=$(date +%s)
-        uptime_seconds=$((current_timestamp - boot_timestamp))
-        printf "%.2f\n" $(echo "$uptime_seconds / 3600" | bc -l)
-    else
-        printf $(awk '{printf "%.2f\n", $1/3600}' /proc/uptime)
-    fi
 }
 
 #
@@ -1146,6 +1110,28 @@ alias log::warn=log::warning
 # File: os.sh
 #
 
+function osname() {
+    local ostype=$(uname -s | tr '[:upper:]' '[:lower:]')
+    if [[ $ostype == 'darwin' ]]; then
+        printf "macos"
+    elif [[ $ostype == 'linux' ]]; then
+        if [[ -f /etc/os-release ]]; then
+            local id=$(cat /etc/os-release | grep "^ID=")
+            printf "${id#*=}"
+        fi
+    else
+        printf "unknown"
+    fi
+}
+function osName() {
+    local osName=""
+    case $(osname) in
+        macos) echo "macOS" ;;
+        ubuntu) echo "Ubuntu" ;;
+        debian) echo "Debian" ;;
+        *) echo "unknown" ;;
+    esac
+}
 function oscodename() {
     local codename=""
     if [[ $(osname) == 'macos' ]]; then
@@ -1167,37 +1153,34 @@ function macosname() {
         *)  printf "Unknown" ;;
     esac
 }
-function shellver() {
-    if [[ $(shellname) == 'zsh' ]]; then
-        local version=$(zsh --version)
-    elif [[ $(shellname) == 'bash' ]]; then
-        local version=$(bash --version)
-        version="${version#*version }"
+function osversion() {
+    local osver=""
+    if [[ $(osname) == "macos" ]]; then
+        osver=$(sw_vers -productVersion)
     else
-        echo "extractver: unknown shell"
-        return 1
+        osver=$(awk -F= '/^VERSION_ID=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
     fi
-    echo $(extract_version $version)
+    echo $osver
 }
-function sysupdate() {
-    if [[ ! "$(osname)" == "macos" ]]; then
-        envopt="NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive"
-        aptopt="-qq"
-        filter1='^Hit|^Get'
-        filter2='^NEEDRESTART|^update|Reading'
-        sudo apt-get update | grep -Ev $filter1
-        sudo $envopt apt-get $aptopt upgrade | grep -Ev $filter2
-        sudo $envopt apt-get $aptopt dist-upgrade
-        sudo apt-get $aptopt clean
-        sudo apt-get $aptopt autoclean
-        sudo apt-get $aptopt autoremove
-        sudo sync
+function osicon() {
+    case $(osname) in
+        macos) printf "\Uf8ff" ;;
+        ubuntu) printf "\Uf31b" ;;
+        debian) printf "\Uf306" ;;
+        redhat) printf "\Uef5d" ;;
+        *) printf "" ;;
+    esac
+}
+function uptimeh() {
+    local uptime=0 boot_timestamp=0 current_timestamp=0
+    if [[ $(osname) == "macos" ]]; then
+        boot_timestamp=$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ',')
+        current_timestamp=$(date +%s)
+        uptime=$((current_timestamp - boot_timestamp))
+    else
+        uptime=$(awk '{printf "%d\n", $1}' /proc/uptime)
     fi
-    if [[ $(isinstalled brew) -eq 1 ]]; then
-        brew update --auto-update
-        brew upgrade
-        brew cleanup
-    fi
+    echo "$(htime $uptime)"
 }
 
 #
@@ -1272,6 +1255,30 @@ alias printinfo=printi
 alias printerror=printe
 
 #
+# File: shell.sh
+#
+
+function shellname() {
+    case "$(ps -p $$ -o comm=)" in
+        *zsh) echo "zsh" ;;
+        *bash) echo "bash" ;;
+        *) echo "unknown" ;;
+    esac
+}
+function shellver() {
+    if [[ $(shellname) == 'zsh' ]]; then
+        local version=$(zsh --version)
+    elif [[ $(shellname) == 'bash' ]]; then
+        local version=$(bash --version)
+        version="${version#*version }"
+    else
+        echo "extractver: unknown shell"
+        return 1
+    fi
+    echo $(extract_version $version)
+}
+
+#
 # File: varia.sh
 #
 
@@ -1333,5 +1340,25 @@ function dlunzip() {
     fi
     rm $tempfile
     echo $extdir
+}
+function sysupdate() {
+    if [[ ! "$(osname)" == "macos" ]]; then
+        envopt="NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive"
+        aptopt="-qq"
+        filter1='^Hit|^Get'
+        filter2='^NEEDRESTART|^update|Reading'
+        sudo apt-get update | grep -Ev $filter1
+        sudo $envopt apt-get $aptopt upgrade | grep -Ev $filter2
+        sudo $envopt apt-get $aptopt dist-upgrade
+        sudo apt-get $aptopt clean
+        sudo apt-get $aptopt autoclean
+        sudo apt-get $aptopt autoremove
+        sudo sync
+    fi
+    if [[ $(isinstalled brew) -eq 1 ]]; then
+        brew update --auto-update
+        brew upgrade
+        brew cleanup
+    fi
 }
 
