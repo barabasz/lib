@@ -79,8 +79,9 @@ function logininfo() {
     local domain=$(hostname -d)
     [[ -n $domain ]] && host="$host.$domain"
     local hostc=$cyan$host$reset
+    local tty_icon="\Uf489"
     local tty=$(tty | sed 's|/dev/||')
-    local ttyc="$green$tty$reset"
+    local ttyc="$tty_icon $green$tty$reset"
     local remote=$(who | grep $tty | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)' | tr -d '()')
     [[ -n $remote ]] && local remotec="from $cyan$remote$reset"
     if [[ $(isinstalled ifconfig) -eq 1 ]]; then
@@ -89,27 +90,23 @@ function logininfo() {
         local ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d'/' -f1)
     fi
     local ipc=$green$ip$reset
-    printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
+    printf "Logged in as 🧑 $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }
 
 # Display system info
 function sysinfo() {
+    local bw=$(ansi bright white) y=$(ansi yellow) by=$(ansi bright yellow) r=$(ansi reset)
+    local os_name=$(osname); os_name="$by$os_name$r"
+    local os_icon=$(osicon); os_icon="$bw$os_icon$r"
     local os_kernel=$(uname -r)
-    local os_shell=$(shellname)
+    local os_shell=$(shellname); os_shell="$y$os_shell$r"
     local os_shell_ver=$(shellver)
-    local os_arch=$(uname -m)
+    local os_arch=$(uname -m); os_arch="$y$os_arch$r"
     local os_uptime=$(uptimeh)
-
-    if [[ $(osname) == "macos" ]]; then
-        local os_name="macOS"
-        local os_version=$(sw_vers -productVersion)
-        local os_codename=$(macosname)
-    else
-        local os_name=$(awk -F= '/^NAME=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
-        local os_version=$(awk -F= '/^VERSION_ID=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
-        local os_codename=$(awk -F= '/^VERSION_CODENAME=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
-    fi
-    printf "This is ${yellowi}$os_name${reset} $os_version (${(C)os_codename}) with ${yellow}$os_shell${reset} $os_shell_ver running on ${yellow}$os_arch${reset} for $os_uptime hrs\n"
+    local os_version=$(osversion)
+    local os_codename=$(oscodename)
+    printf "This is $os_icon $os_name $os_version ($os_codename) "
+    printf "with $os_shell $os_shell_ver running on $os_arch for $os_uptime hrs\n"
 }
 
 # Show arguments with numbers
@@ -131,19 +128,27 @@ function argsinfo() {
 
 # Display login files and its order
 function loginfiles() {
-    printf "Login files: "
-    if [[ -z $zsh_files ]]; then
-        printf "${redi}error${reset}: zsh_files not found"
-        return
-    else
-        i=1; l=${#zsh_files[@]}
-        for file in $zsh_files; do
-            f=$(basename $file)
-            printf "${cyan}${f#.}${reset}"
-            [[ i -lt l ]] && printf " ${yellow}→${reset} "
-            ((i++))
-        done
+    local c=$(ansi cyan) g=$(ansi green) y=$(ansi bright yellow) r=$(ansi reset)
+    local error="❌ $(ansi bright red)" arrow="$y→$r " f="" 
+    printf "Login files ($g$ZFILES_COUNT$r): "
+    [[ $ZFILE_ENV -eq 1 ]] && f=$c || f=$error
+    printf "${f}zshenv$r $arrow"
+    [[ $ZFILE_VARS -eq 1 ]] && f=$c || f=$error
+    printf "${f}zvars$r $arrow"
+    if [[ $(osname) != "macos" ]]; then
+        [[ $ZFILE_LINUX -eq 1 ]] && f=$c || f=$error
+        printf "${f}zlinux$r $arrow"
     fi
+    [[ $ZFILE_LOCALE -eq 1 ]] && f=$c || f=$error
+    printf "${f}zlocale$r $arrow"
+    [[ $ZFILE_PROFILE -eq 1 ]] && f=$c || f=$error
+    printf "${f}zprofile$r $arrow"
+    [[ $ZFILE_RC -eq 1 ]] && f=$c || f=$error
+    printf "${f}zshrc$r $arrow"
+    [[ $ZFILE_ALIASES -eq 1 ]] && f=$c || f=$error
+    printf "${f}zaliases$r $arrow"
+    [[ $ZFILE_LOGIN -eq 1 ]] && f=$c || f=$error
+    printf "${f}zlogin$r"
     printf "\n"
 }
 

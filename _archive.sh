@@ -48,3 +48,25 @@ make_all_file() {
         fi
     done
 }
+
+# Display login files and its order
+# login files must have these lines:
+#    local thisfile="XXXXX"
+#    zsh_files+=("$thisfile")
+# where XXXXX is the name of the file
+function loginfiles() {
+    printf "Login files: "
+    if [[ -z $zsh_files ]]; then
+        printf "${redi}error${reset}: zsh_files not found"
+        return
+    else
+        i=1; l=${#zsh_files[@]}
+        for file in $zsh_files; do
+            f=$(basename $file)
+            printf "${cyan}${f#.}${reset}"
+            [[ i -lt l ]] && printf " ${yellow}→${reset} "
+            ((i++))
+        done
+    fi
+    printf "\n"
+}

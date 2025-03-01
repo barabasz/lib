@@ -35,6 +35,39 @@ function osname() {
     fi
 }
 
+# Display OS icon
+function osicon() {
+    case $(osname) in
+        macos) printf "\Uf8ff" ;;
+        ubuntu) printf "\Uf31b" ;;
+        debian) printf "\Uf306" ;;
+        redhat) printf "\Uef5d" ;;
+        *) printf "" ;;
+    esac
+}
+
+# Display OS Name (proper case)
+function osName() {
+    local osName=""
+    case $(osname) in
+        macos) echo "macOS" ;;
+        ubuntu) echo "Ubuntu" ;;
+        debian) echo "Debian" ;;
+        *) echo "unknown" ;;
+    esac
+}
+
+# Display OS version
+function osversion() {
+    local osver=""
+    if [[ $(osname) == "macos" ]]; then
+        osver=$(sw_vers -productVersion)
+    else
+        osver=$(awk -F= '/^VERSION_ID=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
+    fi
+    echo $osver
+}
+
 # Get shell name
 function shellname() {
     case "$(ps -p $$ -o comm=)" in
@@ -82,13 +115,17 @@ iso2utime() {
 # Extract URL from a string
 # Returns: URL if found, or an error message
 extract_url() {
-    local input_string=$1
-    local url
-    if [[ $input_string =~ (https?://[^ ]+) ]]; then
-        url="${match[1]}"
-        echo "$url" && return 0
+    if [[ $1 =~ (https?://[^ ]+) ]]; then
+        echo "${match[1]}" && return 0
     else
-        echo "No URL found in the given string." && return 1
+        return 1
+    fi
+}
+extract_url2() {
+    if [[ "$1" =~ "http[s]?://[^ ]+" ]]; then
+        echo "$MATCH" && return 0
+    else
+        return 1
     fi
 }
 

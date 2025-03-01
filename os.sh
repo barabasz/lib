@@ -2,6 +2,17 @@
 #
 # Functions for OS detection and shell information
 
+
+function oscodename() {
+    local codename=""
+    if [[ $(osname) == 'macos' ]]; then
+        codename=$(macosname)
+    else
+        codename=$(awk -F= '/^VERSION_CODENAME=/{gsub(/^"|"$/, "", $2); print $2}' /etc/os-release)
+    fi
+    echo "${(C)codename}"
+}
+
 # Display macOS codename
 function macosname() {
     local version=$(sw_vers -productVersion)

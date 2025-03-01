@@ -40,3 +40,8 @@ function needrestart-verbose() {
     needrestart-mod kernelhints 1
     needrestart-mod ucodehints 1
 }
+
+
+# login files tracking - keep at the end
+export ZFILES_COUNT=$((ZFILES_COUNT + 1))
+export ZFILE_LINUX=1
