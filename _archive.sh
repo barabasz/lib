@@ -70,3 +70,25 @@ function loginfiles() {
     fi
     printf "\n"
 }
+
+# it was zsh specific
+function make_fn_usage() {
+    local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
+    local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
+    local usage="Usage: $name "
+    if [[ $compact == "compact" ]]; then
+        usage+="$c"
+        [[ -n $args ]] && usage+="$c" && { for s in ${(z)args}; do; usage+="<$s> "; done } && usage+="$r"
+        [[ -n $argsopt ]] && usage+="$c" && { for s in ${(z)argsopt}; do; usage+="[$s] "; done } && usage+="$r"
+        usage+="$r"
+    else
+        [[ -n $switches ]] && usage+="${p}[switches]${r} "
+        [[ -n $args ]] && usage+="${c}<arguments>${r}"
+        [[ -n $switches ]] && usage+="\nSwitches: $p" && { for s in ${(z)switches}; do; usage+="--$s "; done } && usage+="$r"
+        [[ -n $switches ]] && usage+="or $p" && { for s in ${(z)switches}; do; usage+="-${s:0:1} "; done } && usage+="$r"
+        [[ -n $args || -n $argsopt ]] && usage+="\nArguments: "
+        [[ -n $args ]] && usage+="$c" && { for s in ${(z)args}; do; usage+="<$s> "; done } && usage+="$r"
+        [[ -n $argsopt ]] && usage+="$c" && { for s in ${(z)argsopt}; do; usage+="[$s] "; done } && usage+="$r"
+    fi
+    printf "$usage\n"
+}
