@@ -73,23 +73,24 @@ function verinfo() {
 
 # Display login information
 function logininfo() {
+    local by=$(ansi bright yellow) c=$(ansi cyan) g=$(ansi green) r=$(ansi reset)
     local user=$(whoami)
-    local userc=$yellow$user$reset
+    local userc=$by$user$r
     local host=$(hostname -s)
     local domain=$(hostname -d)
     [[ -n $domain ]] && host="$host.$domain"
-    local hostc=$cyan$host$reset
+    local hostc=$c$host$r
     local tty_icon="\Uf489 "
     local tty=$(tty | sed 's|/dev/||')
-    local ttyc="$tty_icon $green$tty$reset"
+    local ttyc="$tty_icon $g$tty$r"
     local remote=$(who | grep $tty | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)' | tr -d '()')
-    [[ -n $remote ]] && local remotec="from $cyan$remote$reset"
+    [[ -n $remote ]] && local remotec="from $c$remote$r"
     if [[ $(isinstalled ifconfig) -eq 1 ]]; then
-        local ip=$green$(ifconfig | awk '/inet / && !/127.0.0.1/ {print $2}')$reset
+        local ip=$g$(ifconfig | awk '/inet / && !/127.0.0.1/ {print $2}')$r
     else
         local ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d'/' -f1)
     fi
-    local ipc=$green$ip$reset
+    local ipc=$g$ip$r
     printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }
 
@@ -130,7 +131,7 @@ function argsinfo() {
 function shellfiles() {
     local c=$(ansi cyan) g=$(ansi gray) y=$(ansi bright yellow) r=$(ansi reset)
     local error="❌ $(ansi bright red)" arrow="$y→$r " f="" 
-    printf "Shell files ($g$ZFILES_COUNT$r): "
+    printf "Shell files ($y$ZFILES_COUNT$r): "
     [[ $ZFILE_ENV -eq 1 ]] && f=$c || f=$error
     printf "${f}zshenv$r $arrow"
     [[ $ZFILE_VARS -eq 1 ]] && f=$g || f=$error

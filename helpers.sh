@@ -20,6 +20,16 @@ function sourceif() {
     fi
 }
 
+# Source remote file
+# Usage: source_remote <url> <name>
+function source_remote() {
+    local url=$1 name=$2 file_content=""
+    file_content=$(wget -q -O - $url)
+    [[ $? -ne 0 ]] && { echo "Error getting $name ($url)."; return 1; }
+    source /dev/stdin <<< "$file_content"
+    [[ $? -ne 0 ]] && { echo "Error sourcing $name."; return 1; }
+}
+
 # Execute external script
 function extscript() {
     /bin/bash -c "$(curl -fsSL $1)"
