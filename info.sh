@@ -79,7 +79,7 @@ function logininfo() {
     local domain=$(hostname -d)
     [[ -n $domain ]] && host="$host.$domain"
     local hostc=$cyan$host$reset
-    local tty_icon="\Uf489"
+    local tty_icon="\Uf489 "
     local tty=$(tty | sed 's|/dev/||')
     local ttyc="$tty_icon $green$tty$reset"
     local remote=$(who | grep $tty | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)' | tr -d '()')
@@ -90,7 +90,7 @@ function logininfo() {
         local ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d'/' -f1)
     fi
     local ipc=$green$ip$reset
-    printf "Logged in as 🧑 $userc@$hostc ($ipc) on $ttyc $remotec\n"
+    printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }
 
 # Display system info
@@ -127,10 +127,10 @@ function argsinfo() {
 }
 
 # Display login files and its order
-function loginfiles() {
+function shellfiles() {
     local c=$(ansi cyan) g=$(ansi green) y=$(ansi bright yellow) r=$(ansi reset)
     local error="❌ $(ansi bright red)" arrow="$y→$r " f="" 
-    printf "Login files ($g$ZFILES_COUNT$r): "
+    printf "Shell files ($g$ZFILES_COUNT$r): "
     [[ $ZFILE_ENV -eq 1 ]] && f=$c || f=$error
     printf "${f}zshenv$r $arrow"
     [[ $ZFILE_VARS -eq 1 ]] && f=$c || f=$error
