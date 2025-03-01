@@ -425,10 +425,7 @@ function wheref() {
         log::error "$f_name: function name must start with a letter or an underscore."
         return 1
     fi
-    if [[ $(osname) == "macos" ]]; then
-    fi
     echo $1
-    return 0
 }
 
 #
