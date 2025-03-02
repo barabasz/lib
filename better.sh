@@ -104,6 +104,14 @@ function lns() {
     fi
 }
 
+# Creates a symbolic link for configuration dirs using lns
+function lnsconfdir() {
+    [[ -z $CONFDIR ]] && log::error "CONFDIR is not set" && return 1
+    [[ -z $GHCONFDIR ]] && log::error "GHCONFDIR is not set" && return 1
+    [[ -z $1 ]] && log::error "No directory provided" && return 1
+    lns "$GHCONFDIR/$1" "$CONFDIR/$1"
+}
+
 # Universal better type command for bash and zsh
 # returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'
 function utype() {

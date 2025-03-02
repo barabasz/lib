@@ -372,6 +372,12 @@ function lns() {
         return 0
     fi
 }
+function lnsconfdir() {
+    [[ -z $CONFDIR ]] && log::error "CONFDIR is not set" && return 1
+    [[ -z $GHCONFDIR ]] && log::error "GHCONFDIR is not set" && return 1
+    [[ -z $1 ]] && log::error "No directory provided" && return 1
+    lns "$GHCONFDIR/$1" "$CONFDIR/$1"
+}
 function utype() {
     local fargs="<command>"
     local minargs=0
