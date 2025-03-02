@@ -92,10 +92,27 @@ function make_fn_usage() {
     done
 
     if [[ $compact == "compact" ]]; then
-        usage+="$c"
-        [[ ${#args_array[@]} -ne 0 ]] && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
-        [[ ${#argsopt_array[@]} -ne 0 ]] && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
-        usage+="$r"
+        if [[ ${#args_array[@]} -ne 0 ]]; then
+            usage+="$c"
+            for s in "${args_array[@]}"; do 
+                usage+="<$s> "
+            done
+            usage+="$r"
+        fi
+        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
+            usage+="$c"
+            for s in "${argsopt_array[@]}"; do 
+                usage+="[$s] "
+            done
+            usage+="$r"
+        fi
+        if [[ ${#switches_array[@]} -ne 0 ]]; then
+            usage+="$p"
+            for s in "${switches_array[@]}"; do 
+                usage+="[--$s] "
+            done
+            usage+="$r"
+        fi
     else
         [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
         [[ ${#args_array[@]} -ne 0 ]] && usage+="${c}<arguments>${r}"

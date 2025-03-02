@@ -3,6 +3,46 @@
 # Better versions of some functions
 # Unless otherwise noted, they work with both bash and zsh
 
+# Function to remover file or directory only if it is a symbolic link
+function rmln() {
+### function properties
+    local f_name="rmln" f_file="lib/better.sh"
+    local f_args="file_or_dir" f_switches="info"
+    local f_info="removes a symbolic link."
+    local f_min_args=1 f_max_args=1
+### function strings
+    local name="$(make_fn_name $f_name)"
+    local header="$(make_fn_header $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
+    local info="$(make_fn_info $header $usage "" compact)" iserror=0
+### function args and switches
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    local args="$(check_fn_args $f_min_args $f_max_args $#)"
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $usage && return 1
+### main function
+    local file="$1" c="${cyan}" r="${reset}"
+    if [[ ! -e $file ]]; then
+        log::error "$f_name: $c$file$r does not exist.\n"
+        return 1
+    else
+        local file_full_path="$(pwd)/$file"
+        if [[ -L $file ]]; then
+            rm -f $file
+            if [[ $? -eq 0 ]]; then
+                log::ok "$name: symbolic link $c$file_full_path$r removed.\n"
+            else
+                log::error "$name: failed to remove symbolic link $c$file_full_path$r.\n"
+                return 1
+            fi
+        else
+            log::error "$name: $c$file_full_path$r is not a symbolic link.\n"
+            return 1
+        fi
+    fi
+}
+
 # Better ln command for creating symbolic links
 function lns() {
 ### function properties
@@ -78,7 +118,7 @@ function lns() {
     
     # Check if exactly such a symbolic link does not already exist
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
-        printf "rsymbolic link $src_c $arr $dst_c already exists.\n"
+        log::info "$name: symlink $src_c $arr $dst_c already exists."
         return 0
     fi
 

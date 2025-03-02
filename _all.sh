@@ -297,6 +297,40 @@ ansi() {
 # File: better.sh
 #
 
+function rmln() {
+    local f_name="rmln" f_file="lib/better.sh"
+    local f_args="file_or_dir" f_switches="info"
+    local f_info="removes a symbolic link."
+    local f_min_args=1 f_max_args=1
+    local name="$(make_fn_name $f_name)"
+    local header="$(make_fn_header $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
+    local info="$(make_fn_info $header $usage "" compact)" iserror=0
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    local args="$(check_fn_args $f_min_args $f_max_args $#)"
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $usage && return 1
+    local file="$1" c="${cyan}" r="${reset}"
+    if [[ ! -e $file ]]; then
+        log::error "$f_name: $c$file$r does not exist.\n"
+        return 1
+    else
+        local file_full_path="$(pwd)/$file"
+        if [[ -L $file ]]; then
+            rm -f $file
+            if [[ $? -eq 0 ]]; then
+                log::ok "$name: symbolic link $c$file_full_path$r removed.\n"
+            else
+                log::error "$name: failed to remove symbolic link $c$file_full_path$r.\n"
+                return 1
+            fi
+        else
+            log::error "$name: $c$file_full_path$r is not a symbolic link.\n"
+            return 1
+        fi
+    fi
+}
 function lns() {
     local f_name="lns" f_file="better/_templates.sh"
     local f_args="destination source"
@@ -351,7 +385,7 @@ function lns() {
         return 1
     fi
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
-        printf "rsymbolic link $src_c $arr $dst_c already exists.\n"
+        log::info "$name: symlink $src_c $arr $dst_c already exists."
         return 0
     fi
     if [[ -e "$src" ]]; then
@@ -602,10 +636,27 @@ function make_fn_usage() {
         switches_array+=("$switch")
     done
     if [[ $compact == "compact" ]]; then
-        usage+="$c"
-        [[ ${#args_array[@]} -ne 0 ]] && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
-        [[ ${#argsopt_array[@]} -ne 0 ]] && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
-        usage+="$r"
+        if [[ ${#args_array[@]} -ne 0 ]]; then
+            usage+="$c"
+            for s in "${args_array[@]}"; do 
+                usage+="<$s> "
+            done
+            usage+="$r"
+        fi
+        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
+            usage+="$c"
+            for s in "${argsopt_array[@]}"; do 
+                usage+="[$s] "
+            done
+            usage+="$r"
+        fi
+        if [[ ${#switches_array[@]} -ne 0 ]]; then
+            usage+="$p"
+            for s in "${switches_array[@]}"; do 
+                usage+="[--$s] "
+            done
+            usage+="$r"
+        fi
     else
         [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
         [[ ${#args_array[@]} -ne 0 ]] && usage+="${c}<arguments>${r}"
