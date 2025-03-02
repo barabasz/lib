@@ -100,3 +100,31 @@ function sysupdate() {
     fi
     log::info "System updated."
 }
+
+# Set Warsaw timezone
+function set-warsaw-timezone() {
+    if [[ "$(osname)" != "macos" ]]; then
+        printhead 'Setting timezone...'
+        if [[ "$(cat /etc/timezone | grep -o 'Warsaw')" != "Warsaw" ]]; then
+            sudo timedatectl set-timezone Europe/Warsaw
+            sudo dpkg-reconfigure -f noninteractive tzdata
+        else
+            echo "Timezone: $(cat /etc/timezone)"
+        fi
+    fi
+}
+
+# Minimize login information
+function minimize-login-info() {
+    if [[ "$(osname)" != "macos" ]]; then
+        if [[ "$(osname)" == "ubuntu" ]]; then
+            sudo chmod -x /etc/update-motd.d/00-header
+            sudo chmod -x /etc/update-motd.d/10-help-text
+            sudo chmod -x /etc/update-motd.d/50-motd-news
+        elif [[ "$(osname)" == "debian" ]]; then
+            sudo chmod -x /etc/update-motd.d/10-uname
+        fi
+        sudo ln -sf ~/GitHub/config/motd/05-header /etc/update-motd.d
+    fi
+    touch "$HOME/.hushlogin"
+}
