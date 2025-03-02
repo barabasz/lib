@@ -2,6 +2,19 @@
 #
 # Linux-specific functions
 
+# Set Warsaw timezone
+function set-warsaw-timezone() {
+    if [[ "$(osname)" != "macos" ]]; then
+        printhead 'Setting timezone...'
+        if [[ "$(cat /etc/timezone | grep -o 'Warsaw')" != "Warsaw" ]]; then
+            sudo timedatectl set-timezone Europe/Warsaw
+            sudo dpkg-reconfigure -f noninteractive tzdata
+        else
+            echo "Timezone: $(cat /etc/timezone)"
+        fi
+    fi
+}
+
 # Minimize login information
 function minimize-login-info() {
     if [[ "$(osname)" == "ubuntu" ]]; then

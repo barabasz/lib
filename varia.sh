@@ -74,9 +74,9 @@ function dlunzip() {
     echo $extdir
 }
 
-
 # Forcing full system update
 function sysupdate() {
+    printhead "Updating system..."
     if [[ ! "$(osname)" == "macos" ]]; then
         envopt="NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive"
         aptopt="-qq"
@@ -98,4 +98,5 @@ function sysupdate() {
         brew upgrade
         brew cleanup
     fi
+    log::info "System updated."
 }
