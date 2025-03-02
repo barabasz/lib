@@ -8,7 +8,7 @@
 
 # Function to display information about the script
 ansi::info() {
-    \cat << EOF
+    \cat <<EOF
 $(ansi bold yellow)ANSI escape code warper$(ansi reset)
 
 $(ansi bold)Usage$(ansi reset):
@@ -27,7 +27,7 @@ EOF
 # Function to display help information
 ansi::help() {
     ansi::info
-    \cat << EOF
+    \cat <<EOF
 $(ansi bold)Expected arguments order$(ansi reset):
   $(ansi yellow)ansi$(ansi reset) [style] [[bright] <foreground>] [bg <background>] [reset [style]]
 
@@ -71,7 +71,7 @@ EOF
 # Function to display examples
 ansi::example() {
     ansi::info
-    \cat << EOF
+    \cat <<EOF
 $(ansi bold)Styles$(ansi reset):
   • $(ansi bold)bold$(ansi reset bold)
   • $(ansi italic)italic$(ansi reset italic)
@@ -107,35 +107,38 @@ EOF
 # Function to set style
 ansi::style() {
     case "$1" in
-        regular) mod=0 ;;
-        bold) mod=1 ;;
-        dim) mod=2 ;;
-        italic) mod=3 ;;
-        underline) mod=4 ;;
-        dunderline) mod=21 ;;
-        blink) mod=5 ;;
-        fastblink) mod=6 ;;
-        reverse) mod=7 ;;
-        invisible) mod=8 ;;
-        strikethrough) mod=9 ;;
-        overline) mod=53 ;;
+    regular) mod=0 ;;
+    bold) mod=1 ;;
+    dim) mod=2 ;;
+    italic) mod=3 ;;
+    underline) mod=4 ;;
+    dunderline) mod=21 ;;
+    blink) mod=5 ;;
+    fastblink) mod=6 ;;
+    reverse) mod=7 ;;
+    invisible) mod=8 ;;
+    strikethrough) mod=9 ;;
+    overline) mod=53 ;;
     esac
 }
 
 # Function to reset style
 ansi::reset() {
     case "$1" in
-        all) mod=0 ;;
-        bold|dim) mod=22 ;;
-        italic) mod=23 ;;
-        underline) mod=24 ;;
-        blink) mod=25 ;;
-        fastblink) mod=26 ;;
-        reverse) mod=27 ;;
-        invisible) mod=28 ;;
-        strikethrough) mod=29 ;;
-        overline) mod=55 ;;
-        *) echo "Invalid reset style: $1"; return 1 ;;
+    all) mod=0 ;;
+    bold | dim) mod=22 ;;
+    italic) mod=23 ;;
+    underline) mod=24 ;;
+    blink) mod=25 ;;
+    fastblink) mod=26 ;;
+    reverse) mod=27 ;;
+    invisible) mod=28 ;;
+    strikethrough) mod=29 ;;
+    overline) mod=55 ;;
+    *)
+        echo "Invalid reset style: $1"
+        return 1
+        ;;
     esac
 }
 
@@ -143,19 +146,28 @@ ansi::reset() {
 ansi::foreground() {
     shift=1
     case "$1" in
-        black) color=30 ;;
-        red) color=31 ;;
-        green) color=32 ;;
-        yellow) color=33 ;;
-        blue) color=34 ;;
-        magenta|purple) color=35 ;;
-        cyan) color=36 ;;
-        white) color=37 ;;
-        rgb) color="38;2;$2;$3;$4"; shift=4 ;;
-        8bit) color="38;5;$2"; shift=2 ;;
-        default) color=39 ;;
-        gray) color=90 ;;
-        *) echo "Invalid style or foreground color: $1"; return 1 ;;
+    black) color=30 ;;
+    red) color=31 ;;
+    green) color=32 ;;
+    yellow) color=33 ;;
+    blue) color=34 ;;
+    magenta | purple) color=35 ;;
+    cyan) color=36 ;;
+    white) color=37 ;;
+    rgb)
+        color="38;2;$2;$3;$4"
+        shift=4
+        ;;
+    8bit)
+        color="38;5;$2"
+        shift=2
+        ;;
+    default) color=39 ;;
+    gray) color=90 ;;
+    *)
+        echo "Invalid style or foreground color: $1"
+        return 1
+        ;;
     esac
     shift $shift
 }
@@ -164,33 +176,45 @@ ansi::foreground() {
 ansi::background() {
     shift=1
     case "$1" in
-        black) bcolor=40 ;;
-        red) bcolor=41 ;;
-        green) bcolor=42 ;;
-        yellow) bcolor=43 ;;
-        blue) bcolor=44 ;;
-        magenta|purple) bcolor=45 ;;
-        cyan) bcolor=46 ;;
-        white) bcolor=47 ;;
-        default) bcolor=49 ;;
-        rgb) bcolor="48;2;$2;$3;$4"; shift=4 ;;
-        8bit) bcolor="48;5;$2"; shift=2 ;;
-        *) echo "Invalid background color: $1"; return 1 ;;
+    black) bcolor=40 ;;
+    red) bcolor=41 ;;
+    green) bcolor=42 ;;
+    yellow) bcolor=43 ;;
+    blue) bcolor=44 ;;
+    magenta | purple) bcolor=45 ;;
+    cyan) bcolor=46 ;;
+    white) bcolor=47 ;;
+    default) bcolor=49 ;;
+    rgb)
+        bcolor="48;2;$2;$3;$4"
+        shift=4
+        ;;
+    8bit)
+        bcolor="48;5;$2"
+        shift=2
+        ;;
+    *)
+        echo "Invalid background color: $1"
+        return 1
+        ;;
     esac
 }
 
 # Function to set bright foreground color {90..97}
 ansi::bright() {
     case "$1" in
-        black) color=90 ;;
-        red) color=91 ;;
-        green) color=92 ;;
-        yellow) color=93 ;;
-        blue) color=94 ;;
-        magenta|purple) color=95 ;;
-        cyan) color=96 ;;
-        white) color=97 ;;
-        *) echo "Invalid bright color name: $1"; return 1 ;;
+    black) color=90 ;;
+    red) color=91 ;;
+    green) color=92 ;;
+    yellow) color=93 ;;
+    blue) color=94 ;;
+    magenta | purple) color=95 ;;
+    cyan) color=96 ;;
+    white) color=97 ;;
+    *)
+        echo "Invalid bright color name: $1"
+        return 1
+        ;;
     esac
 }
 
@@ -206,9 +230,26 @@ ansi::code() {
     color=${color:+$color}
 
     # Determine the separator for each component
-    local sep1=${mod:+${${color:-${bcolor:+;}}:+;}}
-    local sep2=${color:+${bcolor:+;}}
+    local sep1="" sep2=""
     
+    # local sep1=${mod:+${${color:-${bcolor:+;}}:+;}}
+    if [ -n "$mod" ]; then
+        if [ -n "$color" ] || [ -n "$bcolor" ]; then
+            sep1=";"
+        else
+            sep1=""
+        fi
+    else
+        sep1=""
+    fi
+
+    # local sep2=${color:+${bcolor:+;}}
+    if [ -n "$color" ] && [ -n "$bcolor" ]; then
+        sep2=";"
+    else
+        sep2=""
+    fi
+
     # Output the ANSI code
     local ansi_code="${prefix}${mod}${sep1}${bcolor}${sep2}${color}${suffix}"
     unset mod color bcolor
@@ -224,7 +265,7 @@ ansi::make() {
     # reset
     if [[ "$*" == "reset"* ]]; then
         shift
-        if (( $# == 0 )); then
+        if (($# == 0)); then
             ansi::reset all
         else
             ansi::reset $1
@@ -232,7 +273,7 @@ ansi::make() {
         fi
     fi
     # set style or color
-    if (( $# > 0 )); then
+    if (($# > 0)); then
         # style
         ansi::style $@
         if [[ -n $mod ]]; then
@@ -249,7 +290,7 @@ ansi::make() {
             ansi::background $@ || return 1
             shift $shift
             unset shift
-        fi 
+        fi
 
         # foreground
         if [[ "$*" == "bright"* ]]; then
@@ -267,7 +308,7 @@ ansi::make() {
                 unset shift
             fi
         fi
- 
+
         # background again (when set with foreground)
         if [[ "$*" == "bg"* ]]; then
             if [[ $# -eq 1 ]]; then
@@ -278,9 +319,9 @@ ansi::make() {
             ansi::background $@
             shift $shift
             unset shift
-        fi 
+        fi
 
-        if (( $# > 0 )); then
+        if (($# > 0)); then
             echo "Too many arguments: $@"
             return 1
         fi
@@ -305,7 +346,7 @@ ansi::args() {
     fi
     ansi::make "$@" || return 1
     ansi::code
-}   
+}
 
 # Main function to handle user input
 ansi() {

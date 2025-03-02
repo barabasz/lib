@@ -5,7 +5,11 @@
 
 prompt_continue() {
   while true; do
-      read "yn?Do you want to continue? (Y/N): "
+      if [ -n "$BASH_VERSION" ]; then
+          read -p "Do you want to continue? (Y/N): " yn
+      else
+          read "yn?Do you want to continue? (Y/N): "
+      fi
       case $yn in
           [Yy]* ) echo "You chose to continue."; return 0;;
           [Nn]* ) echo "You chose not to continue."; return 1;;
