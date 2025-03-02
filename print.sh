@@ -3,24 +3,24 @@
 # Print library
 # https://raw.githubusercontent.com/barabasz/lib/main/print.sh
 
-hs='─'        # header
-hc='white'    # header
-print::header() {
-    printf "\n$(ansi bold $hc)%s$(ansi reset)\n" "$(print::line "$*")";
+function print::header() {
+    printf "\n$(ansi bold white)%s$(ansi reset)\n" "$(print::line "$*")";
 }
-print::line() {
+
+function print::line() {
     local TOTAL_CHARS=60
     local total=$TOTAL_CHARS-2
     local size=${#1}
     local left=$((($total - $size) / 2))
     local right=$(($total - $size - $left))
+    local hs='─' # header symbol
     printf "%${left}s" '' | tr ' ' $hs
     printf " $1 "
     printf "%${right}s" '' | tr ' ' $hs
 }
 
 # Print title in frame
-function printt() {
+function print::title() {
     local str=$1; local len=${#str}; local lc="─"
     local tl="┌──"; local tr="──┐";
     local ml="│  "; local mr="  │"
@@ -88,6 +88,6 @@ function printy() {
 }
 
 alias printhead=printh
-alias printtitle=printt
+alias printtitle=print::title
 alias printinfo=printi
 alias printerror=printe
