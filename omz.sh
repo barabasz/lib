@@ -4,7 +4,7 @@
 
 # Display oh-my-zsh version
 function omzversion() {
-    if [[ "$(isomzinstalled)" -eq 1 ]]; then
+    if [[ "$(isomzinstalled)" -eq "1" ]]; then
         printf "${green}oh-my-zsh ${yellow}$(omz version)$reset is installed in ${purple}$ZSH${reset}\n"
         return 0
     else
@@ -21,7 +21,7 @@ function isomzinstalled() {
 
 # Install oh-my-zsh plugin
 function installomzplugin() {
-    if [[ "$(isomzinstalled)" -eq 1 ]]; then
+    if [[ "$(isomzinstalled)" -eq "1" ]]; then
         local repo=https://github.com/zsh-users/$1.git
         local pdir=$ZSH_CUSTOM/plugins/$1
         printhead "Installing $1"
