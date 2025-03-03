@@ -21,21 +21,6 @@ function isinstalledbybrew() {
     fi
 }
 
-# Check if oh-my-zsh is installed
-function isomzinstalled() {
-    if [[ -d $ZSH ]] && [[ $(omz version | grep -o 'master' | head -1) = 'master' ]];
-    then echo 1; else echo 0; fi
-}
-
-# Install oh-my-zsh plugin
-function installomzplugin() {
-    local repo=https://github.com/zsh-users/$1.git
-    local pdir=$ZSH_CUSTOM/plugins/$1
-    printhead "Installing $1"
-    [[ -d $pdir ]] && rm -rf $pdir
-    git clone $repo $pdir
-}
-
 # apt unattended quiet install
 function aptinstall() {
     [[ $(isinstalled needrestart) -eq 1 ]] && needrestart-quiet
