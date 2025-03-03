@@ -1,3 +1,6 @@
+#!/bin/zsh
+#
+# Functions for oh-my-zsh
 
 # Display oh-my-zsh version
 function omzversion() {
