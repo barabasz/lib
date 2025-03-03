@@ -28,7 +28,7 @@ function installomzplugin() {
         [[ -d $pdir ]] && rm -rf $pdir
         git clone $repo $pdir
     else
-        printf "${green}oh-my-zsh$reset is no installed.\n"
+        printf "${green}oh-my-zsh$reset is not installed.\n"
         return 1
     fi
 }

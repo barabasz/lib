@@ -4,7 +4,7 @@
 # File: ansi.sh
 #
 
-ansi::info() {
+function ansi::info() {
     \cat <<EOF
 $(ansi bold yellow)ANSI escape code warper$(ansi reset)
 $(ansi bold)Usage$(ansi reset):
@@ -18,7 +18,7 @@ $(ansi bold)Usage$(ansi reset):
   $(ansi yellow)ansi$(ansi reset) show <command>       only show ANSI code
 EOF
 }
-ansi::help() {
+function ansi::help() {
     ansi::info
     \cat <<EOF
 $(ansi bold)Expected arguments order$(ansi reset):
@@ -52,7 +52,7 @@ $(ansi bold)Examples$(ansi reset):
   echo "\$(ansi yellow)yellow \$(ansi reverse)reverse\$(ansi reset reverse) normal\$(ansi default) default"
 EOF
 }
-ansi::example() {
+function ansi::example() {
     ansi::info
     \cat <<EOF
 $(ansi bold)Styles$(ansi reset):
@@ -82,7 +82,7 @@ $(ansi bold)Compound expression$(ansi reset):
   • $(ansi italic yellow bg blue)italic yellow bg blue$(ansi reset)
 EOF
 }
-ansi::style() {
+function ansi::style() {
     case "$1" in
     regular) mod=0 ;;
     bold) mod=1 ;;
@@ -98,7 +98,7 @@ ansi::style() {
     overline) mod=53 ;;
     esac
 }
-ansi::reset() {
+function ansi::reset() {
     case "$1" in
     all) mod=0 ;;
     bold | dim) mod=22 ;;
@@ -116,7 +116,7 @@ ansi::reset() {
         ;;
     esac
 }
-ansi::foreground() {
+function ansi::foreground() {
     shift=1
     case "$1" in
     black) color=30 ;;
@@ -144,7 +144,7 @@ ansi::foreground() {
     esac
     shift $shift
 }
-ansi::background() {
+function ansi::background() {
     shift=1
     case "$1" in
     black) bcolor=40 ;;
@@ -170,7 +170,7 @@ ansi::background() {
         ;;
     esac
 }
-ansi::bright() {
+function ansi::bright() {
     case "$1" in
     black) color=90 ;;
     red) color=91 ;;
@@ -186,7 +186,7 @@ ansi::bright() {
         ;;
     esac
 }
-ansi::code() {
+function ansi::code() {
     local prefix="\e["
     local suffix="m"
     mod=${mod:+$mod}
@@ -215,7 +215,7 @@ ansi::code() {
         echo -n "$ansi_code"
     fi
 }
-ansi::make() {
+function ansi::make() {
     if [[ "$*" == "reset"* ]]; then
         shift
         if (($# == 0)); then
@@ -271,7 +271,7 @@ ansi::make() {
         fi
     fi
 }
-ansi::args() {
+function ansi::args() {
     unset mod color bcolor show shift
     if [[ $# == 0 || $1 == "info" ]]; then
         ansi::info
@@ -289,12 +289,86 @@ ansi::args() {
     ansi::make "$@" || return 1
     ansi::code
 }
-ansi() {
+function ansi() {
     eval "ansi::args $*"
 }
 
 #
-# File: better.sh
+# File: colors.sh
+#
+
+function showcolors() {
+    printh "Standard colors"
+    printf "${red}red${reset}, ${green}green${reset}, ${yellow}yellow${reset}, ${blue}blue${reset}, ${purple}purple${reset}, ${cyan}cyan${reset}, ${white}white${reset}"
+    printh "Intensive colors"
+    printf "${redi}red${reset}, ${greeni}green${reset}, ${yellowi}yellow${reset}, ${bluei}blue${reset}, ${purplei}purple${reset}, ${cyani}cyan${reset}, ${whitei}white${reset}"
+    printh "Bold colors"
+    printf "${redb}red${reset}, ${greenb}green${reset}, ${yellowb}yellow${reset}, ${blueb}blue${reset}, ${purpleb}purple${reset}, ${cyanb}cyan${reset}, ${whiteb}white${reset}"
+    printh "Background colors"
+    printf "${bgred}   ${reset}, ${bggreen}     ${reset}, ${bgyellow}yellow${reset}, ${bgblue}blue${reset}, ${bgpurple}purple${reset}, ${bgcyan}cyan${reset}, ${bgwhite}white${reset}"
+    printh "Intensive background colors"
+    printf "${bgredi}red${reset}, ${bggreeni}green${reset}, ${bgyellowi}yellow${reset}, ${bgbluei}blue${reset}, ${bgpurplei}purple${reset}, ${bgcyani}cyan${reset}, ${bgwhitei}white${reset}"
+    printf "\n"
+}
+function showcolors256() {
+    printh "256 colors"
+    for code in {0..255}
+        do echo -e "\e[38;5;${code}m"'\\e[38;5;'"$code"m"\e[0m"
+    done
+}
+clear='\e[0m'
+reset='\e[0m'
+black='\e[0;30m'
+red='\e[0;31m'
+green='\e[0;32m'
+yellow='\e[0;33m'
+blue='\e[0;34m'
+purple='\e[0;35m'
+cyan='\e[0;36m'
+white='\e[0;37m'
+blackb='\e[1;30m'
+redb='\e[1;31m'
+greenb='\e[1;32m'
+yellowb='\e[1;33m'
+blueb='\e[1;34m'
+purpleb='\e[1;35m'
+cyanb='\e[1;36m'
+whiteb='\e[1;37m'
+blacki='\e[0;90m'
+redi='\e[0;91m'
+greeni='\e[0;92m'
+yellowi='\e[0;93m'
+bluei='\e[0;94m'
+purplei='\e[0;95m'
+cyani='\e[0;96m'
+whitei='\e[0;97m'
+blackbi='\e[1;90m'
+redbi='\e[1;91m'
+greenbi='\e[1;92m'
+yellowbi='\e[1;93m'
+bluebi='\e[1;94m'
+purplebi='\e[1;95m'
+cyanbi='\e[1;96m'
+whitebi='\e[1;97m'
+bgblack='\e[40m'
+bgred='\e[41m'
+bggreen='\e[42m'
+bgyellow='\e[43m'
+bgblue='\e[44m'
+bgpurple='\e[45m'
+bgcyan='\e[46m'
+bgwhite='\e[47m'
+bgblacki='\e[0;100m'
+bgredi='\e[0;101m'
+bggreeni='\e[0;102m'
+bgyellowi='\e[0;103m'
+bgbluei='\e[0;104m'
+bgpurplei='\e[0;105m'
+bgcyani='\e[0;106m'
+bgwhitei='\e[0;107m'
+
+#
+# File: files.sh
 #
 
 function rmln() {
@@ -412,6 +486,7 @@ function lnsconfdir() {
     [[ -z $1 ]] && log::error "No directory provided" && return 1
     lns "$GHCONFDIR/$1" "$CONFDIR/$1"
 }
+alias makeconfln=lnsconfdir
 function utype() {
     local fargs="<command>"
     local minargs=0
@@ -504,80 +579,6 @@ function wheref() {
     fi
     echo $1
 }
-
-#
-# File: colors.sh
-#
-
-function showcolors() {
-    printh "Standard colors"
-    printf "${red}red${reset}, ${green}green${reset}, ${yellow}yellow${reset}, ${blue}blue${reset}, ${purple}purple${reset}, ${cyan}cyan${reset}, ${white}white${reset}"
-    printh "Intensive colors"
-    printf "${redi}red${reset}, ${greeni}green${reset}, ${yellowi}yellow${reset}, ${bluei}blue${reset}, ${purplei}purple${reset}, ${cyani}cyan${reset}, ${whitei}white${reset}"
-    printh "Bold colors"
-    printf "${redb}red${reset}, ${greenb}green${reset}, ${yellowb}yellow${reset}, ${blueb}blue${reset}, ${purpleb}purple${reset}, ${cyanb}cyan${reset}, ${whiteb}white${reset}"
-    printh "Background colors"
-    printf "${bgred}   ${reset}, ${bggreen}     ${reset}, ${bgyellow}yellow${reset}, ${bgblue}blue${reset}, ${bgpurple}purple${reset}, ${bgcyan}cyan${reset}, ${bgwhite}white${reset}"
-    printh "Intensive background colors"
-    printf "${bgredi}red${reset}, ${bggreeni}green${reset}, ${bgyellowi}yellow${reset}, ${bgbluei}blue${reset}, ${bgpurplei}purple${reset}, ${bgcyani}cyan${reset}, ${bgwhitei}white${reset}"
-    printf "\n"
-}
-function showcolors256() {
-    printh "256 colors"
-    for code in {0..255}
-        do echo -e "\e[38;5;${code}m"'\\e[38;5;'"$code"m"\e[0m"
-    done
-}
-clear='\e[0m'
-reset='\e[0m'
-black='\e[0;30m'
-red='\e[0;31m'
-green='\e[0;32m'
-yellow='\e[0;33m'
-blue='\e[0;34m'
-purple='\e[0;35m'
-cyan='\e[0;36m'
-white='\e[0;37m'
-blackb='\e[1;30m'
-redb='\e[1;31m'
-greenb='\e[1;32m'
-yellowb='\e[1;33m'
-blueb='\e[1;34m'
-purpleb='\e[1;35m'
-cyanb='\e[1;36m'
-whiteb='\e[1;37m'
-blacki='\e[0;90m'
-redi='\e[0;91m'
-greeni='\e[0;92m'
-yellowi='\e[0;93m'
-bluei='\e[0;94m'
-purplei='\e[0;95m'
-cyani='\e[0;96m'
-whitei='\e[0;97m'
-blackbi='\e[1;90m'
-redbi='\e[1;91m'
-greenbi='\e[1;92m'
-yellowbi='\e[1;93m'
-bluebi='\e[1;94m'
-purplebi='\e[1;95m'
-cyanbi='\e[1;96m'
-whitebi='\e[1;97m'
-bgblack='\e[40m'
-bgred='\e[41m'
-bggreen='\e[42m'
-bgyellow='\e[43m'
-bgblue='\e[44m'
-bgpurple='\e[45m'
-bgcyan='\e[46m'
-bgwhite='\e[47m'
-bgblacki='\e[0;100m'
-bgredi='\e[0;101m'
-bggreeni='\e[0;102m'
-bgyellowi='\e[0;103m'
-bgbluei='\e[0;104m'
-bgpurplei='\e[0;105m'
-bgcyani='\e[0;106m'
-bgwhitei='\e[0;107m'
 
 #
 # File: fn.sh
@@ -980,27 +981,6 @@ function aptinstall() {
     sudo apt-get install $aptopt $@ | grep $grpopt $filter
     [[ $(isinstalled needrestart) -eq 1 ]] && needrestart-verbose
 }
-function makeconfln() {
-    local source=$GHCONFDIR/$1
-    local target=$CONFDIR/$1
-    local source_c="${cyan}$source${reset}"
-    local target_c="${cyan}$target${reset}"
-    local arrow="${yellow}→${reset}"
-    if [[ -L $target ]] && [[ "$(readlink $target)" = "$source" ]]; then
-        echo "symlink $target_c $arrow $source_c exists"
-    else
-        if [[ -a $target ]]; then
-            if [[ -d $target ]]; then
-                echo "removing folder $target_c"
-            else
-                echo "removing file $target_c"
-            fi
-            rm -r $target
-        fi
-        ln -sfF $source $target
-        echo "symlink $target_c $arrow $source_c created"
-    fi
-}
 function installapp() {
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi purple) r=$(ansi reset)
     local f_name="installapp" f_args="<cli-name> <brew-name> <apt-name> <app-name>" f_switches="help ver"
@@ -1077,9 +1057,108 @@ prompt_continue() {
 }
 
 #
+# File: lib.sh
+#
+
+function relib() {
+    local f="" i=0 e=0 n=0 t="" t1="" t2="" tpattern="+%s%3N"
+    local c=$(ansi cyan) r=$(ansi reset) y=$(ansi yellow)
+    local dir="${LIBDIR:-$HOME/lib}" file="_all.sh"
+    [[ $(isinstalled gdate) -eq 1 ]] && alias date=gdate
+    [[ $(osname) == "macos" && $(isinstalled gdate) -eq 0 ]] && tpattern="+%s"
+    [[ $# -ne 0 ]] && log::warn "${g}relib{r} does not take any arguments."
+    t1=$(date $tpattern)
+    n=$(source_sh_files $dir)
+    if [[ $? -ne 0 ]]; then
+        log::error "Failed to source all library files."
+        log::info "${r}Skipping generating ${c}_all.sh$r file"
+        return 1
+    else
+        t2=$(date $tpattern) && t=$((t2 - t1))
+        log::ok "${r}Sourced $y$n$r library ${c}*.sh$r files from $c$dir$r in $y$t$r ms"
+    fi
+    t1=$(date $tpattern)
+    n=$(concatenate_sh_files $dir $file)
+    if [[ $? -ne 0 ]]; then
+        log::error "Failed to concatenate all library files."
+        return 1
+    else
+        t2=$(date $tpattern) && t=$((t2 - t1))
+        log::ok "${r}File $c$dir/$file$r created in $y$t$r ms"
+    fi
+}
+function source_sh_files() {
+    local c=$(ansi cyan) r=$(ansi reset) y=$(ansi yellow)
+    [[ $# -ne 1 ]] && log::error "${r}Usage: ${g}source_sh_files$r ${c}<directory>$r." && return 1
+    local dir="$1" i=0 e=0
+    [[ ! -d "$dir" ]] && log::error "Directory $dir does not exist" && return 1
+    [[ ! -n $(echo $dir/*.sh(N)) ]] && log::warn "No ${c}.sh$r files found in $c$dir$r" && return 1
+    for f in "$dir"/*.sh; do
+        if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
+            source "$f"
+            if [[ $? -ne 0 ]]; then
+                log::error "Failed to load $f" && ((e++))
+            else ((i++)); fi
+        fi
+    done
+    echo $i
+    [[ $e -ne 0 ]] && return 1 || return 0
+}
+concatenate_sh_files() {
+    local dir="$1" output_file="$2" output_dir=$(dirname "$output_file")
+    local e=0 i=0 sf="" shebang='#!/bin/zsh'
+    local c=$(ansi cyan) r=$(ansi reset) g=$(ansi green)
+    [[ ! "$dir" = /* ]] && dir="$(pwd)/$dir" # Convert to absolute path if necessary
+    [[ ! "$output_dir" = /* ]] && output_dir="$(pwd)/$output_dir"
+    [[ $# -ne 2 ]] && {
+        log::warn "${r}Usage: ${g}concatenate_sh_files$r $c<directory> <output_file>$r" && return 1
+    }
+    [[ -z $1 ]] && {
+        log::error "${r}Source directory not provided." && return 1
+    }
+    [[ -z $2 ]] && {
+        log::error "${r}Output file not provided." && return 1
+    }
+    [[ ! -d "$dir" ]] && {
+        log::error "${r}Directory $c$dir$r does not exist" && ((e++))
+    }
+    [[ ! -n $(echo $dir/*.sh(N)) ]] && {
+        log::warn "No ${c}.sh$r files found in $c$dir$r" && ((e++))
+    }
+    [[ ! -w "$output_dir" ]] && {
+        log::error "${r}Cannot write output file $c$output_file$r" 
+        log::info "${r}Directory $c$output_dir$r is not writable." && ((e++))
+    }
+    [[ $e -ne 0 ]] && return 1
+    : >"$output_file"  # Truncate the output file
+    echo "$shebang\n" >>"$output_file"
+    for f in "$dir"/*.sh; do
+        sf=$(basename "$f")
+        if [[ -f "$f" && ! "$sf" =~ ^_ ]]; then
+            echo "#\n# File: $sf\n#\n" >>"$output_file"
+            grep -v '^\s*#' "$f" | grep -v '^\s*$' >>"$output_file"
+            echo "" >>"$output_file"
+            ((i++))
+        fi
+    done
+    echo $i
+}
+
+#
 # File: linux.sh
 #
 
+function set-warsaw-timezone() {
+    if [[ "$(osname)" != "macos" ]]; then
+        printhead 'Setting timezone...'
+        if [[ "$(cat /etc/timezone | grep -o 'Warsaw')" != "Warsaw" ]]; then
+            sudo timedatectl set-timezone Europe/Warsaw
+            sudo dpkg-reconfigure -f noninteractive tzdata
+        else
+            echo "Timezone: $(cat /etc/timezone)"
+        fi
+    fi
+}
 function needrestart-mod() {
     filename=/etc/needrestart/needrestart.conf
     if [[ -f $filename ]]; then
@@ -1267,7 +1346,7 @@ function installomzplugin() {
         [[ -d $pdir ]] && rm -rf $pdir
         git clone $repo $pdir
     else
-        printf "${green}oh-my-zsh$reset is no installed.\n"
+        printf "${green}oh-my-zsh$reset is not installed.\n"
         return 1
     fi
 }
@@ -1442,7 +1521,7 @@ function shellver() {
     fi
     echo $(extract_version $version)
 }
-get_default_shell() {
+function get_default_shell() {
     if [[ "$(uname)" = "Darwin" ]]; then
         USER_SHELL=$(dscl . -read /Users/$(whoami) UserShell | awk '{print $2}')
     else
@@ -1450,7 +1529,7 @@ get_default_shell() {
     fi
     echo $(basename $USER_SHELL)
 }
-set_default_shell() {
+function set_default_shell() {
     local shell=$1 shell_path=$(uwhich $1)
     [[ -z $1 ]] && echo "No shell name provided" && return 1
     [[ ! -x "$shell_path" ]] && echo "Shell '$shell' not found or not executable" && return 1
@@ -1486,48 +1565,6 @@ alias remove_symbols=text::alphanumeric
 # File: varia.sh
 #
 
-function relib() {
-    [[ $(isinstalled gdate) -eq 1 ]] && alias date=gdate
-    local f="" i=0 e=0 t="" t1="" t2=""
-    local c=$(ansi cyan) r=$(ansi reset) y=$(ansi yellow)
-    [[ $(osname) == "macos" && $(isinstalled gdate) -eq 0 ]] && t1=$(date +%s) || t1=$(date +%s%3N)
-    for f in "$LIBDIR"/*.sh; do
-        if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
-            source "$f"
-            if [[ $? -ne 0 ]]; then
-                log::error "Failed to load $f" && ((e++))
-            else ((i++)); fi
-        fi
-    done
-    [[ $(osname) == "macos" &&  $(isinstalled gdate) -eq 0 ]] && t2=$(date +%s) || t2=$(date +%s%3N)
-    t=$((t2 - t1))
-    log::ok "${r}Sourced $y$i$r library *.sh files from $c$LIBDIR$r in $t ms"
-    if [[ $e -ne 0 ]]; then
-        log::error "Failed to load $e library files"
-        log::info "${r}Skipping generating ${c}_all.sh$r file"
-        return 1
-    else
-        [[ $(osname) == "macos" && $(isinstalled gdate) -eq 0 ]] && t1=$(date +%s) || t1=$(date +%s%3N)
-        make_all_file
-        [[ $(osname) == "macos" &&  $(isinstalled gdate) -eq 0 ]] && t2=$(date +%s) || t2=$(date +%s%3N)
-        t=$((t2 - t1))
-        log::ok "${r}File $c$LIBDIR/_all.sh$r created in $t ms"
-        return 0
-    fi
-}
-make_all_file() {
-    output_file="${LIBDIR}/_all.sh"
-    : >"$output_file"  # Truncate the output file
-    echo "#!/bin/zsh\n" >>"$output_file"
-    for f in "$LIBDIR"/*.sh; do
-        sf=$(basename "$f")
-        if [[ -f "$f" && ! "$sf" =~ ^_ ]]; then
-            echo "#\n# File: $sf\n#\n" >>"$output_file"
-            grep -v '^\s*#' "$f" | grep -v '^\s*$' >>"$output_file"
-            echo "" >>"$output_file"
-        fi
-    done
-}
 function fman() {
     man -k . | fzf -q "$1" --prompt='man> ' --preview $'echo {} | tr -d \'()\' | awk \'{printf "%s ", $2} {print $1}\' | xargs -r man | col -bx | bat -l man -p --color always' | tr -d '()' | awk '{printf "%s ", $2} {print $1}' | xargs -r man
 }
@@ -1580,17 +1617,6 @@ function sysupdate() {
         brew cleanup
     fi
     log::info "System updated."
-}
-function set-warsaw-timezone() {
-    if [[ "$(osname)" != "macos" ]]; then
-        printhead 'Setting timezone...'
-        if [[ "$(cat /etc/timezone | grep -o 'Warsaw')" != "Warsaw" ]]; then
-            sudo timedatectl set-timezone Europe/Warsaw
-            sudo dpkg-reconfigure -f noninteractive tzdata
-        else
-            echo "Timezone: $(cat /etc/timezone)"
-        fi
-    fi
 }
 function minimize-login-info() {
     if [[ "$(osname)" != "macos" ]]; then

@@ -151,6 +151,7 @@ function lnsconfdir() {
     [[ -z $1 ]] && log::error "No directory provided" && return 1
     lns "$GHCONFDIR/$1" "$CONFDIR/$1"
 }
+alias makeconfln=lnsconfdir
 
 # Universal better type command for bash and zsh
 # returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'

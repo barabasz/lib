@@ -26,7 +26,7 @@ function shellver() {
 }
 
 # Get default shell name
-get_default_shell() {
+function get_default_shell() {
     if [[ "$(uname)" = "Darwin" ]]; then
         USER_SHELL=$(dscl . -read /Users/$(whoami) UserShell | awk '{print $2}')
     else
@@ -36,7 +36,7 @@ get_default_shell() {
 }
 
 # Set default shell
-set_default_shell() {
+function set_default_shell() {
     local shell=$1 shell_path=$(uwhich $1)
     [[ -z $1 ]] && echo "No shell name provided" && return 1
     [[ ! -x "$shell_path" ]] && echo "Shell '$shell' not found or not executable" && return 1

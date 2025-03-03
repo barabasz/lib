@@ -33,29 +33,6 @@ function aptinstall() {
     [[ $(isinstalled needrestart) -eq 1 ]] && needrestart-verbose
 }
 
-# Create symbolic link to config file
-function makeconfln() {
-    local source=$GHCONFDIR/$1
-    local target=$CONFDIR/$1
-    local source_c="${cyan}$source${reset}"
-    local target_c="${cyan}$target${reset}"
-    local arrow="${yellow}→${reset}"
-    if [[ -L $target ]] && [[ "$(readlink $target)" = "$source" ]]; then
-        echo "symlink $target_c $arrow $source_c exists"
-    else
-        if [[ -a $target ]]; then
-            if [[ -d $target ]]; then
-                echo "removing folder $target_c"
-            else
-                echo "removing file $target_c"
-            fi
-            rm -r $target
-        fi
-        ln -sfF $source $target
-        echo "symlink $target_c $arrow $source_c created"
-    fi
-}
-
 # Install application
 function installapp() {
 ### function header

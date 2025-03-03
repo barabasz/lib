@@ -7,7 +7,7 @@
 # man: https://man7.org/linux/man-pages/man4/console_codes.4.html
 
 # Function to display information about the script
-ansi::info() {
+function ansi::info() {
     \cat <<EOF
 $(ansi bold yellow)ANSI escape code warper$(ansi reset)
 
@@ -25,7 +25,7 @@ EOF
 }
 
 # Function to display help information
-ansi::help() {
+function ansi::help() {
     ansi::info
     \cat <<EOF
 $(ansi bold)Expected arguments order$(ansi reset):
@@ -69,7 +69,7 @@ EOF
 }
 
 # Function to display examples
-ansi::example() {
+function ansi::example() {
     ansi::info
     \cat <<EOF
 $(ansi bold)Styles$(ansi reset):
@@ -105,7 +105,7 @@ EOF
 }
 
 # Function to set style
-ansi::style() {
+function ansi::style() {
     case "$1" in
     regular) mod=0 ;;
     bold) mod=1 ;;
@@ -123,7 +123,7 @@ ansi::style() {
 }
 
 # Function to reset style
-ansi::reset() {
+function ansi::reset() {
     case "$1" in
     all) mod=0 ;;
     bold | dim) mod=22 ;;
@@ -143,7 +143,7 @@ ansi::reset() {
 }
 
 # Function to set foreground color {30..37}
-ansi::foreground() {
+function ansi::foreground() {
     shift=1
     case "$1" in
     black) color=30 ;;
@@ -173,7 +173,7 @@ ansi::foreground() {
 }
 
 # Function to set background color {40..47}
-ansi::background() {
+function ansi::background() {
     shift=1
     case "$1" in
     black) bcolor=40 ;;
@@ -201,7 +201,7 @@ ansi::background() {
 }
 
 # Function to set bright foreground color {90..97}
-ansi::bright() {
+function ansi::bright() {
     case "$1" in
     black) color=90 ;;
     red) color=91 ;;
@@ -219,7 +219,7 @@ ansi::bright() {
 }
 
 # Function to generate ANSI code
-ansi::code() {
+function ansi::code() {
     # ANSI escape code prefix and suffix
     local prefix="\e["
     local suffix="m"
@@ -261,7 +261,7 @@ ansi::code() {
 }
 
 # Function to process styling arguments
-ansi::make() {
+function ansi::make() {
     # reset
     if [[ "$*" == "reset"* ]]; then
         shift
@@ -329,7 +329,7 @@ ansi::make() {
 }
 
 # Function process main arguments
-ansi::args() {
+function ansi::args() {
     unset mod color bcolor show shift
     if [[ $# == 0 || $1 == "info" ]]; then
         ansi::info
@@ -349,6 +349,6 @@ ansi::args() {
 }
 
 # Main function to handle user input
-ansi() {
+function ansi() {
     eval "ansi::args $*"
 }
