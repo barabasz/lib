@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-# Print library
+# Console print library
 # https://raw.githubusercontent.com/barabasz/lib/main/print.sh
 
 function print::header() {

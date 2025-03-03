@@ -970,17 +970,6 @@ function isinstalledbybrew() {
         echo 1
     fi
 }
-function isomzinstalled() {
-    if [[ -d $ZSH ]] && [[ $(omz version | grep -o 'master' | head -1) = 'master' ]];
-    then echo 1; else echo 0; fi
-}
-function installomzplugin() {
-    local repo=https://github.com/zsh-users/$1.git
-    local pdir=$ZSH_CUSTOM/plugins/$1
-    printhead "Installing $1"
-    [[ -d $pdir ]] && rm -rf $pdir
-    git clone $repo $pdir
-}
 function aptinstall() {
     [[ $(isinstalled needrestart) -eq 1 ]] && needrestart-quiet
     export NEEDRESTART_MODE=a 
@@ -1254,6 +1243,36 @@ alias log::fail=log::error
 alias log::warn=log::warning
 
 #
+# File: omz.sh
+#
+
+function omzversion() {
+    if [[ "$(isomzinstalled)" -eq "1" ]]; then
+        printf "${green}oh-my-zsh ${yellow}$(omz version)$reset is installed in ${purple}$ZSH${reset}\n"
+        return 0
+    else
+        printf "${green}oh-my-zsh$reset is no installed.\n"
+        return 1
+    fi
+}
+function isomzinstalled() {
+    if [[ -d $ZSH ]] && [[ $(omz version | grep -o 'master' | head -1) = 'master' ]];
+    then echo 1; else echo 0; fi
+}
+function installomzplugin() {
+    if [[ "$(isomzinstalled)" -eq "1" ]]; then
+        local repo=https://github.com/zsh-users/$1.git
+        local pdir=$ZSH_CUSTOM/plugins/$1
+        printhead "Installing $1"
+        [[ -d $pdir ]] && rm -rf $pdir
+        git clone $repo $pdir
+    else
+        printf "${green}oh-my-zsh$reset is no installed.\n"
+        return 1
+    fi
+}
+
+#
 # File: os.sh
 #
 
@@ -1468,7 +1487,10 @@ alias remove_symbols=text::alphanumeric
 #
 
 function relib() {
-    local f="" i=0 e=0 t="" t1=$(date +%s%3N) t2=""
+    [[ $(isinstalled gdate) -eq 1 ]] && alias date=gdate
+    local f="" i=0 e=0 t="" t1="" t2=""
+    local c=$(ansi cyan) r=$(ansi reset) y=$(ansi yellow)
+    [[ $(osname) == "macos" && $(isinstalled gdate) -eq 0 ]] && t1=$(date +%s) || t1=$(date +%s%3N)
     for f in "$LIBDIR"/*.sh; do
         if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
             source "$f"
@@ -1477,10 +1499,21 @@ function relib() {
             else ((i++)); fi
         fi
     done
-    t2=$(date +%s%3N)
+    [[ $(osname) == "macos" &&  $(isinstalled gdate) -eq 0 ]] && t2=$(date +%s) || t2=$(date +%s%3N)
     t=$((t2 - t1))
-    log::info "Loaded $i library *.sh files from $LIBDIR in $t ms"
-    [[ $e -ne 0 ]] && return 1 || make_all_file && return 0
+    log::ok "${r}Sourced $y$i$r library *.sh files from $c$LIBDIR$r in $t ms"
+    if [[ $e -ne 0 ]]; then
+        log::error "Failed to load $e library files"
+        log::info "${r}Skipping generating ${c}_all.sh$r file"
+        return 1
+    else
+        [[ $(osname) == "macos" && $(isinstalled gdate) -eq 0 ]] && t1=$(date +%s) || t1=$(date +%s%3N)
+        make_all_file
+        [[ $(osname) == "macos" &&  $(isinstalled gdate) -eq 0 ]] && t2=$(date +%s) || t2=$(date +%s%3N)
+        t=$((t2 - t1))
+        log::ok "${r}File $c$LIBDIR/_all.sh$r created in $t ms"
+        return 0
+    fi
 }
 make_all_file() {
     output_file="${LIBDIR}/_all.sh"
