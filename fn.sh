@@ -68,28 +68,16 @@ function make_fn_help() {
 }
 
 # Generate usage message for functions
-# Usage: make_fn_usage <function-name> <function-arguments> [function-switches]
+# Usage: make_fn_usage <name> <arguments> [optional-arguments] [switches] ?[compact]
 # Returns: usage message
 function make_fn_usage() {
     local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
     local usage="Usage: $name "
 
-    # Split the arguments into arrays in a way that works in both bash and zsh
-    args_array=()
-    for arg in $args; do
-        args_array+=("$arg")
-    done
-
-    argsopt_array=()
-    for arg in $argsopt; do
-        argsopt_array+=("$arg")
-    done
-
-    switches_array=()
-    for switch in $switches; do
-        switches_array+=("$switch")
-    done
+    args_array=( $(string_to_words "$args") )
+    argsopt_array=( $(string_to_words "$argsopt") )
+    switches_array=( $(string_to_words "$switches") )
 
     if [[ $compact == "compact" ]]; then
         if [[ ${#args_array[@]} -ne 0 ]]; then
@@ -116,17 +104,13 @@ function make_fn_usage() {
     else
         [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
         [[ ${#args_array[@]} -ne 0 ]] && usage+="${c}<arguments>${r}"
+
         if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="\nSwitches: $p"
+            usage+="\nSwitches: "
             for s in "${switches_array[@]}"; do
-                usage+="--$s "
+                usage+="$p--$s ${r}or$p -${s:0:1}$r, "
             done
-            usage+="$r"
-            usage+="or $p"
-            for s in "${switches_array[@]}"; do
-                usage+="-${s:0:1} "
-            done
-            usage+="$r"
+            usage="${usage%??}"
         fi
         if [[ ${#args_array[@]} -ne 0 || ${#argsopt_array[@]} -ne 0 ]]; then
             usage+="\nArguments: "

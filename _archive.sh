@@ -92,3 +92,73 @@ function make_fn_usage() {
     fi
     printf "$usage\n"
 }
+
+# Generate usage message for functions
+# Usage: make_fn_usage <function-name> <function-arguments> [function-switches]
+# Returns: usage message
+function make_fn_usage_OLD() {
+    local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
+    local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
+    local usage="Usage: $name "
+
+    # Split the arguments into arrays in a way that works in both bash and zsh
+    args_array=()
+    for arg in $args; do
+        args_array+=("$arg")
+    done
+
+    argsopt_array=()
+    for arg in $argsopt; do
+        argsopt_array+=("$arg")
+    done
+
+    switches_array=()
+    for switch in $switches; do
+        switches_array+=("$switch")
+    done
+
+    if [[ $compact == "compact" ]]; then
+        if [[ ${#args_array[@]} -ne 0 ]]; then
+            usage+="$c"
+            for s in "${args_array[@]}"; do 
+                usage+="<$s> "
+            done
+            usage+="$r"
+        fi
+        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
+            usage+="$c"
+            for s in "${argsopt_array[@]}"; do 
+                usage+="[$s] "
+            done
+            usage+="$r"
+        fi
+        if [[ ${#switches_array[@]} -ne 0 ]]; then
+            usage+="$p"
+            for s in "${switches_array[@]}"; do 
+                usage+="[--$s] "
+            done
+            usage+="$r"
+        fi
+    else
+        [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
+        [[ ${#args_array[@]} -ne 0 ]] && usage+="${c}<arguments>${r}"
+        if [[ ${#switches_array[@]} -ne 0 ]]; then
+            usage+="\nSwitches: $p"
+            for s in "${switches_array[@]}"; do
+                usage+="--$s "
+            done
+            usage+="$r"
+            usage+="or $p"
+            for s in "${switches_array[@]}"; do
+                usage+="-${s:0:1} "
+            done
+            usage+="$r"
+        fi
+        if [[ ${#args_array[@]} -ne 0 || ${#argsopt_array[@]} -ne 0 ]]; then
+            usage+="\nArguments: "
+            [[ ${#args_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
+            [[ ${#argsopt_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
+        fi
+    fi
+    printf "$usage\n"
+}

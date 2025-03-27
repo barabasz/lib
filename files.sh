@@ -48,19 +48,20 @@ function lns() {
 ### function properties
     local f_name="lns" f_file="better/_templates.sh"
     local f_args="destination source"
-    local f_info="creates sybolic link if not exists."
+    local f_switches="force info"
+    local f_info="creates a symbolic link if such does not yet exist."
     local f_min_args=2 f_max_args=2
 ### function strings
     local name="$(make_fn_name $f_name)"
     local header="$(make_fn_header $name $f_info)"
     local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
-    local info="$(make_fn_info $header $usage "" compact)" iserror=0
+    local info="$(make_fn_info $header $usage "" compact)"
 ### function args and switches
     [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
-    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    [[ $1 == "--force" || $1 == "-f" ]] && local force=1 && shift
+    [[ $1 == -* ]] && log::error "$name: unknown switch $purple$1$reset" && return 1
     local args="$(check_fn_args $f_min_args $f_max_args $#)"
-    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
-    [[ $iserror -ne 0 ]] && echo $usage && return 1
+    [[ $args != "ok" ]] && log::error "$f_name: $args" && echo $usage && return 1
 ### main
     local dst="$1"
     local src="$2"
@@ -69,67 +70,74 @@ function lns() {
     local src_dir="$(dirname "$src")"
     local src_dir_c="${cyan}$src_dir${reset}"
     local arr="${yellowi}→${reset}"
-    local errors=0
 
     # Check if both the destination and source are provided as absolute paths.
     if [[ "$dst" != /* ]]; then
-        printf "${error} the destination $dst_c must be an absolute path.\n"
-        ((errors+=1))
+        log::error "$name: the destination $dst_c must be an absolute path."
+        return 1
     fi
     if [[ "$src" != /* ]]; then
-        printf "${error} the source $src_c must be an absolute path.\n"
-        ((errors+=1))
+        log::error "$name: the source $src_c must be an absolute path."
+        return 1
     fi
 
     # Check if the destination is different from the source
     if [[ "$dst" == "$src" ]]; then
-        printf "${error} destination and source cannot be the same.\n"
-        ((errors+=1))
+        log::error "$name: destination and source cannot be the same."
+        return 1
     fi
 
     # Check if the destination exists
     if [[ ! -e "$dst" ]]; then
-        printf "${error} destination $dst_c does not exist.\n"
-        ((errors+=1))
+        log::error "$name: destination $dst_c does not exist."
+        return 1
     fi
 
     # Check if the destination is readable
     if [[ ! -r "$dst" ]]; then
-        printf "${error} destination $dst_c is not readable.\n"
-        ((errors+=1))
+        log::error "$name: destination $dst_c is not readable."
+        return 1
     fi
 
     # Check if the destination is a folder or file
     if [[ ! -d "$dst" ]] && [[ ! -f "$dst" ]]; then
-        printf "${error} destination $dst_c is neither a directory nor a file.\n"
-        ((errors+=1))
+        log::error "$name: destination $dst_c is neither a directory nor a file."
+        return 1
     fi
 
     # Check if the current process can write to the source's folder
     if [[ ! -w "$src_dir" ]]; then
-        printf "${error} cannot write to the source's folder $src_dir_c\n"
-        ((errors+=1))
-    fi
-
-    # Exit if there are errors
-    if [[ $errors > 0 ]]; then
+        log::error "$name: cannot write to the source's folder $src_dir_c"
         return 1
     fi
-    
+
     # Check if exactly such a symbolic link does not already exist
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
         log::info "$name: symlink $src_c $arr $dst_c already exists."
         return 0
     fi
 
+    # Check if source and target are pointing to the same file
+    if [[ $(realpath "$src") == $(realpath "$dst") ]]; then
+        log::error "$name: source and destination are the same file."
+        log::info "$name: check for folder symlinks in file paths."
+        return 1
+    fi
+
     # Remove the existing source (file, folder, or wrong symbolic link)
     if [[ -e "$src" ]]; then
-        rm -rf "$src"
-        if [[ $? -ne 0 ]]; then
-            log::error "$name: failed while rmoving $src_c (error rissed by rm).\n"
-            return 1
+        if [[ $force -eq 1 ]]; then
+            rm -rf "$src"
+            if [[ $? -ne 0 ]]; then
+                log::error "$name: failed while rmoving $src_c (error rissed by rm)."
+                return 1
+            else
+                log::info "$name: removed existing source $src_c."
+            fi
         else
-             printf "${info} removed existing source $src_c.\n"
+            log::error "$name: source $src_c already exists."
+            log::info "$name: to override use the $purple--force$reset switch."
+            return 1
         fi
     fi
 
@@ -139,7 +147,7 @@ function lns() {
         log::error "$name: failed to create symbolic link (error rissed by ln).\n"
         return 1
     else
-        printf "symbolic link $src_c $arr $dst_c created.\n"
+        log::info "$name: symbolic link $src_c $arr $dst_c created.\n"
         return 0
     fi
 }

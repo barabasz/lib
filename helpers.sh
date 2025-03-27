@@ -132,3 +132,18 @@ htime() {
         fi
     fi
 }
+
+# Function to convert a string to a list in both zsh and bash
+string_to_words() {
+    # Determine the shell and split accordingly
+    if [[ -n "$ZSH_VERSION" ]]; then
+        # For Zsh: use array assignment with word splitting
+        local -a arr
+        read -A arr <<< "$1"
+        printf '%s\n' "${arr[@]}"
+    else
+        # For Bash: use word splitting
+        local arr=($1)
+        printf '%s\n' "${arr[@]}"
+    fi
+}
