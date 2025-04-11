@@ -152,27 +152,13 @@ log::log() {
 }
 
 # External functions
-log::error() {
-    log::log error "$*"
-}
-log::warning() {
-    log::log warning "$*"
-}
-log::info() {
-    log::log info "$*"
-}
-log::success() {
-    log::log success "$*"
-}
-log::debug() {
-    log::log debug "$*"
-}
-log::note() {
-    log::log note "$*"
-}
-
-# Aliases
-alias log::ok=log::success
-alias log::err=log::error
-alias log::fail=log::error
-alias log::warn=log::warning
+log::error()    { log::log error "$*"; }
+log::err()      { log::log error "$*"; }
+log::fail()     { log::log error "$*"; }
+log::warn()     { log::log warning "$*"; }
+log::warning()  { log::log warning "$*"; }
+log::info()     { log::log info "$*"; }
+log::success()  { log::log success "$*"; }
+log::ok()       { log::log success "$*"; }
+log::debug()    { log::log debug "$*"; }
+log::note()     { log::log note "$*"; }

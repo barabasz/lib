@@ -87,7 +87,16 @@ function printy() {
     printf "$output"
 }
 
-alias printhead=printh
-alias printtitle=print::title
-alias printinfo=printi
-alias printerror=printe
+# Functions as aliases (for backward compatibility)
+printhead() {
+    printh "$@"
+}
+printtitle() {
+    print::title "$@"
+}
+printinfo() {
+    printi "$@"
+}
+printerror() {
+    printe "$@"
+}
