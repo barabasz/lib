@@ -26,7 +26,7 @@ function relib() {
     fi
 
     t1=$(date $tpattern)
-    concatenate_sh_files $dir $file
+    concatenate_sh_files $dir "$dir/$file"
     if [[ $? -ne 0 ]]; then
         log::error "Failed to concatenate all library files."
         return 1

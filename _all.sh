@@ -408,17 +408,18 @@ function rmln() {
 function lns() {
     local f_name="lns" f_file="better/_templates.sh"
     local f_args="destination source"
-    local f_info="creates sybolic link if not exists."
+    local f_switches="force info"
+    local f_info="creates a symbolic link if such does not yet exist."
     local f_min_args=2 f_max_args=2
     local name="$(make_fn_name $f_name)"
     local header="$(make_fn_header $name $f_info)"
     local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
-    local info="$(make_fn_info $header $usage "" compact)" iserror=0
+    local info="$(make_fn_info $header $usage "" compact)"
     [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
-    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    [[ $1 == "--force" || $1 == "-f" ]] && local force=1 && shift
+    [[ $1 == -* ]] && log::error "$name: unknown switch $purple$1$reset" && return 1
     local args="$(check_fn_args $f_min_args $f_max_args $#)"
-    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
-    [[ $iserror -ne 0 ]] && echo $usage && return 1
+    [[ $args != "ok" ]] && log::error "$f_name: $args" && echo $usage && return 1
     local dst="$1"
     local src="$2"
     local dst_c="${cyan}$dst${reset}"
@@ -426,49 +427,56 @@ function lns() {
     local src_dir="$(dirname "$src")"
     local src_dir_c="${cyan}$src_dir${reset}"
     local arr="${yellowi}→${reset}"
-    local errors=0
     if [[ "$dst" != /* ]]; then
-        printf "${error} the destination $dst_c must be an absolute path.\n"
-        ((errors+=1))
+        log::error "$name: the destination $dst_c must be an absolute path."
+        return 1
     fi
     if [[ "$src" != /* ]]; then
-        printf "${error} the source $src_c must be an absolute path.\n"
-        ((errors+=1))
+        log::error "$name: the source $src_c must be an absolute path."
+        return 1
     fi
     if [[ "$dst" == "$src" ]]; then
-        printf "${error} destination and source cannot be the same.\n"
-        ((errors+=1))
+        log::error "$name: destination and source cannot be the same."
+        return 1
     fi
     if [[ ! -e "$dst" ]]; then
-        printf "${error} destination $dst_c does not exist.\n"
-        ((errors+=1))
+        log::error "$name: destination $dst_c does not exist."
+        return 1
     fi
     if [[ ! -r "$dst" ]]; then
-        printf "${error} destination $dst_c is not readable.\n"
-        ((errors+=1))
+        log::error "$name: destination $dst_c is not readable."
+        return 1
     fi
     if [[ ! -d "$dst" ]] && [[ ! -f "$dst" ]]; then
-        printf "${error} destination $dst_c is neither a directory nor a file.\n"
-        ((errors+=1))
+        log::error "$name: destination $dst_c is neither a directory nor a file."
+        return 1
     fi
     if [[ ! -w "$src_dir" ]]; then
-        printf "${error} cannot write to the source's folder $src_dir_c\n"
-        ((errors+=1))
-    fi
-    if [[ $errors > 0 ]]; then
+        log::error "$name: cannot write to the source's folder $src_dir_c"
         return 1
     fi
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
         log::info "$name: symlink $src_c $arr $dst_c already exists."
         return 0
     fi
+    if [[ $(realpath "$src") == $(realpath "$dst") ]]; then
+        log::error "$name: source and destination are the same file."
+        log::info "$name: check for folder symlinks in file paths."
+        return 1
+    fi
     if [[ -e "$src" ]]; then
-        rm -rf "$src"
-        if [[ $? -ne 0 ]]; then
-            log::error "$name: failed while rmoving $src_c (error rissed by rm).\n"
-            return 1
+        if [[ $force -eq 1 ]]; then
+            rm -rf "$src"
+            if [[ $? -ne 0 ]]; then
+                log::error "$name: failed while rmoving $src_c (error rissed by rm)."
+                return 1
+            else
+                log::info "$name: removed existing source $src_c."
+            fi
         else
-             printf "${info} removed existing source $src_c.\n"
+            log::error "$name: source $src_c already exists."
+            log::info "$name: to override use the $purple--force$reset switch."
+            return 1
         fi
     fi
     ln -s "$dst" "$src"
@@ -476,7 +484,7 @@ function lns() {
         log::error "$name: failed to create symbolic link (error rissed by ln).\n"
         return 1
     else
-        printf "symbolic link $src_c $arr $dst_c created.\n"
+        log::info "$name: symbolic link $src_c $arr $dst_c created.\n"
         return 0
     fi
 }
@@ -624,18 +632,9 @@ function make_fn_usage() {
     local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
     local usage="Usage: $name "
-    args_array=()
-    for arg in $args; do
-        args_array+=("$arg")
-    done
-    argsopt_array=()
-    for arg in $argsopt; do
-        argsopt_array+=("$arg")
-    done
-    switches_array=()
-    for switch in $switches; do
-        switches_array+=("$switch")
-    done
+    args_array=( $(string_to_words "$args") )
+    argsopt_array=( $(string_to_words "$argsopt") )
+    switches_array=( $(string_to_words "$switches") )
     if [[ $compact == "compact" ]]; then
         if [[ ${#args_array[@]} -ne 0 ]]; then
             usage+="$c"
@@ -662,16 +661,11 @@ function make_fn_usage() {
         [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
         [[ ${#args_array[@]} -ne 0 ]] && usage+="${c}<arguments>${r}"
         if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="\nSwitches: $p"
+            usage+="\nSwitches: "
             for s in "${switches_array[@]}"; do
-                usage+="--$s "
+                usage+="$p--$s ${r}or$p -${s:0:1}$r, "
             done
-            usage+="$r"
-            usage+="or $p"
-            for s in "${switches_array[@]}"; do
-                usage+="-${s:0:1} "
-            done
-            usage+="$r"
+            usage="${usage%??}"
         fi
         if [[ ${#args_array[@]} -ne 0 || ${#argsopt_array[@]} -ne 0 ]]; then
             usage+="\nArguments: "
@@ -817,6 +811,16 @@ htime() {
         else
             echo "$days day $remaining_time"
         fi
+    fi
+}
+string_to_words() {
+    if [[ -n "$ZSH_VERSION" ]]; then
+        local -a arr
+        read -A arr <<< "$1"
+        printf '%s\n' "${arr[@]}"
+    else
+        local arr=($1)
+        printf '%s\n' "${arr[@]}"
     fi
 }
 
@@ -1049,7 +1053,7 @@ prompt_continue() {
           read "yn?Do you want to continue? (Y/N): "
       fi
       case $yn in
-          [Yy]* ) echo "You chose to continue."; return 0;;
+          [Yy]* ) return 0;;
           [Nn]* ) echo "You chose not to continue."; return 1;;
           * ) echo "Please answer Y/y or N/n.";;
       esac
@@ -1062,56 +1066,64 @@ prompt_continue() {
 
 function relib() {
     local f="" i=0 e=0 n=0 t="" t1="" t2="" tpattern="+%s%3N"
-    local c=$(ansi cyan) r=$(ansi reset) y=$(ansi yellow)
+    local c=$(ansi cyan) g=$(ansi green) r=$(ansi reset) y=$(ansi yellow)
     local dir="${LIBDIR:-$HOME/lib}" file="_all.sh"
     [[ $(isinstalled gdate) -eq 1 ]] && alias date=gdate
     [[ $(osname) == "macos" && $(isinstalled gdate) -eq 0 ]] && tpattern="+%s"
-    [[ $# -ne 0 ]] && log::warn "${g}relib{r} does not take any arguments."
+    [[ $# -ne 0 ]] && log::warn "${g}relib${r} function does not take any arguments."
     t1=$(date $tpattern)
-    n=$(source_sh_files $dir)
+    source_sh_files $dir
     if [[ $? -ne 0 ]]; then
         log::error "Failed to source all library files."
         log::info "${r}Skipping generating ${c}_all.sh$r file"
         return 1
     else
+        n=$source_sh_files_count
         t2=$(date $tpattern) && t=$((t2 - t1))
         log::ok "${r}Sourced $y$n$r library ${c}*.sh$r files from $c$dir$r in $y$t$r ms"
     fi
     t1=$(date $tpattern)
-    n=$(concatenate_sh_files $dir $file)
+    concatenate_sh_files $dir "$dir/$file"
     if [[ $? -ne 0 ]]; then
         log::error "Failed to concatenate all library files."
         return 1
     else
+        n=$concatenate_sh_files_count
         t2=$(date $tpattern) && t=$((t2 - t1))
-        log::ok "${r}File $c$dir/$file$r created in $y$t$r ms"
+        log::ok "${r}File $c$dir/$file$r created from $y$n$r files in $y$t$r ms"
     fi
 }
 function source_sh_files() {
+    export source_sh_files_count=0
     local c=$(ansi cyan) r=$(ansi reset) y=$(ansi yellow)
     [[ $# -ne 1 ]] && log::error "${r}Usage: ${g}source_sh_files$r ${c}<directory>$r." && return 1
     local dir="$1" i=0 e=0
-    [[ ! -d "$dir" ]] && log::error "Directory $dir does not exist" && return 1
-    [[ ! -n $(echo $dir/*.sh(N)) ]] && log::warn "No ${c}.sh$r files found in $c$dir$r" && return 1
+    [[ ! -d "$dir" ]] && {
+        log::error "Directory $dir does not exist" && return 1
+    }
+    [[ ! -n $(echo $dir/*.sh(N)) ]] && {
+        log::warn "No ${c}.sh$r files found in $c$dir$r" && return 1
+    }
     for f in "$dir"/*.sh; do
         if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
             source "$f"
             if [[ $? -ne 0 ]]; then
-                log::error "Failed to load $f" && ((e++))
+                log::error "Failed to source $f" && ((e++))
             else ((i++)); fi
         fi
     done
-    echo $i
+    export source_sh_files_count=$i
     [[ $e -ne 0 ]] && return 1 || return 0
 }
 concatenate_sh_files() {
+    export concatenate_sh_files_count=0
     local dir="$1" output_file="$2" output_dir=$(dirname "$output_file")
-    local e=0 i=0 sf="" shebang='#!/bin/zsh'
+    local i=0 sf="" shebang='#!/bin/zsh'
     local c=$(ansi cyan) r=$(ansi reset) g=$(ansi green)
     [[ ! "$dir" = /* ]] && dir="$(pwd)/$dir" # Convert to absolute path if necessary
     [[ ! "$output_dir" = /* ]] && output_dir="$(pwd)/$output_dir"
     [[ $# -ne 2 ]] && {
-        log::warn "${r}Usage: ${g}concatenate_sh_files$r $c<directory> <output_file>$r" && return 1
+        log::error "${r}Usage: ${g}concatenate_sh_files$r $c<directory> <output_file>$r" && return 1
     }
     [[ -z $1 ]] && {
         log::error "${r}Source directory not provided." && return 1
@@ -1120,16 +1132,15 @@ concatenate_sh_files() {
         log::error "${r}Output file not provided." && return 1
     }
     [[ ! -d "$dir" ]] && {
-        log::error "${r}Directory $c$dir$r does not exist" && ((e++))
+        log::error "${r}Directory $c$dir$r does not exist" && return 1
     }
     [[ ! -n $(echo $dir/*.sh(N)) ]] && {
-        log::warn "No ${c}.sh$r files found in $c$dir$r" && ((e++))
+        log::warn "No ${c}.sh$r files found in $c$dir$r" && return 1
     }
     [[ ! -w "$output_dir" ]] && {
         log::error "${r}Cannot write output file $c$output_file$r" 
-        log::info "${r}Directory $c$output_dir$r is not writable." && ((e++))
+        log::info "${r}Directory $c$output_dir$r is not writable." && return 1
     }
-    [[ $e -ne 0 ]] && return 1
     : >"$output_file"  # Truncate the output file
     echo "$shebang\n" >>"$output_file"
     for f in "$dir"/*.sh; do
@@ -1141,7 +1152,7 @@ concatenate_sh_files() {
             ((i++))
         fi
     done
-    echo $i
+    export concatenate_sh_files_count=$i
 }
 
 #
@@ -1298,28 +1309,16 @@ log::log() {
     message="$(log::message $type $message)"
     printf "$icon$message\n"
 }
-log::error() {
-    log::log error "$*"
-}
-log::warning() {
-    log::log warning "$*"
-}
-log::info() {
-    log::log info "$*"
-}
-log::success() {
-    log::log success "$*"
-}
-log::debug() {
-    log::log debug "$*"
-}
-log::note() {
-    log::log note "$*"
-}
-alias log::ok=log::success
-alias log::err=log::error
-alias log::fail=log::error
-alias log::warn=log::warning
+log::error()    { log::log error "$*"; }
+log::err()      { log::log error "$*"; }
+log::fail()     { log::log error "$*"; }
+log::warn()     { log::log warning "$*"; }
+log::warning()  { log::log warning "$*"; }
+log::info()     { log::log info "$*"; }
+log::success()  { log::log success "$*"; }
+log::ok()       { log::log success "$*"; }
+log::debug()    { log::log debug "$*"; }
+log::note()     { log::log note "$*"; }
 
 #
 # File: omz.sh
@@ -1493,10 +1492,18 @@ function printy() {
     output="${yellowi}"$*"${reset}\n"
     printf "$output"
 }
-alias printhead=printh
-alias printtitle=print::title
-alias printinfo=printi
-alias printerror=printe
+printhead() {
+    printh "$@"
+}
+printtitle() {
+    print::title "$@"
+}
+printinfo() {
+    printi "$@"
+}
+printerror() {
+    printe "$@"
+}
 
 #
 # File: shell.sh
