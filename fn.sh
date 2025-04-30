@@ -80,6 +80,13 @@ function make_fn_usage() {
     switches_array=( $(string_to_words "$switches") )
 
     if [[ $compact == "compact" ]]; then
+        if [[ ${#switches_array[@]} -ne 0 ]]; then
+            usage+="$p"
+            for s in "${switches_array[@]}"; do 
+                usage+="[--$s] "
+            done
+            usage+="$r"
+        fi
         if [[ ${#args_array[@]} -ne 0 ]]; then
             usage+="$c"
             for s in "${args_array[@]}"; do 
@@ -91,13 +98,6 @@ function make_fn_usage() {
             usage+="$c"
             for s in "${argsopt_array[@]}"; do 
                 usage+="[$s] "
-            done
-            usage+="$r"
-        fi
-        if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="$p"
-            for s in "${switches_array[@]}"; do 
-                usage+="[--$s] "
             done
             usage+="$r"
         fi

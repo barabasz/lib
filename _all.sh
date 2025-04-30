@@ -407,28 +407,39 @@ function rmln() {
 }
 function lns() {
     local f_name="lns" f_file="better/_templates.sh"
-    local f_args="destination source"
-    local f_switches="force info"
-    local f_info="creates a symbolic link if such does not yet exist."
+    local f_args="source target"
+    local f_switches="debug force info test"
+    local f_info="creates a symbolic link only if such does not yet exist."
     local f_min_args=2 f_max_args=2
     local name="$(make_fn_name $f_name)"
     local header="$(make_fn_header $name $f_info)"
     local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
-    local info="$(make_fn_info $header $usage "" compact)"
+    local usage_info="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches")"
+    local info="$(make_fn_info $header $usage_info "" compact)"
     [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
     [[ $1 == "--force" || $1 == "-f" ]] && local force=1 && shift
+    [[ $1 == "--debug" || $1 == "-d" ]] && local debug=1 && shift
+    [[ $1 == "--test" || $1 == "-t" ]] && local test=1 && shift
     [[ $1 == -* ]] && log::error "$name: unknown switch $purple$1$reset" && return 1
     local args="$(check_fn_args $f_min_args $f_max_args $#)"
     [[ $args != "ok" ]] && log::error "$f_name: $args" && echo $usage && return 1
-    local dst="$1"
-    local src="$2"
+    local src="$1"
+    local dst="$2"
     local dst_c="${cyan}$dst${reset}"
     local src_c="${cyan}$src${reset}"
     local src_dir="$(dirname "$src")"
     local src_dir_c="${cyan}$src_dir${reset}"
+    local dst_dir="$(dirname "$dst")"
+    local dst_dir_c="${cyan}$dst_dir${reset}"
     local arr="${yellowi}→${reset}"
+    if [[ $debug -eq 1 ]]; then
+        log::info "$name: source: \t$src_c"
+        log::info "$name: source dir: \t$src_dir"
+        log::info "$name: target: \t$dst_c"
+        log::info "$name: target dir: \t$dst_dir"
+    fi
     if [[ "$dst" != /* ]]; then
-        log::error "$name: the destination $dst_c must be an absolute path."
+        log::error "$name: the target $dst_c must be an absolute path."
         return 1
     fi
     if [[ "$src" != /* ]]; then
@@ -436,19 +447,19 @@ function lns() {
         return 1
     fi
     if [[ "$dst" == "$src" ]]; then
-        log::error "$name: destination and source cannot be the same."
+        log::error "$name: target and source cannot be the same."
         return 1
     fi
     if [[ ! -e "$dst" ]]; then
-        log::error "$name: destination $dst_c does not exist."
+        log::error "$name: target $dst_c does not exist."
         return 1
     fi
     if [[ ! -r "$dst" ]]; then
-        log::error "$name: destination $dst_c is not readable."
+        log::error "$name: target $dst_c is not readable."
         return 1
     fi
     if [[ ! -d "$dst" ]] && [[ ! -f "$dst" ]]; then
-        log::error "$name: destination $dst_c is neither a directory nor a file."
+        log::error "$name: target $dst_c is neither a directory nor a file."
         return 1
     fi
     if [[ ! -w "$src_dir" ]]; then
@@ -459,8 +470,8 @@ function lns() {
         log::info "$name: symlink $src_c $arr $dst_c already exists."
         return 0
     fi
-    if [[ $(realpath "$src") == $(realpath "$dst") ]]; then
-        log::error "$name: source and destination are the same file."
+    if [[ "$src" == $(realpath "$dst") ]]; then
+        log::error "$name: source and target are the same file."
         log::info "$name: check for folder symlinks in file paths."
         return 1
     fi
@@ -479,13 +490,18 @@ function lns() {
             return 1
         fi
     fi
-    ln -s "$dst" "$src"
-    if [[ $? != 0 ]]; then
-        log::error "$name: failed to create symbolic link (error rissed by ln).\n"
-        return 1
-    else
-        log::info "$name: symbolic link $src_c $arr $dst_c created.\n"
+    if [[ $test -eq 1 ]]; then
+        log::info "$name: test mode: not creating symbolic link."
         return 0
+    else
+        ln -s "$dst" "$src"
+        if [[ $? != 0 ]]; then
+            log::error "$name: failed to create symbolic link (error rissed by ln).\n"
+            return 1
+        else
+            log::info "$name: symbolic link $src_c $arr $dst_c created.\n"
+            return 0
+        fi
     fi
 }
 function lnsconfdir() {
@@ -636,6 +652,13 @@ function make_fn_usage() {
     argsopt_array=( $(string_to_words "$argsopt") )
     switches_array=( $(string_to_words "$switches") )
     if [[ $compact == "compact" ]]; then
+        if [[ ${#switches_array[@]} -ne 0 ]]; then
+            usage+="$p"
+            for s in "${switches_array[@]}"; do 
+                usage+="[--$s] "
+            done
+            usage+="$r"
+        fi
         if [[ ${#args_array[@]} -ne 0 ]]; then
             usage+="$c"
             for s in "${args_array[@]}"; do 
@@ -647,13 +670,6 @@ function make_fn_usage() {
             usage+="$c"
             for s in "${argsopt_array[@]}"; do 
                 usage+="[$s] "
-            done
-            usage+="$r"
-        fi
-        if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="$p"
-            for s in "${switches_array[@]}"; do 
-                usage+="[--$s] "
             done
             usage+="$r"
         fi
