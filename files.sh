@@ -173,11 +173,19 @@ function lns() {
 }
 
 # Creates a symbolic link for configuration dirs using lns
+# If the first argument is -p, it will use GHPRIVDIR instead of GHCONFDIR
 function lnsconfdir() {
+    [[ $1 == "-p" ]] && local priv=1 && shift
+    [[ -z $1 ]] && log::error "No config directory provided" && return 1
+
     [[ -z $CONFDIR ]] && log::error "CONFDIR is not set" && return 1
-    [[ -z $GHCONFDIR ]] && log::error "GHCONFDIR is not set" && return 1
-    [[ -z $1 ]] && log::error "No directory provided" && return 1
-    lns "$GHCONFDIR/$1" "$CONFDIR/$1"
+    if [[ $priv -eq 1 ]]; then
+        [[ -z $GHPRIVDIR ]] && log::error "GHPRIVDIR is not set" && return 1
+        lns "$CONFDIR/$1" "$GHPRIVDIR/$1"
+    else
+        [[ -z $GHCONFDIR ]] && log::error "GHCONFDIR is not set" && return 1
+        lns "$CONFDIR/$1" "$GHCONFDIR/$1"
+    fi
 }
 alias makeconfln=lnsconfdir
 
