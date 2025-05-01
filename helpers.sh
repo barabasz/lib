@@ -2,6 +2,13 @@
 #
 # Helper functions for the script functions
 
+# Get total time taken by a command with optional arguments
+function timet() {
+    local cmd=$1
+    local arg=$2
+    echo "$((time (eval $cmd \$$arg)) 2>&1 | awk '/total/ {print $(NF-1)}')"
+}
+
 # Source file if exists
 function sourceif() {
     [[ $# -eq 0 ]] && echo "Usage: sourceif <file> [error message]" && return 1
