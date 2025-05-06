@@ -154,3 +154,54 @@ string_to_words() {
         printf '%s\n' "${arr[@]}"
     fi
 }
+
+# Function to get absolute path
+# Usage: fulldirpath <path>
+# Returns: Absolute path or "notfound" if the path doesn't exist
+fulldirpath() {
+  local dir="$1"
+  # dir:A is better than dir:P because it resolves symlinks
+  dir="${dir:A}"
+  dir="${dir%/}"
+  [[ ! -d "$dir" ]] && printf "notfound" && return 1
+  printf "%s" "$dir" && return 0
+}
+
+# Function to check if a directory is empty
+# Usage: isdirempty <path>
+# Returns: "1" and code 0 if the directory is empty
+isdirempty() {
+    local dir="$1"
+    dir="$(fulldirpath $dir)"
+    [[ $dir == "notfound" ]] && return 2
+    
+    # Create an array with all files (including hidden ones)
+    local files=($dir/*(DN))
+    
+    if (( ${#files} == 0 )); then
+        # dir is completely empty
+        printf "1" && return 0
+    else
+        # dir is not empty
+        printf "0" && return 1
+    fi
+}
+
+# Function to check if a directory has any non-hidden files to be served
+# Usage: isdirservable <path>
+# Returns: "1" and code 0 if the directory has at least one non-hidden file
+isdirservable() {
+    local dir="$1"
+    dir="$(fulldirpath $dir)"
+    [[ $dir == "notfound" ]] && return 2
+    # Create an array with all files excluding hidden ones
+    local files=($dir/*(N))
+    
+    if (( ${#files} == 0 )); then
+        # dir is completely empty
+        printf "0" && return 1
+    else
+        # dir is not empty
+        printf "1" && return 0
+    fi
+}

@@ -3,7 +3,7 @@
 # Better versions of some functions
 # Unless otherwise noted, they work with both bash and zsh
 
-# Function to remover file or directory only if it is a symbolic link
+# Function to remove file or directory only if it is a symbolic link
 function rmln() {
 ### function properties
     local f_name="rmln" f_file="lib/better.sh"
