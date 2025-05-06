@@ -3,7 +3,7 @@
 # Development functions
 
 # Start a local HTTP server in the specified directory
-# Usage: www <directory>
+# Usage: www <directory> 
 function www() {
 ### function properties
     local f_name="www" f_file="lib/dev.sh"
@@ -22,10 +22,10 @@ function www() {
     [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
     [[ $iserror -ne 0 ]] && echo $usage && return 1
 ### main function
-    if [[ "$(isinstalled http-serverr)" -eq 0 ]]; then
+    if [[ "$(isinstalled http-server)" -eq 0 ]]; then
         log::error "http-server is not installed."
         log::info "You can install http-server with: install-httpserver"
-        return 1
+        return 127
     fi
     local dir
     dir="$(fulldirpath $1)"
@@ -38,6 +38,6 @@ function www() {
         fi
     else
         log::error "Folder $1 does not exist."
-        return 127
+        return 1
     fi
 }

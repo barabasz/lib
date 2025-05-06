@@ -385,10 +385,10 @@ function www() {
     local args="$(check_fn_args $f_min_args $f_max_args $#)"
     [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
     [[ $iserror -ne 0 ]] && echo $usage && return 1
-    if [[ "$(isinstalled http-serverr)" -eq 0 ]]; then
+    if [[ "$(isinstalled http-server)" -eq 0 ]]; then
         log::error "http-server is not installed."
         log::info "You can install http-server with: install-httpserver"
-        return 1
+        return 127
     fi
     local dir
     dir="$(fulldirpath $1)"
@@ -401,7 +401,7 @@ function www() {
         fi
     else
         log::error "Folder $1 does not exist."
-        return 127
+        return 1
     fi
 }
 
