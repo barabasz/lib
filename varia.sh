@@ -120,23 +120,17 @@ function fntest() {
 
 function fntest2() {
 ### function properties
-    local -A fnp; local -A fns
-    fnp[info]="is a template for functions." # info about the function
-    fnp[argr]="agrument1 argument2" # required arguments
-    fnp[argo]="agrument3 agrument4" # optional arguments
-    fnp[opts]="help info version" # available options
-    fnp[auth]="gh/barabasz" # author of the function
-    fnp[vers]="0.2" # version of the function
-    fnp[date]="2025-05-06" # date of last update
-    fnp[help]="" # content of help
-### generate function strings
-    fnp[name]="${funcstack[1]}"
-    fnp[file]="$(echo $fnp[name] | awk '{print $NF}')"
-    make_fns fns fnp
-    [[ "${fns[msg_info]}" ]] && echo "${fns[msg_info]}" && return 0
-    [[ "${fns[msg_opts]}" ]] && echo "${fns[msg_opts]}" && return 2
-    [[ "${fns[msg_args]}" ]] && echo "${fns[msg_args]}" && return 2
-    [[ $1 == "--switch1" || $1 == "-s" ]] && local switch1=1 && shift # extra switch example
+    local -A f; local -A s # function properties and strings
+    f[info]="is a template for functions." # info about the function
+    f[args_required]="agrument1 argument2" # required arguments
+    f[args_optional]="agrument3 agrument4" # optional arguments
+    f[options]="help info version" # optional options
+    f[version]="0.2" # version of the function
+    f[date]="2025-05-06" # date of last update
+    f[help]="" # content of help, i.e.: f[help]=$(<help.txt)
+### arguments and options handling
+    make_fns "$@" && [[ "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
 ### main function
-    echo "This is the output of the ${fns[name]} function."
+    echo "This is the output of the $s[name] function."
 }

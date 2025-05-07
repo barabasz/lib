@@ -189,21 +189,93 @@ function check_fn_args() {
     echo "ok" && return 0
 }
 
-function make_fns() {
-    local -n fns=$1
-    local fn=$2 fi=$3 ft=$4 ff=$5 fr=$6 fo=$7 fs=$8 fa=$9 fv=${10} fd=${11} fh=${12}
-    fns[name]=$(make_fn_name "$fn")
-    fns[info]=$(make_fn_info "$fn" "$fi" "$ff" "$ft")
-    fns[usage]=$(make_fn_usage "$fn" "$fr" "$fo" "$fs" "$ft")
-    fns[errinf]=$(make_fn_errinf "$fn" "$fs" "$ff")
-    fns[version]=$(make_fn_version "$fn" "$fv" "$fd")
-    fns[footer]=$(make_fn_footer "$fa" "$fd" "$fv")
-    fns[help]=$(make_fn_help "${fns[info]}" "${fh}")
+# ###---------------------------------------
+# ### NEW APPROACH
+# ###---------------------------------------
 
-    # nazwa pliku z funkcją: whence -v "fntest"
-    # local filename=$(echo $function_source | awk '{print $NF}')
-    # awk '{print $NF}' przetwarza ten wynik i zwraca ostatnie pole (NF to liczba pól w aktualnym wierszu), które jest ścieżką do pliku
+
+function make_fn_strings() {
+    s[name]="${g}$f[name]$r"
+    s[path]="${c}$f[file_path]$r"
+    s[header]="$s[name] $f[info]"
+
+    s[usage]="Usage:\n$s[name] "
+    [[ ${#arr_options[@]} -ne 0 ]] && s[usage]+="${p}[switches]${r} "
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        s[usage]+="${c}<arguments>${r}"
+    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        s[usage]+="${c}[arguments]${r}"
+    fi
+}
+
+function make_fns() {
+    local debug=1 # debug mode
+    local arr_args_required=( $(string_to_words "$f[args_required]") )
+    local arr_args_optional=( $(string_to_words "$f[args_optional]") )
+    local arr_options=( $(string_to_words "$f[options]") )
+### colors
+    local c=$(ansi cyan)
+    local g=$(ansi green)
+    local p=$(ansi bright purple)
+    local y=$(ansi yellow)
+    local r=$(ansi reset)
+### function properties
+    f[name]="${funcstack[2]}"
+    [[ -z $f[author] ]] && f[author]="gh/barabasz"
+    f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
+    f[file_dir]="${f[file_path]%/*}"
+    f[file_name]="${f[file_path]##*/}"
+    f[arguments_count]=0
+    f[options_input]=""
+    f[options_count]=0
+    f[return]=""
+    for arg in "$@"; do
+        if [[ $arg == -* ]]; then
+            f[options_input]+="$arg "
+            f[options_count]=$(( f[options_count] + 1 ))
+        else
+            f[arguments_count]=$(( f[arguments_count] + 1 ))
+        fi
+    done
+    f[options_input]="${f[options_input]%" "}"
+### function strings
+
+    make_fn_strings
+    
+
+
+
+
+
+
+
+
+ 
+    # do poniższych dać "$fnp[return]"
+    # [[ "${fns[msg_info]}" ]] && echo "${fns[msg_info]}" && return 0
+    # [[ "${fns[msg_opts]}" ]] && echo "${fns[msg_opts]}" && return 2
+    # [[ "${fns[msg_args]}" ]] && echo "${fns[msg_args]}" && return 2
+
 
     # sprawdzić, czy są tylko dozwolone switche
     # [[ $1 == -* ]] && echo "${fns[errswitch]}" && iserror=1
+
+    # dodatkowe opcje
+    # [[ $1 == "--option1" || $1 == "-o" ]] && local switch1=1 && shift # extra switch example
+
+    if [[ $debug -eq 1 ]]; then
+        log::warning "Debug mode is on."
+        log::info "Function properties:"
+        local value_temp=""
+        for key value in "${(@kv)f}"; do
+            echo "    ${(r:15:)key} -> '$value'"
+        done | sort
+        log::info "Function strings:"
+        for key value in "${(@kv)s}"; do
+            echo -En "    ${(r:15:)key} -> '${value:0:60}'"
+            [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
+        done | sort
+    fi
+
+
 }

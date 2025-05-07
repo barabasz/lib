@@ -791,6 +791,61 @@ function check_fn_args() {
     fi
     echo "ok" && return 0
 }
+function make_fn_strings() {
+    s[name]="${g}$f[name]$r"
+    s[path]="${c}$f[file_path]$r"
+    s[header]="$s[name] $f[info]"
+    s[usage]="Usage:\n$s[name] "
+    [[ ${#arr_options[@]} -ne 0 ]] && s[usage]+="${p}[switches]${r} "
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        s[usage]+="${c}<arguments>${r}"
+    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        s[usage]+="${c}[arguments]${r}"
+    fi
+}
+function make_fns() {
+    local debug=1 # debug mode
+    local arr_args_required=( $(string_to_words "$f[args_required]") )
+    local arr_args_optional=( $(string_to_words "$f[args_optional]") )
+    local arr_options=( $(string_to_words "$f[options]") )
+    local c=$(ansi cyan)
+    local g=$(ansi green)
+    local p=$(ansi bright purple)
+    local y=$(ansi yellow)
+    local r=$(ansi reset)
+    f[name]="${funcstack[2]}"
+    [[ -z $f[author] ]] && f[author]="gh/barabasz"
+    f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
+    f[file_dir]="${f[file_path]%/*}"
+    f[file_name]="${f[file_path]##*/}"
+    f[arguments_count]=0
+    f[options_string]=""
+    f[options_count]=0
+    f[return]=""
+    for arg in "$@"; do
+        if [[ $arg == -* ]]; then
+            f[options_string]+="$arg "
+            f[options_count]=$(( f[options_count] + 1 ))
+        else
+            f[arguments_count]=$(( f[arguments_count] + 1 ))
+        fi
+    done
+    f[options_string]="${f[options_string]%" "}"
+    make_fn_strings
+    if [[ $debug -eq 1 ]]; then
+        log::warning "Debug mode is on."
+        log::info "Function properties:"
+        local value_temp=""
+        for key value in "${(@kv)f}"; do
+            echo "    ${(r:15:)key} -> '$value'"
+        done | sort
+        log::info "Function strings:"
+        for key value in "${(@kv)s}"; do
+            echo -En "    ${(r:15:)key} -> '${value:0:60}'"
+            [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
+        done | sort
+    fi
+}
 
 #
 # File: helpers.sh
@@ -1786,25 +1841,16 @@ function fntest() {
     echo "This is the output of the $name function."
 }
 function fntest2() {
-    local fn="_fn_tpl" # name of the function
-    local fi="is a template for functions." # info about the function
-    local ft="" # type: empty for normal or "compact"
-    local ff="lib/_templates.sh" # file where the function is defined
-    local fr="agrument1 argument2" # required arguments
-    local fo="agrument3 agrument4" # optional arguments
-    local fs="help info version" # available switches
-    local fa="gh/barabasz" fv="0.2" fd="2025-05-06"
-    local fh="" # content of help
-    local -A fns
-    make_fns fns "$fn" "$fi" "$ft" "$ff" "$fr" "$fo" "$fs" "$fa" "$fv" "$fd" "$fh"
-    local iserror=0
-    [[ $1 == "--info" || $1 == "-i" ]] && echo "${fns[info]}" && return 0
-    [[ $1 == "--help" || $1 == "-h" ]] && echo "${fns[help]}" && return 0
-    [[ $1 == "--version" || $1 == "-v" ]] && echo "${fns[version]}" && return 0
-    [[ $1 == "--switch1" || $1 == "-s" ]] && local switch1=1 && shift # example
-    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
-    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
-    [[ $iserror -ne 0 ]] && echo $errinf && return 1
-    echo "This is the output of the $name function."
+    local -A f; local -A s # function properties and strings
+    f[info]="is a template for functions." # info about the function
+    f[args_required]="agrument1 argument2" # required arguments
+    f[args_optional]="agrument3 agrument4" # optional arguments
+    f[options]="help info version" # optional options
+    f[version]="0.2" # version of the function
+    f[date]="2025-05-06" # date of last update
+    f[help]="" # content of help, i.e.: f[help]=$(<help.txt)
+    make_fns "$@" && [[ "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+    echo "This is the output of the $s[name] function."
 }
 
