@@ -663,21 +663,31 @@ function make_fn_footer() {
 }
 function make_fn_errinf() {
     local name=$1 switches=$2 file=$3 c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
-    [[ "$switches" == *"info"* ]] && echo -n "Run $name ${p}--info$r for usage information." && return 0
-    [[ "$switches" == *"help"* ]] && echo -n "Run $name ${p}--help$r for usage information." && return 0
-    echo "Check source code for usage information ($c$file$r)."
+    if [[ "$switches" == *"info"* && "$switches" == *"help"* ]]; then
+        echo "Run $name ${p}-i$r for usage or $name ${p}-h$r for help."
+    elif [[ "$switches" == *"info"* ]]; then
+        echo "Run $name ${p}--info$r or $name ${p}-i$r for usage information."
+    elif [[ "$switches" == *"help"* ]]; then
+        echo "Run $name ${p}--help$r or $name ${p}-h$r for help."
+    else
+        echo "Check source code for usage information."
+        echo "This function is defined in $c$file$r"
+    fi
 }
 function make_fn_info() {
-    local title=$1 usage=$2 footer=$3 compact=$4
-    if [[ $compact == "compact" ]]; then
-        echo "$title\n$usage"
+    local title=$1 usage=$2 footer=$3 file=$4 type=$5
+    file="This function is defined in $(ansi cyan)$file$(ansi reset)"
+    if [[ $type == "compact" ]]; then
+        echo "$title\n$usage\n$file"
     else
-        echo "$title\n\n$usage\n\n$footer"
+        echo "$title\n\n$usage\n\n$file\n$footer"
     fi
 }
 function make_fn_version() {
-    local name=$1 ver=$2
-    printf "$name ver. $(ansi yellow)$ver$(ansi reset)\n\n"
+    local name=$1 ver=$2 date=$3
+    printf "$name $(ansi yellow)$ver$(ansi reset)"
+    [[ -n $date ]] && printf " ($date)"
+    printf "\n"
 }
 function make_fn_header() {
     local name=$1 info=$2
@@ -685,12 +695,12 @@ function make_fn_header() {
 }
 function make_fn_help() {
     local info=$1 help=$2
-    [[ -z $help ]] && help="$(ansi red)No help available.$(ansi reset)"
+    [[ -z $help ]] && help="$(log::error No help available.)"
     echo "$info\n\n$help"
 }
 function make_fn_usage() {
     local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
-    local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
+    local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset) y=$(ansi yellow)
     local usage="Usage: $name "
     args_array=( $(string_to_words "$args") )
     argsopt_array=( $(string_to_words "$argsopt") )
@@ -719,7 +729,11 @@ function make_fn_usage() {
         fi
     else
         [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
-        [[ ${#args_array[@]} -ne 0 ]] && usage+="${c}<arguments>${r}"
+        if [[ ${#args_array[@]} -ne 0 ]]; then
+            usage+="${c}<arguments>${r}"
+        elif [[ ${#argsopt_array[@]} -ne 0 ]]; then
+            usage+="${c}[arguments]${r}"
+        fi
         if [[ ${#switches_array[@]} -ne 0 ]]; then
             usage+="\nSwitches: "
             for s in "${switches_array[@]}"; do
@@ -727,20 +741,29 @@ function make_fn_usage() {
             done
             usage="${usage%??}"
         fi
-        if [[ ${#args_array[@]} -ne 0 || ${#argsopt_array[@]} -ne 0 ]]; then
-            usage+="\nArguments: "
+        if [[ ${#args_array[@]} -ne 0 ]]; then
+            usage+="\nRequired arguments: "
             [[ ${#args_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
+        fi
+        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
+            usage+="\nOptional arguments: "
             [[ ${#argsopt_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
         fi
     fi
     printf "$usage\n"
 }
 function check_fn_args() {
-    [[ $# -ne 3 ]] && log::error "check_fn_args: not enough arguments (expected 3, given $#)" && return 1
-    local min=$1
-    local max=$2
+    [[ $# -ne 3 ]] && return 2
+    local req_args=$1
+    local req_args_tbl=( ${=req_args} )
+    local req_args_count=${#req_args_tbl}
+    local opt_args=$2
+    local opt_args_tbl=( ${=opt_args} )
+    local opt_args_count=${#opt_args_tbl}
+    local min=$req_args_count
+    local max=$((req_args_count + opt_args_count))
     local given=$3
-    local msg1=""; local msg2=""
+    local msg1="" msg2=""
     if [[ $min -gt $max ]]; then
         echo "check_fn_args: min number of arguments cannot be greater than max"
         return 1
@@ -748,7 +771,9 @@ function check_fn_args() {
         echo "check_fn_args: actual number of arguments cannot be negative"
         return 1
     fi
-    if [[ $given -eq 0 ]]; then
+    if [[ $max -eq 0 && $given -gt 0 ]]; then
+        msg1="no arguments expected"
+    elif [[ $given -eq 0 ]]; then
         msg1="no arguments given"
     elif [[ $given -lt $min ]]; then
         msg1="not enough arguments"
@@ -764,8 +789,7 @@ function check_fn_args() {
         echo "$msg1 ($msg2, given $given)"
         return 1
     fi
-    echo "ok"
-    return 0
+    echo "ok" && return 0
 }
 
 #
@@ -1731,5 +1755,56 @@ function minimize-login-info() {
         sudo ln -sf ~/GitHub/config/motd/05-header /etc/update-motd.d
     fi
     touch "$HOME/.hushlogin"
+}
+function fntest() {
+    local f_name="_fn_tpl" # name of the function
+    local f_info="is a template for functions." # info about the function
+    local f_type="" # empty for normal or "compact"
+    local f_file="lib/_templates.sh" # file where the function is defined
+    local f_args="agrument1 argument2" # required arguments
+    local f_args_opt="agrument3 agrument4" # optional arguments
+    local f_switches="help info version" # available switches
+    local f_author="gh/barabasz" f_ver="0.2" f_date="2025-05-06"
+    local f_help="" # content of help
+    local name="$(make_fn_name $f_name)"
+    local header="$(make_fn_header $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" $f_type)"
+    local errinf="$(make_fn_errinf $name "$f_switches" $f_file)"
+    local version="$(make_fn_version $name $f_ver $f_date)"
+    local footer="$(make_fn_footer $f_author $f_date $version)"
+    local info="$(make_fn_info $header $usage $footer $f_file $f_type)"
+    local help="$(make_fn_help $info $f_help)"
+    local args="$(check_fn_args $f_args $f_args_opt $#)"
+    local iserror=0
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == "--help" || $1 == "-h" ]] && echo "$help" && return 0
+    [[ $1 == "--version" || $1 == "-v" ]] && echo "$version" && return 0
+    [[ $1 == "--switch1" || $1 == "-s" ]] && local switch1=1 && shift # example
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $errinf && return 1
+    echo "This is the output of the $name function."
+}
+function fntest2() {
+    local fn="_fn_tpl" # name of the function
+    local fi="is a template for functions." # info about the function
+    local ft="" # type: empty for normal or "compact"
+    local ff="lib/_templates.sh" # file where the function is defined
+    local fr="agrument1 argument2" # required arguments
+    local fo="agrument3 agrument4" # optional arguments
+    local fs="help info version" # available switches
+    local fa="gh/barabasz" fv="0.2" fd="2025-05-06"
+    local fh="" # content of help
+    local -A fns
+    make_fns fns "$fn" "$fi" "$ft" "$ff" "$fr" "$fo" "$fs" "$fa" "$fv" "$fd" "$fh"
+    local iserror=0
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "${fns[info]}" && return 0
+    [[ $1 == "--help" || $1 == "-h" ]] && echo "${fns[help]}" && return 0
+    [[ $1 == "--version" || $1 == "-v" ]] && echo "${fns[version]}" && return 0
+    [[ $1 == "--switch1" || $1 == "-s" ]] && local switch1=1 && shift # example
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $errinf && return 1
+    echo "This is the output of the $name function."
 }
 

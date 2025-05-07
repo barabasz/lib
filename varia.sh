@@ -83,3 +83,60 @@ function minimize-login-info() {
     fi
     touch "$HOME/.hushlogin"
 }
+
+function fntest() {
+### function properties
+    local f_name="_fn_tpl" # name of the function
+    local f_info="is a template for functions." # info about the function
+    local f_type="" # empty for normal or "compact"
+    local f_file="lib/_templates.sh" # file where the function is defined
+    local f_args="agrument1 argument2" # required arguments
+    local f_args_opt="agrument3 agrument4" # optional arguments
+    local f_switches="help info version" # available switches
+    local f_author="gh/barabasz" f_ver="0.2" f_date="2025-05-06"
+    local f_help="" # content of help
+### function strings
+    local name="$(make_fn_name $f_name)"
+    local header="$(make_fn_header $name $f_info)"
+    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" $f_type)"
+    local errinf="$(make_fn_errinf $name "$f_switches" $f_file)"
+    local version="$(make_fn_version $name $f_ver $f_date)"
+    local footer="$(make_fn_footer $f_author $f_date $version)"
+    local info="$(make_fn_info $header $usage $footer $f_file $f_type)"
+    local help="$(make_fn_help $info $f_help)"
+    local args="$(check_fn_args $f_args $f_args_opt $#)"
+    local iserror=0
+### function args and switches
+    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
+    [[ $1 == "--help" || $1 == "-h" ]] && echo "$help" && return 0
+    [[ $1 == "--version" || $1 == "-v" ]] && echo "$version" && return 0
+    [[ $1 == "--switch1" || $1 == "-s" ]] && local switch1=1 && shift # example
+    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
+    [[ $iserror -ne 0 ]] && echo $errinf && return 1
+### main function
+    echo "This is the output of the $name function."
+}
+
+function fntest2() {
+### function properties
+    local -A fnp; local -A fns
+    fnp[info]="is a template for functions." # info about the function
+    fnp[argr]="agrument1 argument2" # required arguments
+    fnp[argo]="agrument3 agrument4" # optional arguments
+    fnp[opts]="help info version" # available options
+    fnp[auth]="gh/barabasz" # author of the function
+    fnp[vers]="0.2" # version of the function
+    fnp[date]="2025-05-06" # date of last update
+    fnp[help]="" # content of help
+### generate function strings
+    fnp[name]="${funcstack[1]}"
+    fnp[file]="$(echo $fnp[name] | awk '{print $NF}')"
+    make_fns fns fnp
+    [[ "${fns[msg_info]}" ]] && echo "${fns[msg_info]}" && return 0
+    [[ "${fns[msg_opts]}" ]] && echo "${fns[msg_opts]}" && return 2
+    [[ "${fns[msg_args]}" ]] && echo "${fns[msg_args]}" && return 2
+    [[ $1 == "--switch1" || $1 == "-s" ]] && local switch1=1 && shift # extra switch example
+### main function
+    echo "This is the output of the ${fns[name]} function."
+}
