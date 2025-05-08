@@ -2,6 +2,21 @@
 #
 # Helper functions for the script functions
 
+# Clean a string by removing newlines and tabs
+function clean_string() {
+  local input="$1"
+  input="${input//$'\n'/ }"
+  input="${input//$'\t'/ }"
+  input="${(j: :)${(z)input}}"
+  echo "$input"
+}
+
+# Clean a string by removing ANSI escape codes
+function clean_ansi() {
+  local input="$1"
+  echo "$input" | sed $'s/\x1b\\[[0-9;]*m//g'
+}
+
 # Get total time taken by a command with optional arguments
 function timet() {
     local cmd=$1
