@@ -59,7 +59,7 @@ function make_fn() {
     s[year]="${y}${f[date]:0:4}$r"
     [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$r"
     [[ $f[err_arg] ]] && s[err_arg]="$(make_fn_err_arg)"
-    [[ $f[info] ]] && s[header]="$s[name] $f[info]"
+    [[ $f[info] ]] && s[header]="$s[name]: $f[info]"
     s[version]=$(make_fn_version)
     s[footer]=$(make_fn_footer)
     s[example]="$(make_fn_example)"
@@ -80,7 +80,7 @@ function make_fn() {
         elif [[ "$o[h]" -eq "1" ]]; then
             [[ $f[info] ]] && echo $s[header]
             [[ $f[help] ]] && echo $f[help]
-            echo "$s[usage]\n\n$s[footer]\n$s[source]"
+            echo "$s[example]\n$s[usage]\n\n$s[footer]\n$s[source]"
         fi
         f[return]=0 && return 0
     fi
@@ -94,22 +94,33 @@ function make_fn() {
     fi
 }
 
-# Helper functions that are only to be used by the make_fn function.
+# Helper functions that are intended to be used exclusively by the make_fn function.
 # ⚠️ These functions cannot be used standalone.
 
 # check if the number of arguments is correct
 function make_fn_err_arg() {
+    local expected
+    if [[ $f[args_min] -eq $f[args_max] ]]; then
+        expected="expected $f[args_min]"
+    else
+        expected="expected $f[args_min] to $f[args_max]"
+    fi
+    local given="given $f[args_count]"
+
     if [[ $f[args_max] -eq 0 && $f[args_count] -gt 0 ]]; then
-        echo "no arguments expected ($f[args_count] given)"
+        echo "no arguments expected ($given)"
         f[err_arg]=1 && f[err_arg_type]=1
+    elif [[ $f[args_count] -eq 0 && $f[args_max] -eq 1 ]]; then
+        echo "missing argument ($expected)"
+        f[err_arg]=1 && f[err_arg_type]=
     elif [[ $f[args_count] -eq 0 ]]; then
-        echo "no arguments given (expected $f[args_min] to $f[args_max])"
+        echo "missing arguments ($expected)"
         f[err_arg]=1 && f[err_arg_type]=2
     elif [[ $f[args_count] -lt $f[args_min] ]]; then
-        echo "not enough arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        echo "not enough arguments ($expected, $given)"
         f[err_arg]=1 && f[err_arg_type]=3
     elif [[ $f[args_count] -gt $f[args_max] ]]; then
-        echo "too many arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        echo "too many arguments ($expected, $given)"
         f[err_arg]=1 && f[err_arg_type]=4
     fi
 }
@@ -124,11 +135,11 @@ function make_fn_version() {
 # prepare the hint string
 function make_fn_hint() {
     if [[ $o[i] && $o[h] ]]; then
-        log::info "Run $s[name] ${p}-i$r for usage or $s[name] ${p}-h$r for help."
+        log::info "Run $s[name] ${p}-i$r for basic usage or $s[name] ${p}-h$r for help."
     elif [[ $o[i] ]]; then
-        log::info "Run $s[name] ${p}--info$r or $s[name] ${p}-i$r for usage information."
+        log::info "Run $s[name] ${p}-i$r for usage information."
     elif [[ $o[h] ]]; then
-        log::info "Run $s[name] ${p}--help$r or $s[name] ${p}-h$r for help."
+        log::info "Run $s[name] ${p}-h$r for help."
     else
         log::info "Check source code for usage information."
         log::comment $s[source]
@@ -145,7 +156,10 @@ function make_fn_footer() {
 
 # prepare the example string
 function make_fn_example() {
-    printf "Usage example: $s[name] "
+    [[ $o[h] == 1 ]] && printf "\n"
+    printf "Usage example:" 
+    [[ $o[h] == 1 ]] && printf "\n\t" || printf " "
+    printf "$s[name] "
     if [[ ${#arr_args_required[@]} -ne 0 ]]; then
         for a in "${arr_args_required[@]}"; do
             printf "${c}<$a>${r} "
@@ -155,40 +169,45 @@ function make_fn_example() {
             printf "${c}[$a]${r} "
         done | sort | tr -d '\n'
     fi
-    if [[ $o[h] ]]; then
-        printf "\nRun $s[name] ${p}-h$r for more help."
-    else
-        printf "\n"
-    fi
+    [[ $o[i] == 1 ]] && printf "\nRun '$s[name] ${p}-h$r' for more help."
 }
-
-    #if [[ ${#switches_array[@]} -ne 0 ]]; then
-    #    usage+="\nSwitches: "
-    #    for s in "${switches_array[@]}"; do
-    #        usage+="$p--$s ${r}or$p -${s:0:1}$r, "
-    #    done
-    #    usage="${usage%??}"
-    #fi
-    #if [[ ${#args_array[@]} -ne 0 ]]; then
-    #    usage+="\nRequired arguments: "
-    #    [[ ${#args_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
-    #fi
-    #if [[ ${#argsopt_array[@]} -ne 0 ]]; then
-    #    usage+="\nOptional arguments: "
-    #    [[ ${#argsopt_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
-    #fi
 
 # prepare the full usage information
 function make_fn_usage() {
-    printf "Usage: $s[name] "
+    local i=1
+    local usage="Usage details:\n\t$s[name] "
     if [[ ${#arr_opts[@]} -ne 0 ]]; then
-        printf "${p}[options]${r} "
+        usage+="${p}[options]${r} "
     fi
     if [[ ${#arr_args_required[@]} -ne 0 ]]; then
-        printf "${c}<arguments>${r}"
+        usage+="${c}<arguments>${r}"
     elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
-        printf "${c}[arguments]${r}"
+        usage+="${c}[arguments]${r}"
     fi
+    if [[ ${#arr_opts[@]} -ne 0 ]]; then
+        usage+="\nOptions:\n\t"
+        for opt in "${arr_opts[@]}"; do
+            usage+="$p-$opt[1,1]$r or $p--$opt$r\n\t";
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        usage+="\nRequired arguments:\n\t"
+        for arg in "${arr_args_required[@]}"; do
+            usage+="$i: $c<$arg>$r\n\t";
+            ((i++))
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    if [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        usage+="\nOptional arguments:\n\t"
+        for arg in "${arr_args_optional[@]}"; do
+            usage+="$i: ${c}[${arg}]$r\n\t";
+            ((i++))
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    printf "$usage\n"
 }
 
 # print debug information

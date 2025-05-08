@@ -444,25 +444,20 @@ function rmln() {
     fi
 }
 function lns() {
-    local f_name="lns" f_file="better/_templates.sh"
-    local f_args="source target"
-    local f_switches="debug force info test"
-    local f_info="creates a symbolic link only if such does not yet exist."
-    local f_min_args=2 f_max_args=2
-    local name="$(make_fn_name $f_name)"
-    local header="$(make_fn_header $name $f_info)"
-    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
-    local usage_info="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches")"
-    local info="$(make_fn_info $header $usage_info "" compact)"
-    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
-    [[ $1 == "--force" || $1 == "-f" ]] && local force=1 && shift
-    [[ $1 == "--debug" || $1 == "-d" ]] && local debug=1 && shift
-    [[ $1 == "--test" || $1 == "-t" ]] && local test=1 && shift
-    [[ $1 == -* ]] && log::error "$name: unknown switch $purple$1$reset" && return 1
-    local args="$(check_fn_args $f_min_args $f_max_args $#)"
-    [[ $args != "ok" ]] && log::error "$f_name: $args" && echo $usage && return 1
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Better ln command for creating symbolic links."
+    f[help]="It creates a symbolic link only if such does not yet exist."
+    f[args_required]="source target"
+    f[opts]="debug force help info test version" # optional options
+    f[version]="0.2" # version of the function
+    f[date]="2025-05-06" # date of last update
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
     local src="$1"
     local dst="$2"
+    local debug=$o[d]
+    local force=$o[f]
+    local test=$o[t]
     local dst_c="${cyan}$dst${reset}"
     local src_c="${cyan}$src${reset}"
     local src_dir="$(dirname "$src")"
@@ -543,7 +538,15 @@ function lns() {
     fi
 }
 function lnsconfdir() {
-    [[ $1 == "-p" ]] && local priv=1 && shift
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Creates a symbolic link for configuration dirs using lns."
+    f[help]="If the -p optionis used, it will use GHPRIVDIR instead of GHCONFDIR"
+    f[args_required]="directory"
+    f[opts]="debug help info version example"
+    f[version]="0.15"; f[date]="2025-05-06"
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+    [[ $o[p] == 1 ]] && local priv=1
     [[ -z $1 ]] && log::error "No config directory provided" && return 1
     [[ -z $CONFDIR ]] && log::error "CONFDIR is not set" && return 1
     if [[ $priv -eq 1 ]]; then
@@ -554,8 +557,45 @@ function lnsconfdir() {
         lns "$CONFDIR/$1" "$GHCONFDIR/$1"
     fi
 }
-alias makeconfln=lnsconfdir
 function utype() {
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Universal better type command for bash and zsh."
+    f[help]="Returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'"
+    f[args_required]="command"
+    f[opts]="debug help info version"
+    f[version]="0.2"; f[date]="2025-05-06"
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+    local output
+    if [[ $(shellname) == 'bash' ]]; then
+        output=$(type -t $1)
+        if [[ -z $output ]]; then
+            echo "not found"
+            return 1
+        fi
+    elif [[ $(shellname) == 'zsh' ]]; then
+        tp=$(type $1)
+        if [[ $(echo $tp | \grep -o 'not found') ]]; then
+            echo "not found"
+            return 1
+        elif [[ $(echo $tp | \grep -o 'is /') ]]; then
+            output='file'
+        elif [[ $(echo $tp | \grep -o 'alias') ]]; then
+            output='alias'
+        elif [[ $(echo $tp | \grep -o 'shell function') ]]; then
+            output='function'
+        elif [[ $(echo $tp | \grep -o 'reserved') ]]; then
+            output='keyword'
+        elif [[ $(echo $tp | \grep -o 'builtin') ]]; then
+            output='builtin'
+        fi
+    else
+        echo "utype: unsupported shell"
+        return 1
+    fi
+    echo $output
+}
+function utype2() {
     local fargs="<command>"
     local minargs=0
     local maxargs=1
@@ -656,11 +696,7 @@ function make_fn() {
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
     local arr_opts=( $(string_to_words "$f[opts]") )
-    local c=$(ansi cyan)
-    local g=$(ansi green)
-    local p=$(ansi bright purple)
-    local y=$(ansi yellow)
-    local r=$(ansi reset)
+    local c=$(ansi cyan) g=$(ansi green) p=$(ansi bright purple) y=$(ansi yellow) r=$(ansi reset)
     f[name]="${funcstack[2]}"
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
@@ -702,7 +738,7 @@ function make_fn() {
     s[year]="${y}${f[date]:0:4}$r"
     [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$r"
     [[ $f[err_arg] ]] && s[err_arg]="$(make_fn_err_arg)"
-    [[ $f[info] ]] && s[header]="$s[name] $f[info]"
+    [[ $f[info] ]] && s[header]="$s[name]: $f[info]"
     s[version]=$(make_fn_version)
     s[footer]=$(make_fn_footer)
     s[example]="$(make_fn_example)"
@@ -719,7 +755,7 @@ function make_fn() {
         elif [[ "$o[h]" -eq "1" ]]; then
             [[ $f[info] ]] && echo $s[header]
             [[ $f[help] ]] && echo $f[help]
-            echo "$s[usage]\n\n$s[footer]\n$s[source]"
+            echo "$s[example]\n$s[usage]\n\n$s[footer]\n$s[source]"
         fi
         f[return]=0 && return 0
     fi
@@ -732,17 +768,27 @@ function make_fn() {
     fi
 }
 function make_fn_err_arg() {
+    local expected
+    if [[ $f[args_min] -eq $f[args_max] ]]; then
+        expected="expected $f[args_min]"
+    else
+        expected="expected $f[args_min] to $f[args_max]"
+    fi
+    local given="given $f[args_count]"
     if [[ $f[args_max] -eq 0 && $f[args_count] -gt 0 ]]; then
-        echo "no arguments expected ($f[args_count] given)"
+        echo "no arguments expected ($given)"
         f[err_arg]=1 && f[err_arg_type]=1
+    elif [[ $f[args_count] -eq 0 && $f[args_max] -eq 1 ]]; then
+        echo "missing argument ($expected)"
+        f[err_arg]=1 && f[err_arg_type]=
     elif [[ $f[args_count] -eq 0 ]]; then
-        echo "no arguments given (expected $f[args_min] to $f[args_max])"
+        echo "missing arguments ($expected)"
         f[err_arg]=1 && f[err_arg_type]=2
     elif [[ $f[args_count] -lt $f[args_min] ]]; then
-        echo "not enough arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        echo "not enough arguments ($expected, $given)"
         f[err_arg]=1 && f[err_arg_type]=3
     elif [[ $f[args_count] -gt $f[args_max] ]]; then
-        echo "too many arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        echo "too many arguments ($expected, $given)"
         f[err_arg]=1 && f[err_arg_type]=4
     fi
 }
@@ -753,11 +799,11 @@ function make_fn_version() {
 }
 function make_fn_hint() {
     if [[ $o[i] && $o[h] ]]; then
-        log::info "Run $s[name] ${p}-i$r for usage or $s[name] ${p}-h$r for help."
+        log::info "Run $s[name] ${p}-i$r for basic usage or $s[name] ${p}-h$r for help."
     elif [[ $o[i] ]]; then
-        log::info "Run $s[name] ${p}--info$r or $s[name] ${p}-i$r for usage information."
+        log::info "Run $s[name] ${p}-i$r for usage information."
     elif [[ $o[h] ]]; then
-        log::info "Run $s[name] ${p}--help$r or $s[name] ${p}-h$r for help."
+        log::info "Run $s[name] ${p}-h$r for help."
     else
         log::info "Check source code for usage information."
         log::comment $s[source]
@@ -770,7 +816,10 @@ function make_fn_footer() {
     printf "MIT License : https://opensource.org/licenses/MIT"
 }
 function make_fn_example() {
-    printf "Usage example: $s[name] "
+    [[ $o[h] == 1 ]] && printf "\n"
+    printf "Usage example:" 
+    [[ $o[h] == 1 ]] && printf "\n\t" || printf " "
+    printf "$s[name] "
     if [[ ${#arr_args_required[@]} -ne 0 ]]; then
         for a in "${arr_args_required[@]}"; do
             printf "${c}<$a>${r} "
@@ -780,22 +829,43 @@ function make_fn_example() {
             printf "${c}[$a]${r} "
         done | sort | tr -d '\n'
     fi
-    if [[ $o[h] ]]; then
-        printf "\nRun $s[name] ${p}-h$r for more help."
-    else
-        printf "\n"
-    fi
+    [[ $o[i] == 1 ]] && printf "\nRun '$s[name] ${p}-h$r' for more help."
 }
 function make_fn_usage() {
-    printf "Usage: $s[name] "
+    local i=1
+    local usage="Usage details:\n\t$s[name] "
     if [[ ${#arr_opts[@]} -ne 0 ]]; then
-        printf "${p}[options]${r} "
+        usage+="${p}[options]${r} "
     fi
     if [[ ${#arr_args_required[@]} -ne 0 ]]; then
-        printf "${c}<arguments>${r}"
+        usage+="${c}<arguments>${r}"
     elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
-        printf "${c}[arguments]${r}"
+        usage+="${c}[arguments]${r}"
     fi
+    if [[ ${#arr_opts[@]} -ne 0 ]]; then
+        usage+="\nOptions:\n\t"
+        for opt in "${arr_opts[@]}"; do
+            usage+="$p-$opt[1,1]$r or $p--$opt$r\n\t";
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        usage+="\nRequired arguments:\n\t"
+        for arg in "${arr_args_required[@]}"; do
+            usage+="$i: $c<$arg>$r\n\t";
+            ((i++))
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    if [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        usage+="\nOptional arguments:\n\t"
+        for arg in "${arr_args_optional[@]}"; do
+            usage+="$i: ${c}[${arg}]$r\n\t";
+            ((i++))
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    printf "$usage\n"
 }
 function make_fn_debug() {
     log::warning "Debug mode is on."
@@ -1806,38 +1876,10 @@ function minimize-login-info() {
     touch "$HOME/.hushlogin"
 }
 function fntest() {
-    local f_name="_fn_tpl" # name of the function
-    local f_info="is a template for functions." # info about the function
-    local f_type="" # empty for normal or "compact"
-    local f_file="lib/_templates.sh" # file where the function is defined
-    local f_args="agrument1 argument2" # required arguments
-    local f_args_opt="agrument3 agrument4" # optional arguments
-    local f_switches="debug help info version" # available switches
-    local f_author="gh/barabasz" f_ver="0.2" f_date="2025-05-06"
-    local f_help="" # content of help
-    local name="$(make_fn_name $f_name)"
-    local header="$(make_fn_header $name $f_info)"
-    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" $f_type)"
-    local errinf="$(make_fn_errinf $name "$f_switches" $f_file)"
-    local version="$(make_fn_version $name $f_ver $f_date)"
-    local footer="$(make_fn_footer $f_author $f_date $version)"
-    local info="$(make_fn_info $header $usage $footer $f_file $f_type)"
-    local help="$(make_fn_help $info $f_help)"
-    local args="$(check_fn_args $f_args $f_args_opt $#)"
-    local iserror=0
-    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
-    [[ $1 == "--help" || $1 == "-h" ]] && echo "$help" && return 0
-    [[ $1 == "--version" || $1 == "-v" ]] && echo "$version" && return 0
-    [[ $1 == "--switch1" || $1 == "-s" ]] && local switch1=1 && shift # example
-    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
-    [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
-    [[ $iserror -ne 0 ]] && echo $errinf && return 1
-    echo "This is the output of the $name function."
-}
-function fntest2() {
     local -A f; local -A o; local -A a; local -A s
-    f[info]="is a template for functions." # info about the function
-    f[args_required]="agrument1" # argument2" # required arguments
+    f[info]="Template for functions." # info about the function
+    f[args_required]="agrument1 argument2" # required arguments
+    f[args_optional]="agrument3 agrument4" # optional arguments
     f[opts]="debug help info version example" # optional options
     f[version]="0.2" # version of the function
     f[date]="2025-05-06" # date of last update

@@ -45,29 +45,21 @@ function rmln() {
 
 # Better ln command for creating symbolic links
 function lns() {
-### function properties
-    local f_name="lns" f_file="better/_templates.sh"
-    local f_args="source target"
-    local f_switches="debug force info test"
-    local f_info="creates a symbolic link only if such does not yet exist."
-    local f_min_args=2 f_max_args=2
-### function strings
-    local name="$(make_fn_name $f_name)"
-    local header="$(make_fn_header $name $f_info)"
-    local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
-    local usage_info="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches")"
-    local info="$(make_fn_info $header $usage_info "" compact)"
-### function args and switches
-    [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
-    [[ $1 == "--force" || $1 == "-f" ]] && local force=1 && shift
-    [[ $1 == "--debug" || $1 == "-d" ]] && local debug=1 && shift
-    [[ $1 == "--test" || $1 == "-t" ]] && local test=1 && shift
-    [[ $1 == -* ]] && log::error "$name: unknown switch $purple$1$reset" && return 1
-    local args="$(check_fn_args $f_min_args $f_max_args $#)"
-    [[ $args != "ok" ]] && log::error "$f_name: $args" && echo $usage && return 1
-### main
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Better ln command for creating symbolic links."
+    f[help]="It creates a symbolic link only if such does not yet exist."
+    f[args_required]="source target"
+    f[opts]="debug force help info test version" # optional options
+    f[version]="0.2" # version of the function
+    f[date]="2025-05-06" # date of last update
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+### main function
     local src="$1"
     local dst="$2"
+    local debug=$o[d]
+    local force=$o[f]
+    local test=$o[t]
     local dst_c="${cyan}$dst${reset}"
     local src_c="${cyan}$src${reset}"
     local src_dir="$(dirname "$src")"
@@ -155,7 +147,6 @@ function lns() {
     fi
 
     # Create the symbolic link
-
     if [[ $test -eq 1 ]]; then
         log::info "$name: test mode: not creating symbolic link."
         return 0
@@ -169,15 +160,22 @@ function lns() {
             return 0
         fi
     fi
-
 }
 
 # Creates a symbolic link for configuration dirs using lns
 # If the first argument is -p, it will use GHPRIVDIR instead of GHCONFDIR
 function lnsconfdir() {
-    [[ $1 == "-p" ]] && local priv=1 && shift
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Creates a symbolic link for configuration dirs using lns."
+    f[help]="If the -p optionis used, it will use GHPRIVDIR instead of GHCONFDIR"
+    f[args_required]="directory"
+    f[opts]="debug help info version example"
+    f[version]="0.15"; f[date]="2025-05-06"
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+### main function
+    [[ $o[p] == 1 ]] && local priv=1
     [[ -z $1 ]] && log::error "No config directory provided" && return 1
-
     [[ -z $CONFDIR ]] && log::error "CONFDIR is not set" && return 1
     if [[ $priv -eq 1 ]]; then
         [[ -z $GHPRIVDIR ]] && log::error "GHPRIVDIR is not set" && return 1
@@ -187,11 +185,52 @@ function lnsconfdir() {
         lns "$CONFDIR/$1" "$GHCONFDIR/$1"
     fi
 }
-alias makeconfln=lnsconfdir
 
 # Universal better type command for bash and zsh
 # returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'
 function utype() {
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Universal better type command for bash and zsh."
+    f[help]="Returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'"
+    f[args_required]="command"
+    f[opts]="debug help info version"
+    f[version]="0.2"; f[date]="2025-05-06"
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+### main function
+    local output
+    if [[ $(shellname) == 'bash' ]]; then
+        output=$(type -t $1)
+        if [[ -z $output ]]; then
+            echo "not found"
+            return 1
+        fi
+    elif [[ $(shellname) == 'zsh' ]]; then
+        tp=$(type $1)
+        if [[ $(echo $tp | \grep -o 'not found') ]]; then
+            echo "not found"
+            return 1
+        elif [[ $(echo $tp | \grep -o 'is /') ]]; then
+            output='file'
+        elif [[ $(echo $tp | \grep -o 'alias') ]]; then
+            output='alias'
+        elif [[ $(echo $tp | \grep -o 'shell function') ]]; then
+            output='function'
+        elif [[ $(echo $tp | \grep -o 'reserved') ]]; then
+            output='keyword'
+        elif [[ $(echo $tp | \grep -o 'builtin') ]]; then
+            output='builtin'
+        fi
+    else
+        echo "utype: unsupported shell"
+        return 1
+    fi
+    echo $output
+}
+
+
+
+function utype2() {
     # function properties
     local fargs="<command>"
     local minargs=0
