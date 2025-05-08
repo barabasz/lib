@@ -656,49 +656,7 @@ function make_fn_name() {
     local name=$1
     echo "$(ansi green)$name$(ansi reset)"
 }
-function make_fn_footer() {
-    local author=$1 date=$2 version=$3
-    echo "$version copyright © 1999-${date:0:4} $(ansi yellow)$author$(ansi reset)"
-    echo "MIT License : https://opensource.org/licenses/MIT"
-}
-function make_fn_errinf() {
-    local name=$1 switches=$2 file=$3 c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
-    if [[ "$switches" == *"info"* && "$switches" == *"help"* ]]; then
-        echo "Run $name ${p}-i$r for usage or $name ${p}-h$r for help."
-    elif [[ "$switches" == *"info"* ]]; then
-        echo "Run $name ${p}--info$r or $name ${p}-i$r for usage information."
-    elif [[ "$switches" == *"help"* ]]; then
-        echo "Run $name ${p}--help$r or $name ${p}-h$r for help."
-    else
-        echo "Check source code for usage information."
-        echo "This function is defined in $c$file$r"
-    fi
-}
-function make_fn_info() {
-    local title=$1 usage=$2 footer=$3 file=$4 type=$5
-    file="This function is defined in $(ansi cyan)$file$(ansi reset)"
-    if [[ $type == "compact" ]]; then
-        echo "$title\n$usage\n$file"
-    else
-        echo "$title\n\n$usage\n\n$file\n$footer"
-    fi
-}
-function make_fn_version() {
-    local name=$1 ver=$2 date=$3
-    printf "$name $(ansi yellow)$ver$(ansi reset)"
-    [[ -n $date ]] && printf " ($date)"
-    printf "\n"
-}
-function make_fn_header() {
-    local name=$1 info=$2
-    echo "$name $info"
-}
-function make_fn_help() {
-    local info=$1 help=$2
-    [[ -z $help ]] && help="$(log::error No help available.)"
-    echo "$info\n\n$help"
-}
-function make_fn_usage() {
+function make_fn_usage_old() {
     local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
     local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset) y=$(ansi yellow)
     local usage="Usage: $name "
@@ -791,23 +749,10 @@ function check_fn_args() {
     fi
     echo "ok" && return 0
 }
-function make_fn_strings() {
-    s[name]="${g}$f[name]$r"
-    s[path]="${c}$f[file_path]$r"
-    s[header]="$s[name] $f[info]"
-    s[usage]="Usage:\n$s[name] "
-    [[ ${#arr_options[@]} -ne 0 ]] && s[usage]+="${p}[switches]${r} "
-    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
-        s[usage]+="${c}<arguments>${r}"
-    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
-        s[usage]+="${c}[arguments]${r}"
-    fi
-}
 function make_fns() {
-    local debug=1 # debug mode
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
-    local arr_options=( $(string_to_words "$f[options]") )
+    local arr_opts=( $(string_to_words "$f[opts]") )
     local c=$(ansi cyan)
     local g=$(ansi green)
     local p=$(ansi bright purple)
@@ -818,33 +763,157 @@ function make_fns() {
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
     f[file_dir]="${f[file_path]%/*}"
     f[file_name]="${f[file_path]##*/}"
-    f[arguments_count]=0
-    f[options_string]=""
-    f[options_count]=0
+    f[args_min]=${#arr_args_required}
+    f[args_max]=$(($f[args_min]+${#arr_args_optional}))
+    f[opts_max]="${#arr_opts}"
+    f[args_count]=0
+    f[opts_input]=""
+    f[opts_count]=0
     f[return]=""
+    for opt in $arr_opts; do
+        o[$opt[1,1]]=0
+    done
+    local i=1
     for arg in "$@"; do
         if [[ $arg == -* ]]; then
-            f[options_string]+="$arg "
-            f[options_count]=$(( f[options_count] + 1 ))
+            f[opts_input]+="$arg "
+            opt="${${arg#${arg%%[^-]*}}[1,1]}"
+            if [[ $o[$opt] ]]; then
+                o[$opt]=1
+            else
+                [[ -z "$f[err_opt_value]" ]] && f[err_opt_value]=$arg
+            fi
+            f[opts_count]=$(( f[opts_count] + 1 ))
         else
-            f[arguments_count]=$(( f[arguments_count] + 1 ))
+            f[args_count]=$(( f[args_count] + 1 ))
+            a[$i]=$arg
+            ((i++))
         fi
     done
-    f[options_string]="${f[options_string]%" "}"
-    make_fn_strings
-    if [[ $debug -eq 1 ]]; then
-        log::warning "Debug mode is on."
-        log::info "Function properties:"
-        local value_temp=""
-        for key value in "${(@kv)f}"; do
-            echo "    ${(r:15:)key} -> '$value'"
-        done | sort
-        log::info "Function strings:"
-        for key value in "${(@kv)s}"; do
-            echo -En "    ${(r:15:)key} -> '${value:0:60}'"
-            [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
-        done | sort
+    f[opts_input]="${f[opts_input]%" "}"
+    [[ $f[err_opt_value] ]] && f[err_opt]=1
+    [[ f[args_count] -lt $f[args_min] || $f[args_count] -gt $f[args_max] ]] && f[err_arg]=1
+    s[name]="${g}$f[name]$r"
+    s[path]="${c}$f[file_path]$r"
+    s[author]="${y}$f[author]$r"
+    s[year]="${y}${f[date]:0:4}$r"
+    [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$r"
+    [[ $f[err_arg] ]] && s[err_arg]="$(make_fn_err_arg)"
+    [[ $f[info] ]] && s[header]="$s[name] $f[info]"
+    s[version]=$(make_fn_version)
+    s[footer]=$(make_fn_footer)
+    s[example]="$(make_fn_example)"
+    s[source]="This function is defined in $s[path]"
+    s[usage]="$(make_fn_usage)"
+    s[hint]="$(make_fn_hint)"
+    [[ "$o[d]" -eq "1" ]] && make_fn_debug
+    if [[ "$o[v]" -eq "1" || "$o[i]" -eq "1" || "$o[h]" -eq "1" ]]; then
+        if [[ "$o[v]" -eq "1" ]]; then
+            echo $s[version]
+        elif [[ "$o[i]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo $s[header]
+            echo $s[example]
+        elif [[ "$o[h]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo $s[header]
+            [[ $f[help] ]] && echo $f[help]
+            echo "$s[usage]\n\n$s[footer]\n$s[source]"
+        fi
+        f[return]=0 && return 0
     fi
+    local err_msg="$r$s[name] error:"
+    if [[ $f[err_opt] || $f[err_arg] ]]; then
+        [[ $f[err_opt] ]] && log::error "$err_msg $s[err_opt]"
+        [[ $f[err_arg] ]] && log::error "$err_msg $s[err_arg]"
+        echo "$s[hint]"
+        f[return]=2 && return 0
+    fi
+}
+function make_fn_err_arg() {
+    if [[ $f[args_max] -eq 0 && $f[args_count] -gt 0 ]]; then
+        echo "no arguments expected ($f[args_count] given)"
+        f[err_arg]=1 && f[err_arg_type]=1
+    elif [[ $f[args_count] -eq 0 ]]; then
+        echo "no arguments given (expected $f[args_min] to $f[args_max])"
+        f[err_arg]=1 && f[err_arg_type]=2
+    elif [[ $f[args_count] -lt $f[args_min] ]]; then
+        echo "not enough arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        f[err_arg]=1 && f[err_arg_type]=3
+    elif [[ $f[args_count] -gt $f[args_max] ]]; then
+        echo "too many arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        f[err_arg]=1 && f[err_arg_type]=4
+    fi
+}
+function make_fn_version() {
+    printf "$s[name]"
+    [[ -n $f[version] ]] && printf " $y$f[version]$r" || printf " [version unknown]"
+    [[ -n $f[date] ]] && printf " ($f[date])"
+}
+function make_fn_hint() {
+    if [[ $o[i] && $o[h] ]]; then
+        log::info "Run $s[name] ${p}-i$r for usage or $s[name] ${p}-h$r for help."
+    elif [[ $o[i] ]]; then
+        log::info "Run $s[name] ${p}--info$r or $s[name] ${p}-i$r for usage information."
+    elif [[ $o[h] ]]; then
+        log::info "Run $s[name] ${p}--help$r or $s[name] ${p}-h$r for help."
+    else
+        log::info "Check source code for usage information."
+        log::comment $s[source]
+    fi
+}
+function make_fn_footer() {
+    printf "$s[version] copyright © "
+    [[ -n $f[date] ]] && printf "$s[year] "
+    printf "by $s[author]\n"
+    printf "MIT License : https://opensource.org/licenses/MIT"
+}
+function make_fn_example() {
+    printf "Usage example: $s[name] "
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        for a in "${arr_args_required[@]}"; do
+            printf "${c}<$a>${r} "
+        done | sort | tr -d '\n'
+    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        for a in "${arr_args_optional[@]}"; do
+            printf "${c}[$a]${r} "
+        done | sort | tr -d '\n'
+    fi
+    if [[ $o[h] ]]; then
+        printf "\nRun $s[name] ${p}-h$r for more help."
+    else
+        printf "\n"
+    fi
+}
+function make_fn_usage() {
+    printf "Usage: $s[name] "
+    if [[ ${#arr_opts[@]} -ne 0 ]]; then
+        printf "${p}[options]${r} "
+    fi
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        printf "${c}<arguments>${r}"
+    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        printf "${c}[arguments]${r}"
+    fi
+}
+function make_fn_debug() {
+    log::warning "Debug mode is on."
+    log::info "Arguments:"
+    for key value in "${(@kv)a}"; do
+        echo "    ${(r:15:)key} -> '$value'"
+    done | sort
+    log::info "Options:"
+    for key value in "${(@kv)o}"; do
+        echo "    ${(r:15:)key} -> '$value'"
+    done | sort
+    log::info "Function properties:"
+    local value_temp=""
+    for key value in "${(@kv)f}"; do
+        echo "    ${(r:15:)key} -> '$value'"
+    done | sort
+    log::info "Function strings:"
+    for key value in "${(@kv)s}"; do
+        echo -En "    ${(r:15:)key} -> '${value:0:60}'"
+        [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
+    done | sort
 }
 
 #
@@ -1368,15 +1437,18 @@ function needrestart-verbose() {
 
 LOG_SHOW_ICONS=${LOG_SHOW_ICONS:-1}
 LOG_EMOJI_ICONS=${LOG_EMOJI_ICONS:-0}
-LOG_COLOR_TEXTS=${LOG_COLOR_TEXTS:-1}
+LOG_COLOR_TEXTS=0
 log::color() {
     case "$1" in
+        comment) echo "gray" ;;
+        empty) echo "white" ;;
         error) echo "bright red" ;;
         warning) echo "yellow" ;;
         info) echo "cyan" ;;
         success) echo "green" ;;
         debug) echo "magenta" ;;
         note) echo "bright blue" ;;
+        normal) echo "white" ;;
         *) echo "Invalid log name: $1"; return 1 ;;
     esac
 }
@@ -1387,6 +1459,8 @@ log::demo() {
     local s_name="Success"
     local d_name="Debug"
     local n_name="Note"
+    local m_name="Normal"
+    local c_name="Comment"
     local green=$(ansi green)
     local yellow=$(ansi yellow)
     local reset=$(ansi reset)
@@ -1403,6 +1477,10 @@ log::demo() {
         log::debug "$d_name message"
     printf "${green}log::note${reset} $n_name message    $sep"
         log::note "$n_name message"
+    printf "${green}log::comment${reset} $c_name message $sep"
+        log::comment "$c_name message"
+    printf "${green}log::normal${reset} $m_name message    $sep"
+        log::normal "$m_name message"
 }
 log::icon() {
     if (( $LOG_SHOW_ICONS == 0 )); then
@@ -1418,6 +1496,8 @@ log::icon() {
         local reset="$(ansi reset)"
         local color=""
         case "$1" in
+            comment) color=$(log::color comment) ;;
+            empty) color=$(log::color empty) ;;
             error) color=$(log::color error) ;;
             warning) color=$(log::color warning) ;;
             info) color=$(log::color info) ;;
@@ -1430,6 +1510,7 @@ log::icon() {
         local icon=""
         if (( $LOG_EMOJI_ICONS == 0 )); then
             case "$1" in
+                comment) icon='#' ;;
                 error) icon='✖' ;;
                 warning) icon='▲' ;;
                 info) icon='ℹ' ;;
@@ -1463,12 +1544,14 @@ log::message() {
     else
         local color=""
         case "$1" in
+            comment) color=$(log::color comment) ;;
             error) color=$(log::color error) ;;
             warning) color=$(log::color warning) ;;
             info) color=$(log::color info) ;;
             success) color=$(log::color success) ;;
             debug) color=$(log::color debug) ;;
             note) color=$(log::color note) ;;
+            normal) color=$(log::color normal) ;;
             *) echo "Invalid color name: $1"; return 1 ;;
         esac
         shift
@@ -1478,20 +1561,28 @@ log::message() {
 log::log() {
     local type="$1"; shift
     local message="$*"
-    local icon="$(log::icon $type)"
+    local icon
+    if [[ $type != "normal" ]]; then
+        icon="$(log::icon $type)"
+    else
+        icon="    "
+    fi
     message="$(log::message $type $message)"
     printf "$icon$message\n"
 }
-log::error()    { log::log error "$*"; }
-log::err()      { log::log error "$*"; }
-log::fail()     { log::log error "$*"; }
-log::warn()     { log::log warning "$*"; }
-log::warning()  { log::log warning "$*"; }
-log::info()     { log::log info "$*"; }
-log::success()  { log::log success "$*"; }
-log::ok()       { log::log success "$*"; }
-log::debug()    { log::log debug "$*"; }
-log::note()     { log::log note "$*"; }
+log::comment() { log::log comment "$*"; }
+log::error()   { log::log error "$*"; }
+log::err()     { log::log error "$*"; }
+log::fail()    { log::log error "$*"; }
+log::warn()    { log::log warning "$*"; }
+log::warning() { log::log warning "$*"; }
+log::info()    { log::log info "$*"; }
+log::success() { log::log success "$*"; }
+log::ok()      { log::log success "$*"; }
+log::debug()   { log::log debug "$*"; }
+log::note()    { log::log note "$*"; }
+log::normal()  { log::log normal "$*"; }
+log::msg()     { log::log normal "$*"; }
 
 #
 # File: omz.sh
@@ -1818,7 +1909,7 @@ function fntest() {
     local f_file="lib/_templates.sh" # file where the function is defined
     local f_args="agrument1 argument2" # required arguments
     local f_args_opt="agrument3 agrument4" # optional arguments
-    local f_switches="help info version" # available switches
+    local f_switches="debug help info version" # available switches
     local f_author="gh/barabasz" f_ver="0.2" f_date="2025-05-06"
     local f_help="" # content of help
     local name="$(make_fn_name $f_name)"
@@ -1841,16 +1932,19 @@ function fntest() {
     echo "This is the output of the $name function."
 }
 function fntest2() {
-    local -A f; local -A s # function properties and strings
+    local -A f; local -A o; local -A a; local -A s
     f[info]="is a template for functions." # info about the function
     f[args_required]="agrument1 argument2" # required arguments
     f[args_optional]="agrument3 agrument4" # optional arguments
-    f[options]="help info version" # optional options
+    f[opts]="debug help info version example" # optional options
     f[version]="0.2" # version of the function
     f[date]="2025-05-06" # date of last update
-    f[help]="" # content of help, i.e.: f[help]=$(<help.txt)
-    make_fns "$@" && [[ "${f[return]}" ]] && return "${f[return]}"
+    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
+    make_fns "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
     echo "This is the output of the $s[name] function."
+    echo "This is the path to the function: $s[path]"
+    echo "This is the first argument: $a[1]"
+    echo "This is 'example' option value: $o[e]"
 }
 

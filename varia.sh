@@ -92,7 +92,7 @@ function fntest() {
     local f_file="lib/_templates.sh" # file where the function is defined
     local f_args="agrument1 argument2" # required arguments
     local f_args_opt="agrument3 agrument4" # optional arguments
-    local f_switches="help info version" # available switches
+    local f_switches="debug help info version" # available switches
     local f_author="gh/barabasz" f_ver="0.2" f_date="2025-05-06"
     local f_help="" # content of help
 ### function strings
@@ -119,18 +119,19 @@ function fntest() {
 }
 
 function fntest2() {
-### function properties
-    local -A f; local -A s # function properties and strings
+    local -A f; local -A o; local -A a; local -A s
     f[info]="is a template for functions." # info about the function
     f[args_required]="agrument1 argument2" # required arguments
     f[args_optional]="agrument3 agrument4" # optional arguments
-    f[options]="help info version" # optional options
+    f[opts]="debug help info version example" # optional options
     f[version]="0.2" # version of the function
     f[date]="2025-05-06" # date of last update
-    f[help]="" # content of help, i.e.: f[help]=$(<help.txt)
-### arguments and options handling
-    make_fns "$@" && [[ "${f[return]}" ]] && return "${f[return]}"
+    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
 ### main function
     echo "This is the output of the $s[name] function."
+    echo "This is the path to the function: $s[path]"
+    echo "This is the first argument: $a[1]"
+    echo "This is 'example' option value: $o[e]"
 }

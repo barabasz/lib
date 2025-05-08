@@ -1,218 +1,14 @@
 #!/bin/zsh
-#
-# Helper functions for the script functions
-# ⚠️ These functions are intended to be used by other scripts and not run directly
 
-# Generate colored function name
-# Usage: make_fn_name <function-name>
-# Returns: colored function name
-function make_fn_name() {
-    local name=$1
-    echo "$(ansi green)$name$(ansi reset)"
-}
+# make_fn - a function for nahdling options and arguments.
+# It will parse the options and arguments and check for errors.
+# This function must be called by the main function that uses it.
+# ⚠️ It is not meant to be used standalone. 
 
-# Generate colored function footer
-# Usage: make_fn_footer <function-author> <function-date> <function-version>
-# Returns: colored function footer
-function make_fn_footer() {
-    local author=$1 date=$2 version=$3
-    echo "$version copyright © 1999-${date:0:4} $(ansi yellow)$author$(ansi reset)"
-    echo "MIT License : https://opensource.org/licenses/MIT"
-}
-
-# Generate colored function error information
-# Usage: make_fn_errinf <function-name> <function-switches>
-# Returns: colored function error information if --info switch is present
-function make_fn_errinf() {
-    local name=$1 switches=$2 file=$3 c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset)
-    if [[ "$switches" == *"info"* && "$switches" == *"help"* ]]; then
-        echo "Run $name ${p}-i$r for usage or $name ${p}-h$r for help."
-    elif [[ "$switches" == *"info"* ]]; then
-        echo "Run $name ${p}--info$r or $name ${p}-i$r for usage information."
-    elif [[ "$switches" == *"help"* ]]; then
-        echo "Run $name ${p}--help$r or $name ${p}-h$r for help."
-    else
-        echo "Check source code for usage information."
-        echo "This function is defined in $c$file$r"
-    fi
-}
-
-# Generate colored function info
-# Usage: make_fn_info <function-name> <function-info> <function-usage>
-# Returns: colored function info
-function make_fn_info() {
-    local title=$1 usage=$2 footer=$3 file=$4 type=$5
-    file="This function is defined in $(ansi cyan)$file$(ansi reset)"
-    if [[ $type == "compact" ]]; then
-        echo "$title\n$usage\n$file"
-    else
-        echo "$title\n\n$usage\n\n$file\n$footer"
-    fi
-}
-
-# Generate colored function version
-# Usage: make_fn_version <function-name> <function-version>
-# Returns: colored function version
-function make_fn_version() {
-    local name=$1 ver=$2 date=$3
-    printf "$name $(ansi yellow)$ver$(ansi reset)"
-    [[ -n $date ]] && printf " ($date)"
-    printf "\n"
-}
-
-# Generate colored function header
-# Usage: make_fn_header <function-name> <function-info>
-# Returns: colored function header
-function make_fn_header() {
-    local name=$1 info=$2
-    echo "$name $info"
-}
-
-# Generate colored function help
-# Usage: make_fn_help <function-info> <function-help>
-# Returns: colored function help
-function make_fn_help() {
-    local info=$1 help=$2
-    [[ -z $help ]] && help="$(log::error No help available.)"
-    echo "$info\n\n$help"
-}
-
-# Generate usage message for functions
-# Usage: make_fn_usage <name> <arguments> [optional-arguments] [switches] ?[compact]
-# Returns: usage message
-function make_fn_usage() {
-    local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
-    local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset) y=$(ansi yellow)
-    local usage="Usage: $name "
-
-    args_array=( $(string_to_words "$args") )
-    argsopt_array=( $(string_to_words "$argsopt") )
-    switches_array=( $(string_to_words "$switches") )
-
-    if [[ $compact == "compact" ]]; then
-        if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="$p"
-            for s in "${switches_array[@]}"; do 
-                usage+="[--$s] "
-            done
-            usage+="$r"
-        fi
-        if [[ ${#args_array[@]} -ne 0 ]]; then
-            usage+="$c"
-            for s in "${args_array[@]}"; do 
-                usage+="<$s> "
-            done
-            usage+="$r"
-        fi
-        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
-            usage+="$c"
-            for s in "${argsopt_array[@]}"; do 
-                usage+="[$s] "
-            done
-            usage+="$r"
-        fi
-    else
-        [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
-        
-        if [[ ${#args_array[@]} -ne 0 ]]; then
-            usage+="${c}<arguments>${r}"
-        elif [[ ${#argsopt_array[@]} -ne 0 ]]; then
-            usage+="${c}[arguments]${r}"
-        fi
-
-        if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="\nSwitches: "
-            for s in "${switches_array[@]}"; do
-                usage+="$p--$s ${r}or$p -${s:0:1}$r, "
-            done
-            usage="${usage%??}"
-        fi
-        if [[ ${#args_array[@]} -ne 0 ]]; then
-            usage+="\nRequired arguments: "
-            [[ ${#args_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
-        fi
-        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
-            usage+="\nOptional arguments: "
-            [[ ${#argsopt_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
-        fi
-    fi
-    printf "$usage\n"
-}
-
-# Check number of parameters
-# Usage: check_fn_args <req_args_list> <opt_args_list> <actual_args_count>
-# Returns: "ok" if the number of arguments is correct, otherwise an error message
-function check_fn_args() {
-    [[ $# -ne 3 ]] && return 2
-    
-    local req_args=$1
-    local req_args_tbl=( ${=req_args} )
-    local req_args_count=${#req_args_tbl}
-
-    local opt_args=$2
-    local opt_args_tbl=( ${=opt_args} )
-    local opt_args_count=${#opt_args_tbl}
-
-    local min=$req_args_count
-    local max=$((req_args_count + opt_args_count))
-    local given=$3
-    local msg1="" msg2=""
-
-    if [[ $min -gt $max ]]; then
-        echo "check_fn_args: min number of arguments cannot be greater than max"
-        return 1
-    elif [[ $given -lt 0 ]]; then
-        echo "check_fn_args: actual number of arguments cannot be negative"
-        return 1
-    fi
-
-    if [[ $max -eq 0 && $given -gt 0 ]]; then
-        msg1="no arguments expected"
-    elif [[ $given -eq 0 ]]; then
-        msg1="no arguments given"
-    elif [[ $given -lt $min ]]; then
-        msg1="not enough arguments"
-    elif [[ $given -gt $max ]]; then
-        msg1="too many arguments"
-    fi
-
-    if [[ $given -lt $min || $given -gt $max ]]; then
-        if [[ $1 == $2 ]]; then
-            msg2="expected $min"
-        else
-            msg2="expected $min to $max"
-        fi
-        echo "$msg1 ($msg2, given $given)"
-        return 1
-    fi
-
-    echo "ok" && return 0
-}
-
-# ###---------------------------------------
-# ### NEW APPROACH
-# ###---------------------------------------
-
-
-function make_fn_strings() {
-    s[name]="${g}$f[name]$r"
-    s[path]="${c}$f[file_path]$r"
-    s[header]="$s[name] $f[info]"
-
-    s[usage]="Usage:\n$s[name] "
-    [[ ${#arr_options[@]} -ne 0 ]] && s[usage]+="${p}[switches]${r} "
-    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
-        s[usage]+="${c}<arguments>${r}"
-    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
-        s[usage]+="${c}[arguments]${r}"
-    fi
-}
-
-function make_fns() {
-    local debug=1 # debug mode
+function make_fn() {
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
-    local arr_options=( $(string_to_words "$f[options]") )
+    local arr_opts=( $(string_to_words "$f[opts]") )
 ### colors
     local c=$(ansi cyan)
     local g=$(ansi green)
@@ -225,57 +21,194 @@ function make_fns() {
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
     f[file_dir]="${f[file_path]%/*}"
     f[file_name]="${f[file_path]##*/}"
-    f[arguments_count]=0
-    f[options_input]=""
-    f[options_count]=0
+    f[args_min]=${#arr_args_required}
+    f[args_max]=$(($f[args_min]+${#arr_args_optional}))
+    f[opts_max]="${#arr_opts}"
+    f[args_count]=0
+    f[opts_input]=""
+    f[opts_count]=0
     f[return]=""
+    # create options array
+    for opt in $arr_opts; do
+        o[$opt[1,1]]=0
+    done
+    # parse options and arguments
+    local i=1
     for arg in "$@"; do
         if [[ $arg == -* ]]; then
-            f[options_input]+="$arg "
-            f[options_count]=$(( f[options_count] + 1 ))
+            f[opts_input]+="$arg "
+            opt="${${arg#${arg%%[^-]*}}[1,1]}"
+            if [[ $o[$opt] ]]; then
+                o[$opt]=1
+            else
+                [[ -z "$f[err_opt_value]" ]] && f[err_opt_value]=$arg
+            fi
+            f[opts_count]=$(( f[opts_count] + 1 ))
         else
-            f[arguments_count]=$(( f[arguments_count] + 1 ))
+            f[args_count]=$(( f[args_count] + 1 ))
+            a[$i]=$arg
+            ((i++))
         fi
     done
-    f[options_input]="${f[options_input]%" "}"
+    f[opts_input]="${f[opts_input]%" "}"
+    [[ $f[err_opt_value] ]] && f[err_opt]=1
+    [[ f[args_count] -lt $f[args_min] || $f[args_count] -gt $f[args_max] ]] && f[err_arg]=1
+
 ### function strings
+    s[name]="${g}$f[name]$r"
+    s[path]="${c}$f[file_path]$r"
+    s[author]="${y}$f[author]$r"
+    s[year]="${y}${f[date]:0:4}$r"
+    [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$r"
+    [[ $f[err_arg] ]] && s[err_arg]="$(make_fn_err_arg)"
+    [[ $f[info] ]] && s[header]="$s[name] $f[info]"
+    s[version]=$(make_fn_version)
+    s[footer]=$(make_fn_footer)
+    s[example]="$(make_fn_example)"
+    s[source]="This function is defined in $s[path]"
+    s[usage]="$(make_fn_usage)"
+    s[hint]="$(make_fn_hint)"
 
-    make_fn_strings
-    
-
-
-
-
-
-
-
-
- 
-    # do poniższych dać "$fnp[return]"
-    # [[ "${fns[msg_info]}" ]] && echo "${fns[msg_info]}" && return 0
-    # [[ "${fns[msg_opts]}" ]] && echo "${fns[msg_opts]}" && return 2
-    # [[ "${fns[msg_args]}" ]] && echo "${fns[msg_args]}" && return 2
-
-
-    # sprawdzić, czy są tylko dozwolone switche
-    # [[ $1 == -* ]] && echo "${fns[errswitch]}" && iserror=1
-
-    # dodatkowe opcje
-    # [[ $1 == "--option1" || $1 == "-o" ]] && local switch1=1 && shift # extra switch example
-
-    if [[ $debug -eq 1 ]]; then
-        log::warning "Debug mode is on."
-        log::info "Function properties:"
-        local value_temp=""
-        for key value in "${(@kv)f}"; do
-            echo "    ${(r:15:)key} -> '$value'"
-        done | sort
-        log::info "Function strings:"
-        for key value in "${(@kv)s}"; do
-            echo -En "    ${(r:15:)key} -> '${value:0:60}'"
-            [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
-        done | sort
+### options handling
+    # show debug infromation
+    [[ "$o[d]" -eq "1" ]] && make_fn_debug
+    # show version, basic info (usage) or help
+    if [[ "$o[v]" -eq "1" || "$o[i]" -eq "1" || "$o[h]" -eq "1" ]]; then
+        if [[ "$o[v]" -eq "1" ]]; then
+            echo $s[version]
+        elif [[ "$o[i]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo $s[header]
+            echo $s[example]
+        elif [[ "$o[h]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo $s[header]
+            [[ $f[help] ]] && echo $f[help]
+            echo "$s[usage]\n\n$s[footer]\n$s[source]"
+        fi
+        f[return]=0 && return 0
     fi
+    # error handling
+    local err_msg="$r$s[name] error:"
+    if [[ $f[err_opt] || $f[err_arg] ]]; then
+        [[ $f[err_opt] ]] && log::error "$err_msg $s[err_opt]"
+        [[ $f[err_arg] ]] && log::error "$err_msg $s[err_arg]"
+        echo "$s[hint]"
+        f[return]=2 && return 0
+    fi
+}
 
+function make_fn_err_arg() {
+    if [[ $f[args_max] -eq 0 && $f[args_count] -gt 0 ]]; then
+        #s[err_arg]="no arguments expected"
+        echo "no arguments expected ($f[args_count] given)"
+        f[err_arg]=1 && f[err_arg_type]=1
+    elif [[ $f[args_count] -eq 0 ]]; then
+        #s[err_arg]="no arguments given"
+        echo "no arguments given (expected $f[args_min] to $f[args_max])"
+        f[err_arg]=1 && f[err_arg_type]=2
+    elif [[ $f[args_count] -lt $f[args_min] ]]; then
+        #s[err_arg]="not enough arguments"
+        echo "not enough arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        f[err_arg]=1 && f[err_arg_type]=3
+    elif [[ $f[args_count] -gt $f[args_max] ]]; then
+        #s[err_arg]="too many arguments"
+        echo "too many arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
+        f[err_arg]=1 && f[err_arg_type]=4
+    fi
+}
 
+# Helper functions that are only to be used by the make_fn function.
+# ⚠️ These functions cannot be used standalone.
+
+function make_fn_version() {
+    printf "$s[name]"
+    [[ -n $f[version] ]] && printf " $y$f[version]$r" || printf " [version unknown]"
+    [[ -n $f[date] ]] && printf " ($f[date])"
+}
+
+function make_fn_hint() {
+    if [[ $o[i] && $o[h] ]]; then
+        log::info "Run $s[name] ${p}-i$r for usage or $s[name] ${p}-h$r for help."
+    elif [[ $o[i] ]]; then
+        log::info "Run $s[name] ${p}--info$r or $s[name] ${p}-i$r for usage information."
+    elif [[ $o[h] ]]; then
+        log::info "Run $s[name] ${p}--help$r or $s[name] ${p}-h$r for help."
+    else
+        log::info "Check source code for usage information."
+        log::comment $s[source]
+    fi
+}
+
+function make_fn_footer() {
+    printf "$s[version] copyright © "
+    [[ -n $f[date] ]] && printf "$s[year] "
+    printf "by $s[author]\n"
+    printf "MIT License : https://opensource.org/licenses/MIT"
+}
+
+function make_fn_example() {
+    printf "Usage example: $s[name] "
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        for a in "${arr_args_required[@]}"; do
+            printf "${c}<$a>${r} "
+        done | sort | tr -d '\n'
+    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        for a in "${arr_args_optional[@]}"; do
+            printf "${c}[$a]${r} "
+        done | sort | tr -d '\n'
+    fi
+    if [[ $o[h] ]]; then
+        printf "\nRun $s[name] ${p}-h$r for more help."
+    else
+        printf "\n"
+    fi
+}
+
+    #if [[ ${#switches_array[@]} -ne 0 ]]; then
+    #    usage+="\nSwitches: "
+    #    for s in "${switches_array[@]}"; do
+    #        usage+="$p--$s ${r}or$p -${s:0:1}$r, "
+    #    done
+    #    usage="${usage%??}"
+    #fi
+    #if [[ ${#args_array[@]} -ne 0 ]]; then
+    #    usage+="\nRequired arguments: "
+    #    [[ ${#args_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
+    #fi
+    #if [[ ${#argsopt_array[@]} -ne 0 ]]; then
+    #    usage+="\nOptional arguments: "
+    #    [[ ${#argsopt_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
+    #fi
+
+function make_fn_usage() {
+    printf "Usage: $s[name] "
+    if [[ ${#arr_opts[@]} -ne 0 ]]; then
+        printf "${p}[options]${r} "
+    fi
+    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+        printf "${c}<arguments>${r}"
+    elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
+        printf "${c}[arguments]${r}"
+    fi
+}
+
+function make_fn_debug() {
+    log::warning "Debug mode is on."
+    log::info "Arguments:"
+    for key value in "${(@kv)a}"; do
+        echo "    ${(r:15:)key} -> '$value'"
+    done | sort
+    log::info "Options:"
+    for key value in "${(@kv)o}"; do
+        echo "    ${(r:15:)key} -> '$value'"
+    done | sort
+    log::info "Function properties:"
+    local value_temp=""
+    for key value in "${(@kv)f}"; do
+        echo "    ${(r:15:)key} -> '$value'"
+    done | sort
+    log::info "Function strings:"
+    for key value in "${(@kv)s}"; do
+        echo -En "    ${(r:15:)key} -> '${value:0:60}'"
+        [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
+    done | sort
 }
