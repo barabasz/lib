@@ -180,8 +180,12 @@ function make_fn_usage() {
     if [[ ${#arr_opts[@]} -ne 0 ]]; then
         usage+="${p}[options]${r} "
     fi
-    if [[ ${#arr_args_required[@]} -ne 0 ]]; then
+    if [[ ${#arr_args_required[@]} -eq 1 ]]; then
+        usage+="${c}<${arr_args_required[1]}>${r}"
+    elif [[ ${#arr_args_required[@]} -ne 0 ]]; then
         usage+="${c}<arguments>${r}"
+    elif [[ ${#arr_args_optional[@]} -eq 1 ]]; then
+        usage+="${c}[${arr_args_optional[1]}]${r}"
     elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
         usage+="${c}[arguments]${r}"
     fi
