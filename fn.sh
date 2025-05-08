@@ -35,8 +35,9 @@ function make_fn() {
     for arg in "$@"; do
         if [[ $arg == -* ]]; then
             f[opts_input]+="$arg "
-            opt="${${arg#${arg%%[^-]*}}[1,1]}"
-            if [[ $o[$opt] ]]; then
+            opt_long="${arg#${arg%%[^-]*}}"
+            opt=${opt_long[1,1]}
+            if [[ $arr_opts =~ $opt_long ]]; then
                 o[$opt]=1
             else
                 [[ -z "$f[err_opt_value]" ]] && f[err_opt_value]=$arg
@@ -215,20 +216,24 @@ function make_fn_debug() {
     log::warning "Debug mode is on."
     log::info "Arguments:"
     for key value in "${(@kv)a}"; do
-        echo "    ${(r:15:)key} -> '$value'"
+        echo "    ${(r:15:)key} $y->$r '$value'"
     done | sort
     log::info "Options:"
     for key value in "${(@kv)o}"; do
-        echo "    ${(r:15:)key} -> '$value'"
+        echo "    ${(r:15:)key} $y->$r '$value'"
     done | sort
     log::info "Function properties:"
     local value_temp=""
     for key value in "${(@kv)f}"; do
-        echo "    ${(r:15:)key} -> '$value'"
+        value=$(clean_string "$value")
+        echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
+        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
     done | sort
     log::info "Function strings:"
     for key value in "${(@kv)s}"; do
-        echo -En "    ${(r:15:)key} -> '${value:0:60}'"
-        [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
+        value=$(clean_ansi "$value")
+        value=$(clean_string "$value")
+        echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
+        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
     done | sort
 }
