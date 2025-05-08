@@ -419,7 +419,7 @@ function rmln() {
     local usage="$(make_fn_usage $name "$f_args" "$f_args_opt" "$f_switches" compact)"
     local info="$(make_fn_info $header $usage "" compact)" iserror=0
     [[ $1 == "--info" || $1 == "-i" ]] && echo "$info" && return 0
-    [[ $1 == -* ]] && log::error "$name: unknown switch $1" && iserror=1
+    [[ $1 == -* ]] && log::error "$s[name]: unknown switch $1" && iserror=1
     local args="$(check_fn_args $f_min_args $f_max_args $#)"
     [[ $args != "ok" && iserror -eq 0 ]] && log::error "$f_name: $args" && iserror=1
     [[ $iserror -ne 0 ]] && echo $usage && return 1
@@ -432,13 +432,13 @@ function rmln() {
         if [[ -L $file ]]; then
             rm -f $file
             if [[ $? -eq 0 ]]; then
-                log::ok "$name: symbolic link $c$file_full_path$r removed.\n"
+                log::ok "$s[name]: symbolic link $c$file_full_path$r removed.\n"
             else
-                log::error "$name: failed to remove symbolic link $c$file_full_path$r.\n"
+                log::error "$s[name]: failed to remove symbolic link $c$file_full_path$r.\n"
                 return 1
             fi
         else
-            log::error "$name: $c$file_full_path$r is not a symbolic link.\n"
+            log::error "$s[name]: $c$file_full_path$r is not a symbolic link.\n"
             return 1
         fi
     fi
@@ -447,10 +447,10 @@ function lns() {
     local -A f; local -A o; local -A a; local -A s
     f[info]="Better ln command for creating symbolic links."
     f[help]="It creates a symbolic link only if such does not yet exist."
+    f[help]+="\nSource and target dirs must be provided as an absolute path."
     f[args_required]="source target"
-    f[opts]="debug force help info test version" # optional options
-    f[version]="0.2" # version of the function
-    f[date]="2025-05-06" # date of last update
+    f[opts]="debug force help info test version"
+    f[version]="0.3"; f[date]="2025-05-06"
     make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
     local src="$1"
@@ -466,73 +466,73 @@ function lns() {
     local dst_dir_c="${cyan}$dst_dir${reset}"
     local arr="${yellowi}→${reset}"
     if [[ $debug -eq 1 ]]; then
-        log::info "$name: source: \t$src_c"
-        log::info "$name: source dir: \t$src_dir"
-        log::info "$name: target: \t$dst_c"
-        log::info "$name: target dir: \t$dst_dir"
+        log::info "$s[name]: source: \t$src_c"
+        log::info "$s[name]: source dir: \t$src_dir"
+        log::info "$s[name]: target: \t$dst_c"
+        log::info "$s[name]: target dir: \t$dst_dir"
     fi
     if [[ "$dst" != /* ]]; then
-        log::error "$name: the target $dst_c must be an absolute path."
+        log::error "$s[name]: the target $dst_c must be an absolute path."
         return 1
     fi
     if [[ "$src" != /* ]]; then
-        log::error "$name: the source $src_c must be an absolute path."
+        log::error "$s[name]: the source $src_c must be an absolute path."
         return 1
     fi
     if [[ "$dst" == "$src" ]]; then
-        log::error "$name: target and source cannot be the same."
+        log::error "$s[name]: target and source cannot be the same."
         return 1
     fi
     if [[ ! -e "$dst" ]]; then
-        log::error "$name: target $dst_c does not exist."
+        log::error "$s[name]: target $dst_c does not exist."
         return 1
     fi
     if [[ ! -r "$dst" ]]; then
-        log::error "$name: target $dst_c is not readable."
+        log::error "$s[name]: target $dst_c is not readable."
         return 1
     fi
     if [[ ! -d "$dst" ]] && [[ ! -f "$dst" ]]; then
-        log::error "$name: target $dst_c is neither a directory nor a file."
+        log::error "$s[name]: target $dst_c is neither a directory nor a file."
         return 1
     fi
     if [[ ! -w "$src_dir" ]]; then
-        log::error "$name: cannot write to the source's folder $src_dir_c"
+        log::error "$s[name]: cannot write to the source's folder $src_dir_c"
         return 1
     fi
     if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
-        log::info "$name: symlink $src_c $arr $dst_c already exists."
+        log::info "$s[name]: symlink $src_c $arr $dst_c already exists."
         return 0
     fi
     if [[ "$src" == $(realpath "$dst") ]]; then
-        log::error "$name: source and target are the same file."
-        log::info "$name: check for folder symlinks in file paths."
+        log::error "$s[name]: source and target are the same file."
+        log::info "$s[name]: check for folder symlinks in file paths."
         return 1
     fi
     if [[ -e "$src" ]]; then
         if [[ $force -eq 1 ]]; then
             rm -rf "$src"
             if [[ $? -ne 0 ]]; then
-                log::error "$name: failed while rmoving $src_c (error rissed by rm)."
+                log::error "$s[name]: failed while rmoving $src_c (error rissed by rm)."
                 return 1
             else
-                log::info "$name: removed existing source $src_c."
+                log::info "$s[name]: removed existing source $src_c."
             fi
         else
-            log::error "$name: source $src_c already exists."
-            log::info "$name: to override use the $purple--force$reset switch."
+            log::error "$s[name]: source $src_c already exists."
+            log::info "$s[name]: to override use the $purple--force$reset switch."
             return 1
         fi
     fi
     if [[ $test -eq 1 ]]; then
-        log::info "$name: test mode: not creating symbolic link."
+        log::info "$s[name]: test mode: not creating symbolic link."
         return 0
     else
         ln -s "$dst" "$src"
         if [[ $? != 0 ]]; then
-            log::error "$name: failed to create symbolic link (error rissed by ln).\n"
+            log::error "$s[name]: failed to create symbolic link (error rissed by ln).\n"
             return 1
         else
-            log::info "$name: symbolic link $src_c $arr $dst_c created.\n"
+            log::info "$s[name]: symbolic link $src_c $arr $dst_c created.\n"
             return 0
         fi
     fi
@@ -716,8 +716,9 @@ function make_fn() {
     for arg in "$@"; do
         if [[ $arg == -* ]]; then
             f[opts_input]+="$arg "
-            opt="${${arg#${arg%%[^-]*}}[1,1]}"
-            if [[ $o[$opt] ]]; then
+            opt_long="${arg#${arg%%[^-]*}}"
+            opt=${opt_long[1,1]}
+            if [[ $arr_opts =~ $opt_long ]]; then
                 o[$opt]=1
             else
                 [[ -z "$f[err_opt_value]" ]] && f[err_opt_value]=$arg
@@ -871,21 +872,25 @@ function make_fn_debug() {
     log::warning "Debug mode is on."
     log::info "Arguments:"
     for key value in "${(@kv)a}"; do
-        echo "    ${(r:15:)key} -> '$value'"
+        echo "    ${(r:15:)key} $y->$r '$value'"
     done | sort
     log::info "Options:"
     for key value in "${(@kv)o}"; do
-        echo "    ${(r:15:)key} -> '$value'"
+        echo "    ${(r:15:)key} $y->$r '$value'"
     done | sort
     log::info "Function properties:"
     local value_temp=""
     for key value in "${(@kv)f}"; do
-        echo "    ${(r:15:)key} -> '$value'"
+        value=$(clean_string "$value")
+        echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
+        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
     done | sort
     log::info "Function strings:"
     for key value in "${(@kv)s}"; do
-        echo -En "    ${(r:15:)key} -> '${value:0:60}'"
-        [[ ${#value} -gt 60 ]] && echo "$r..." || echo "$r"
+        value=$(clean_ansi "$value")
+        value=$(clean_string "$value")
+        echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
+        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
     done | sort
 }
 
@@ -893,6 +898,17 @@ function make_fn_debug() {
 # File: helpers.sh
 #
 
+function clean_string() {
+  local input="$1"
+  input="${input//$'\n'/ }"
+  input="${input//$'\t'/ }"
+  input="${(j: :)${(z)input}}"
+  echo "$input"
+}
+clean_ansi() {
+  local input="$1"
+  echo "$input" | sed $'s/\x1b\\[[0-9;]*m//g'
+}
 function timet() {
     local cmd=$1
     local arg=$2
