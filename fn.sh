@@ -9,13 +9,9 @@ function make_fn() {
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
     local arr_opts=( $(string_to_words "$f[opts]") )
-### colors
-    local c=$(ansi cyan)
-    local g=$(ansi green)
-    local p=$(ansi bright purple)
-    local y=$(ansi yellow)
-    local r=$(ansi reset)
-### function properties
+    local c=$(ansi cyan) g=$(ansi green) p=$(ansi bright purple) y=$(ansi yellow) r=$(ansi reset)
+
+### prepare function properties
     f[name]="${funcstack[2]}"
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
@@ -28,11 +24,13 @@ function make_fn() {
     f[opts_input]=""
     f[opts_count]=0
     f[return]=""
+    
+### parse options and arguments
     # create options array
     for opt in $arr_opts; do
         o[$opt[1,1]]=0
     done
-    # parse options and arguments
+    # loop through arguments
     local i=1
     for arg in "$@"; do
         if [[ $arg == -* ]]; then
@@ -96,35 +94,34 @@ function make_fn() {
     fi
 }
 
+# Helper functions that are only to be used by the make_fn function.
+# ⚠️ These functions cannot be used standalone.
+
+# check if the number of arguments is correct
 function make_fn_err_arg() {
     if [[ $f[args_max] -eq 0 && $f[args_count] -gt 0 ]]; then
-        #s[err_arg]="no arguments expected"
         echo "no arguments expected ($f[args_count] given)"
         f[err_arg]=1 && f[err_arg_type]=1
     elif [[ $f[args_count] -eq 0 ]]; then
-        #s[err_arg]="no arguments given"
         echo "no arguments given (expected $f[args_min] to $f[args_max])"
         f[err_arg]=1 && f[err_arg_type]=2
     elif [[ $f[args_count] -lt $f[args_min] ]]; then
-        #s[err_arg]="not enough arguments"
         echo "not enough arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
         f[err_arg]=1 && f[err_arg_type]=3
     elif [[ $f[args_count] -gt $f[args_max] ]]; then
-        #s[err_arg]="too many arguments"
         echo "too many arguments (expected $f[args_min] to $f[args_max], given $f[args_count])"
         f[err_arg]=1 && f[err_arg_type]=4
     fi
 }
 
-# Helper functions that are only to be used by the make_fn function.
-# ⚠️ These functions cannot be used standalone.
-
+# prepare the version string
 function make_fn_version() {
     printf "$s[name]"
     [[ -n $f[version] ]] && printf " $y$f[version]$r" || printf " [version unknown]"
     [[ -n $f[date] ]] && printf " ($f[date])"
 }
 
+# prepare the hint string
 function make_fn_hint() {
     if [[ $o[i] && $o[h] ]]; then
         log::info "Run $s[name] ${p}-i$r for usage or $s[name] ${p}-h$r for help."
@@ -138,6 +135,7 @@ function make_fn_hint() {
     fi
 }
 
+# prepare the footer string
 function make_fn_footer() {
     printf "$s[version] copyright © "
     [[ -n $f[date] ]] && printf "$s[year] "
@@ -145,6 +143,7 @@ function make_fn_footer() {
     printf "MIT License : https://opensource.org/licenses/MIT"
 }
 
+# prepare the example string
 function make_fn_example() {
     printf "Usage example: $s[name] "
     if [[ ${#arr_args_required[@]} -ne 0 ]]; then
@@ -179,6 +178,7 @@ function make_fn_example() {
     #    [[ ${#argsopt_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
     #fi
 
+# prepare the full usage information
 function make_fn_usage() {
     printf "Usage: $s[name] "
     if [[ ${#arr_opts[@]} -ne 0 ]]; then
@@ -191,6 +191,7 @@ function make_fn_usage() {
     fi
 }
 
+# print debug information
 function make_fn_debug() {
     log::warning "Debug mode is on."
     log::info "Arguments:"

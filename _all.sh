@@ -652,104 +652,7 @@ function wheref() {
 # File: fn.sh
 #
 
-function make_fn_name() {
-    local name=$1
-    echo "$(ansi green)$name$(ansi reset)"
-}
-function make_fn_usage_old() {
-    local name=$1 args=$2 argsopt=$3 switches=$4 compact=$5
-    local g=$(ansi green) c=$(ansi cyan) p=$(ansi bright purple) r=$(ansi reset) y=$(ansi yellow)
-    local usage="Usage: $name "
-    args_array=( $(string_to_words "$args") )
-    argsopt_array=( $(string_to_words "$argsopt") )
-    switches_array=( $(string_to_words "$switches") )
-    if [[ $compact == "compact" ]]; then
-        if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="$p"
-            for s in "${switches_array[@]}"; do 
-                usage+="[--$s] "
-            done
-            usage+="$r"
-        fi
-        if [[ ${#args_array[@]} -ne 0 ]]; then
-            usage+="$c"
-            for s in "${args_array[@]}"; do 
-                usage+="<$s> "
-            done
-            usage+="$r"
-        fi
-        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
-            usage+="$c"
-            for s in "${argsopt_array[@]}"; do 
-                usage+="[$s] "
-            done
-            usage+="$r"
-        fi
-    else
-        [[ ${#switches_array[@]} -ne 0 ]] && usage+="${p}[switches]${r} "
-        if [[ ${#args_array[@]} -ne 0 ]]; then
-            usage+="${c}<arguments>${r}"
-        elif [[ ${#argsopt_array[@]} -ne 0 ]]; then
-            usage+="${c}[arguments]${r}"
-        fi
-        if [[ ${#switches_array[@]} -ne 0 ]]; then
-            usage+="\nSwitches: "
-            for s in "${switches_array[@]}"; do
-                usage+="$p--$s ${r}or$p -${s:0:1}$r, "
-            done
-            usage="${usage%??}"
-        fi
-        if [[ ${#args_array[@]} -ne 0 ]]; then
-            usage+="\nRequired arguments: "
-            [[ ${#args_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${args_array[@]}"; do usage+="<$s> "; done } && usage+="$r"
-        fi
-        if [[ ${#argsopt_array[@]} -ne 0 ]]; then
-            usage+="\nOptional arguments: "
-            [[ ${#argsopt_array[@]} -ne 0 ]] && usage+="$c" && { for s in "${argsopt_array[@]}"; do usage+="[$s] "; done } && usage+="$r"
-        fi
-    fi
-    printf "$usage\n"
-}
-function check_fn_args() {
-    [[ $# -ne 3 ]] && return 2
-    local req_args=$1
-    local req_args_tbl=( ${=req_args} )
-    local req_args_count=${#req_args_tbl}
-    local opt_args=$2
-    local opt_args_tbl=( ${=opt_args} )
-    local opt_args_count=${#opt_args_tbl}
-    local min=$req_args_count
-    local max=$((req_args_count + opt_args_count))
-    local given=$3
-    local msg1="" msg2=""
-    if [[ $min -gt $max ]]; then
-        echo "check_fn_args: min number of arguments cannot be greater than max"
-        return 1
-    elif [[ $given -lt 0 ]]; then
-        echo "check_fn_args: actual number of arguments cannot be negative"
-        return 1
-    fi
-    if [[ $max -eq 0 && $given -gt 0 ]]; then
-        msg1="no arguments expected"
-    elif [[ $given -eq 0 ]]; then
-        msg1="no arguments given"
-    elif [[ $given -lt $min ]]; then
-        msg1="not enough arguments"
-    elif [[ $given -gt $max ]]; then
-        msg1="too many arguments"
-    fi
-    if [[ $given -lt $min || $given -gt $max ]]; then
-        if [[ $1 == $2 ]]; then
-            msg2="expected $min"
-        else
-            msg2="expected $min to $max"
-        fi
-        echo "$msg1 ($msg2, given $given)"
-        return 1
-    fi
-    echo "ok" && return 0
-}
-function make_fns() {
+function make_fn() {
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
     local arr_opts=( $(string_to_words "$f[opts]") )
@@ -1934,13 +1837,12 @@ function fntest() {
 function fntest2() {
     local -A f; local -A o; local -A a; local -A s
     f[info]="is a template for functions." # info about the function
-    f[args_required]="agrument1 argument2" # required arguments
-    f[args_optional]="agrument3 agrument4" # optional arguments
+    f[args_required]="agrument1" # argument2" # required arguments
     f[opts]="debug help info version example" # optional options
     f[version]="0.2" # version of the function
     f[date]="2025-05-06" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    make_fns "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
     echo "This is the output of the $s[name] function."
     echo "This is the path to the function: $s[path]"

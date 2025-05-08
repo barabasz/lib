@@ -121,8 +121,8 @@ function fntest() {
 function fntest2() {
     local -A f; local -A o; local -A a; local -A s
     f[info]="is a template for functions." # info about the function
-    f[args_required]="agrument1 argument2" # required arguments
-    f[args_optional]="agrument3 agrument4" # optional arguments
+    f[args_required]="agrument1" # argument2" # required arguments
+    #f[args_optional]="agrument3 agrument4" # optional arguments
     f[opts]="debug help info version example" # optional options
     f[version]="0.2" # version of the function
     f[date]="2025-05-06" # date of last update
