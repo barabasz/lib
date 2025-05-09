@@ -212,6 +212,10 @@ function make_fn_usage() {
         done
         usage="${usage%\\n\\t}"
     fi
+    if [[ $f[args_max] -gt 1 ]]; then
+        usage+="\nArguments must be passed in the above oreder."
+        usage+="\nTo skip an argument, pass an empty value: \"\""
+    fi
     printf "$usage\n"
 }
 

@@ -375,31 +375,40 @@ function www() {
     local -A f; local -A o; local -A a; local -A s
     f[info]="Start a local HTTP server in the specified directory"
     f[help]="If no directory is specified, the current directory will be used."
-    f[args_optional]="directory"
-    f[opts]="debug help info version"
-    f[version]="0.3"; f[date]="2025-05-09"
+    f[help]+="\nDefault port is 8080. To supress auto-open, use -n."
+    f[args_optional]="directory port"
+    f[opts]="debug help info noopen version"
+    f[version]="0.35"; f[date]="2025-05-10"
     make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
+    local cache="-c-1" # disable caching
+    [[ $o[n] != 1 ]] && local open="-o"
+    if [[ -n "$a[2]" ]]; then
+        local port="$a[2]"
+    else 
+        local port=8080 # default port
+    fi
     if [[ "$(isinstalled http-server)" -eq 0 ]]; then
         log::error "http-server is not installed."
         log::info "You can install http-server with: install-httpserver"
         return 127
     fi
     local dir
-    if [[ -z "$1" ]]; then
+    if [[ -z "$a[1]" ]]; then
         dir="$(pwd)"
     else
-        dir="$(fulldirpath $1)"
+        dir="$(fulldirpath $a[1])"
     fi
+    echo "Dir: $dir"
     if [[ $? -eq 0 ]]; then
         if [[ $(isdirservable $dir) -eq 0 ]]; then
             log::error "$dir is empty or contains only hidden files."
             return 1
         else
-            http-server "$dir" -c-1 -o
+            http-server "$dir" "$cache" "$open" "-p" "$port"
         fi
     else
-        log::error "Folder $1 does not exist."
+        log::error "Folder $a[1] does not exist."
         return 1
     fi
 }
@@ -408,6 +417,118 @@ function www() {
 # File: files.sh
 #
 
+ftype() {
+    local orig_path="$1"
+    local abs_path nlinks
+    if [[ "$orig_path" == "--help" ]]; then
+        echo "Usage: ftype <path>"
+        return 0
+    fi
+    if [[ -z "$orig_path" ]]; then
+        echo "not_found"
+        return 1
+    fi
+    if [[ ! -e "$orig_path" && ! -L "$orig_path" ]]; then
+        echo "not_found"
+        return 1
+    fi
+    if [[ -L "$orig_path" ]]; then
+        if [[ ! -e "$orig_path" ]]; then
+            echo "link_broken"
+            return 0
+        fi
+        if [[ -d "$orig_path" ]]; then
+            echo "link_dir"
+        elif [[ -f "$orig_path" ]]; then
+            echo "link_file"
+        elif [[ -b "$orig_path" ]]; then
+            echo "link_block"
+        elif [[ -c "$orig_path" ]]; then
+            echo "link_char"
+        elif [[ -p "$orig_path" ]]; then
+            echo "link_pipe"
+        elif [[ -S "$orig_path" ]]; then
+            echo "link_socket"
+        else
+            echo "link_other"
+        fi
+        return 0
+    fi
+    abs_path="${orig_path:A}"
+    if [[ -d "$abs_path" ]]; then
+        echo "dir"
+    elif [[ -f "$abs_path" ]]; then
+        nlinks=$(stat -c %h -- "$abs_path" 2>/dev/null)
+        if [[ -z "$nlinks" ]]; then
+            nlinks=$(stat -f %l -- "$abs_path" 2>/dev/null)
+        fi
+        if [[ -z "$nlinks" ]]; then
+            echo "unreadable"
+            return 1
+        fi
+        if [[ "$nlinks" -gt 1 ]]; then
+            echo "hardlink"
+        else
+            echo "file"
+        fi
+    elif [[ -b "$abs_path" ]]; then
+        echo "block"
+    elif [[ -c "$abs_path" ]]; then
+        echo "char"
+    elif [[ -p "$abs_path" ]]; then
+        echo "pipe"
+    elif [[ -S "$abs_path" ]]; then
+        echo "socket"
+    else
+        echo "other"
+    fi
+    return 0
+}
+function ftypeinfo() {
+    local -A f; local -A o; local -A a; local -A s
+    local y="$(ansi yellow)"; local r="$(ansi reset)"
+    f[info]="Companion function for ftype() to get file type information."
+    f[help]="Returns description of the file type or an empty string if not found."
+    f[help]+="\nWithout arguments, it returns a list of all file types."
+    f[args_optional]="ftype_type"
+    f[opts]="debug help info version"
+    f[version]="0.1"; f[date]="2025-05-09"
+    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+    local type="$1"
+    local -A types
+    types[not_found]="destination does not exist"
+    types[unreadable]="file exists but cannot be tested (permission denied or stat error)"
+    types[link_broken]="broken symbolic link"
+    types[link_dir]="symbolic link to a directory"
+    types[link_file]="symbolic link to a regular file"
+    types[link_block]="symbolic link to a block special file"
+    types[link_char]="symbolic link to a character special file"
+    types[link_pipe]="symbolic link to a named pipe (FIFO)"
+    types[link_socket]="symbolic link to a socket"
+    types[link_other]="symbolic link to another kind of file"
+    types[hardlink]="regular file with more than one hard link"
+    types[dir]="regular directory"
+    types[file]="regular file"
+    types[block]="block special file (device)"
+    types[char]="character special file (device)"
+    types[pipe]="named pipe (FIFO)"
+    types[socket]="socket"
+    types[other]="other type of file"
+    if [[ -z $type ]]; then
+        for key value in ${(kv)types}; do
+            echo "${(r:10:)key} $y -> $r $value"
+        done
+        return 0
+    fi | sort
+    if [[ -n ${types[$type]-} ]]; then
+        echo "${types[$type]}"
+        return 0
+    else
+        echo ""
+        return 1
+    fi
+}
 function rmln() {
     local -A f; local -A o; local -A a; local -A s
     f[info]="Removes file or directory only if it is a symbolic link."
@@ -438,24 +559,25 @@ function rmln() {
 }
 function lns() {
     local -A f; local -A o; local -A a; local -A s
-    f[info]="Better ln command for creating symbolic links."
+    f[info]="A better ln command for creating symbolic links."
     f[help]="It creates a symbolic link only if such does not yet exist."
-    f[help]+="\nSource and target dirs must be provided as an absolute path."
+    f[help]+="\nSource and target may be provided as relative or absolute paths."
+    f[help]+="\nOption '-f' (force) removes the existing source."
     f[args_required]="source target"
     f[opts]="debug force help info test version"
-    f[version]="0.3"; f[date]="2025-05-06"
+    f[version]="0.35"; f[date]="2025-05-09"
     make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
-    local src="$1"
-    local dst="$2"
+    local src="${1:A}"
+    local dst="${2:A}"
+    local src_dir="$(dirname "$src")"
+    local dst_dir="$(dirname "$dst")"
     local debug=$o[d]
     local force=$o[f]
     local test=$o[t]
     local dst_c="${cyan}$dst${reset}"
     local src_c="${cyan}$src${reset}"
-    local src_dir="$(dirname "$src")"
     local src_dir_c="${cyan}$src_dir${reset}"
-    local dst_dir="$(dirname "$dst")"
     local dst_dir_c="${cyan}$dst_dir${reset}"
     local arr="${yellowi}→${reset}"
     if [[ $debug -eq 1 ]]; then
@@ -464,20 +586,25 @@ function lns() {
         log::info "$s[name]: target: \t$dst_c"
         log::info "$s[name]: target dir: \t$dst_dir"
     fi
-    if [[ "$dst" != /* ]]; then
-        log::error "$s[name]: the target $dst_c must be an absolute path."
+    if [[ ! -e "$dst" ]]; then
+        log::error "$s[name]: target $dst_c does not exist."
         return 1
     fi
-    if [[ "$src" != /* ]]; then
-        log::error "$s[name]: the source $src_c must be an absolute path."
+    if [[ -d "$src" ]]; then
+        log::error "$s[name]: source $src_c already exists."
+        log::info "$src_c is a directory."
+        return 1
+    elif [[ -f "$src" ]]; then
+        log::error "$s[name]: source $src_c already exists."
+        log::info "$src_c is a file."
+        return 1
+    elif [[ -L "$src" ]]; then
+        log::error "$s[name]: source $src_c already exists."
+        log::info "$src_c is a symbolic link."
         return 1
     fi
     if [[ "$dst" == "$src" ]]; then
         log::error "$s[name]: target and source cannot be the same."
-        return 1
-    fi
-    if [[ ! -e "$dst" ]]; then
-        log::error "$s[name]: target $dst_c does not exist."
         return 1
     fi
     if [[ ! -r "$dst" ]]; then
@@ -641,6 +768,17 @@ function wheref() {
         return 1
     fi
     echo $1
+}
+getfullpath() {
+    local target="$1"
+    if [[ ! -e "$target" ]]; then
+        printf "notfound"
+        return 1
+    fi
+    local abs_path="${target:A}"
+    abs_path="${abs_path%/}"
+    printf "%s" "$abs_path"
+    return 0
 }
 
 #
@@ -824,6 +962,10 @@ function make_fn_usage() {
             ((i++))
         done
         usage="${usage%\\n\\t}"
+    fi
+    if [[ $f[args_max] -gt 1 ]]; then
+        usage+="\nArguments must be passed in the above oreder."
+        usage+="\nTo skip an argument, pass an empty value: \"\""
     fi
     printf "$usage\n"
 }
@@ -1307,11 +1449,11 @@ function source_sh_files() {
 }
 concatenate_sh_files() {
     export concatenate_sh_files_count=0
-    local dir="$1" output_file="$2" output_dir=$(dirname "$output_file")
+    local dir="${1:A}"
+    local output_file="${2:A}"
+    local output_dir="${output_file:h}"
     local i=0 sf="" shebang='#!/bin/zsh'
     local c=$(ansi cyan) r=$(ansi reset) g=$(ansi green)
-    [[ ! "$dir" = /* ]] && dir="$(pwd)/$dir" # Convert to absolute path if necessary
-    [[ ! "$output_dir" = /* ]] && output_dir="$(pwd)/$output_dir"
     [[ $# -ne 2 ]] && {
         log::error "${r}Usage: ${g}concatenate_sh_files$r $c<directory> <output_file>$r" && return 1
     }

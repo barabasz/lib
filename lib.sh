@@ -68,11 +68,11 @@ function source_sh_files() {
 # Usage: concatenate_sh_files <directory> <output_file>
 concatenate_sh_files() {
     export concatenate_sh_files_count=0
-    local dir="$1" output_file="$2" output_dir=$(dirname "$output_file")
+    local dir="${1:A}"
+    local output_file="${2:A}"
+    local output_dir="${output_file:h}"
     local i=0 sf="" shebang='#!/bin/zsh'
     local c=$(ansi cyan) r=$(ansi reset) g=$(ansi green)
-    [[ ! "$dir" = /* ]] && dir="$(pwd)/$dir" # Convert to absolute path if necessary
-    [[ ! "$output_dir" = /* ]] && output_dir="$(pwd)/$output_dir"
     
     [[ $# -ne 2 ]] && {
         log::error "${r}Usage: ${g}concatenate_sh_files$r $c<directory> <output_file>$r" && return 1
