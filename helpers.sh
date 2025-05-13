@@ -170,6 +170,21 @@ string_to_words() {
     fi
 }
 
+# Function that returns full path of target
+# Usage: fullpath <target>
+# Returns: full path of target or "notfound" if the target doesn't exist
+getfullpath() {
+    local target="$1"
+    if [[ ! -e "$target" ]]; then
+        printf "notfound"
+        return 1
+    fi
+    local abs_path="${target:A}"
+    abs_path="${abs_path%/}"
+    printf "%s" "$abs_path"
+    return 0
+}
+
 # Function to get absolute path
 # Usage: fulldirpath <path>
 # Returns: Absolute path or "notfound" if the path doesn't exist
@@ -205,7 +220,7 @@ isdirempty() {
 # Function to check if a directory has any non-hidden files to be served
 # Usage: isdirservable <path>
 # Returns: "1" and code 0 if the directory has at least one non-hidden file
-isdirservable() {
+function isdirservable() {
     local dir="$1"
     dir="$(fulldirpath $dir)"
     [[ $dir == "notfound" ]] && return 2
@@ -218,5 +233,49 @@ isdirservable() {
     else
         # dir is not empty
         printf "1" && return 0
+    fi
+}
+
+function isdirreadable() {
+    local dir="$1"
+    dir="$(fulldirpath $dir)"
+    [[ $dir == "notfound" ]] && return 2
+    # Check if the directory is readable
+    if [[ -r "$dir" ]]; then
+        printf "1" && return 0
+    else
+        printf "0" && return 1
+    fi
+}
+
+function isdirwritable() {
+    local dir="$1"
+    dir="$(fulldirpath $dir)"
+    [[ $dir == "notfound" ]] && return 2
+    # Check if the directory is writable
+    if [[ -w "$dir" ]]; then
+        printf "1" && return 0
+    else
+        printf "0" && return 1
+    fi
+}
+
+# Universal better which command for bash and zsh
+function uwhich() {
+    local type=$(utype $1)
+    if [[ $type == "file" ]]; then
+        echo $(which $1)
+    elif [[ $type == "alias" ]]; then
+        if [[ $(shellname) = "zsh" ]]; then
+            echo $(whence -p $1)
+        else
+            echo $(which $1)
+        fi
+    elif [[ $type == "not found" ]]; then
+        echo "${yellow}$1${reset} $type"
+        return 1
+    else
+        echo "${yellow}$1${reset} is a ${green}$type${reset}"
+        return 1
     fi
 }

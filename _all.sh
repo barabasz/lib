@@ -727,33 +727,6 @@ function utype() {
     fi
     echo $output
 }
-function uwhich() {
-    local fargs="<command>"
-    local minargs=0
-    local maxargs=1
-    local thisf="${funcstack[1]}"
-    local error="${redi}$thisf error:${reset}"
-    local usage=$(make_fn_usage $thisf $fargs)
-    [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(check_fn_args $minargs $maxargs $#)
-    [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
-    local type=$(utype $1)
-    if [[ $type == "file" ]]; then
-        echo $(which $1)
-    elif [[ $type == "alias" ]]; then
-        if [[ $(shellname) = "zsh" ]]; then
-            echo $(whence -p $1)
-        else
-            echo $(which $1)
-        fi
-    elif [[ $type == "not found" ]]; then
-        echo "${yellow}$1${reset} $type"
-        return 1
-    else
-        echo "${yellow}$1${reset} is a ${green}$type${reset}"
-        return 1
-    fi
-}
 function wheref() {
     local f_name="wheref"
     local f_args="<function_name>"
@@ -780,17 +753,6 @@ function wheref() {
         return 1
     fi
     echo $1
-}
-getfullpath() {
-    local target="$1"
-    if [[ ! -e "$target" ]]; then
-        printf "notfound"
-        return 1
-    fi
-    local abs_path="${target:A}"
-    abs_path="${abs_path%/}"
-    printf "%s" "$abs_path"
-    return 0
 }
 
 #
@@ -1138,6 +1100,17 @@ string_to_words() {
         printf '%s\n' "${arr[@]}"
     fi
 }
+getfullpath() {
+    local target="$1"
+    if [[ ! -e "$target" ]]; then
+        printf "notfound"
+        return 1
+    fi
+    local abs_path="${target:A}"
+    abs_path="${abs_path%/}"
+    printf "%s" "$abs_path"
+    return 0
+}
 fulldirpath() {
   local dir="$1"
   dir="${dir:A}"
@@ -1156,7 +1129,7 @@ isdirempty() {
         printf "0" && return 1
     fi
 }
-isdirservable() {
+function isdirservable() {
     local dir="$1"
     dir="$(fulldirpath $dir)"
     [[ $dir == "notfound" ]] && return 2
@@ -1165,6 +1138,44 @@ isdirservable() {
         printf "0" && return 1
     else
         printf "1" && return 0
+    fi
+}
+function isdirreadable() {
+    local dir="$1"
+    dir="$(fulldirpath $dir)"
+    [[ $dir == "notfound" ]] && return 2
+    if [[ -r "$dir" ]]; then
+        printf "1" && return 0
+    else
+        printf "0" && return 1
+    fi
+}
+function isdirwritable() {
+    local dir="$1"
+    dir="$(fulldirpath $dir)"
+    [[ $dir == "notfound" ]] && return 2
+    if [[ -w "$dir" ]]; then
+        printf "1" && return 0
+    else
+        printf "0" && return 1
+    fi
+}
+function uwhich() {
+    local type=$(utype $1)
+    if [[ $type == "file" ]]; then
+        echo $(which $1)
+    elif [[ $type == "alias" ]]; then
+        if [[ $(shellname) = "zsh" ]]; then
+            echo $(whence -p $1)
+        else
+            echo $(which $1)
+        fi
+    elif [[ $type == "not found" ]]; then
+        echo "${yellow}$1${reset} $type"
+        return 1
+    else
+        echo "${yellow}$1${reset} is a ${green}$type${reset}"
+        return 1
     fi
 }
 

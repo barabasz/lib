@@ -3,6 +3,11 @@
 # Better versions of some functions
 # Unless otherwise noted, they work with both bash and zsh
 
+
+
+
+
+
 # ftype()
 # Detects the type of file system object for a given path.
 # Usage: ftype <path>
@@ -266,8 +271,6 @@ function lns() {
         return 1
     fi
 
-
-
     # Check if the destination is different from the source
     if [[ "$dst" == "$src" ]]; then
         log::error "$s[name]: target and source cannot be the same."
@@ -404,38 +407,6 @@ function utype() {
     echo $output
 }
 
-# Universal better which command for bash and zsh
-function uwhich() {
-    # function properties
-    local fargs="<command>"
-    local minargs=0
-    local maxargs=1
-    # argument check
-    local thisf="${funcstack[1]}"
-    local error="${redi}$thisf error:${reset}"
-    local usage=$(make_fn_usage $thisf $fargs)
-    [[ $# -eq 0 ]] && printf "$usage\n" && return 1
-    local args=$(check_fn_args $minargs $maxargs $#)
-    [[ $args != "ok" ]] && printf "$error $args\n$usage\n" && return 1
-
-    local type=$(utype $1)
-    if [[ $type == "file" ]]; then
-        echo $(which $1)
-    elif [[ $type == "alias" ]]; then
-        if [[ $(shellname) = "zsh" ]]; then
-            echo $(whence -p $1)
-        else
-            echo $(which $1)
-        fi
-    elif [[ $type == "not found" ]]; then
-        echo "${yellow}$1${reset} $type"
-        return 1
-    else
-        echo "${yellow}$1${reset} is a ${green}$type${reset}"
-        return 1
-    fi
-}
-
 # Finds the file where a function is defined
 # Returns absolute path, 'not a function' or 'not found'
 function wheref() {
@@ -477,17 +448,3 @@ function wheref() {
     echo $1
 }
 
-# Function that returns full path of target
-# Usage: fullpath <target>
-# Returns: full path of target or "notfound" if the target doesn't exist
-getfullpath() {
-    local target="$1"
-    if [[ ! -e "$target" ]]; then
-        printf "notfound"
-        return 1
-    fi
-    local abs_path="${target:A}"
-    abs_path="${abs_path%/}"
-    printf "%s" "$abs_path"
-    return 0
-}
