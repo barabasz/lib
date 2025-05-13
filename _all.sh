@@ -562,12 +562,24 @@ function lns() {
     f[info]="A better ln command for creating symbolic links."
     f[help]="It creates a symbolic link only if such does not yet exist."
     f[help]+="\nSource and target may be provided as relative or absolute paths."
-    f[help]+="\nOption '-f' (force) removes the existing source."
-    f[args_required]="source target"
+    f[help]+="\nOption '-f' (force) removes the existing link/file/directory."
+    f[args_required]="existing_target new_link"
     f[opts]="debug force help info test version"
     f[version]="0.35"; f[date]="2025-05-09"
     make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
+    f[target_input]="$1"
+    f[target]="${f[target_input]:A}"
+    f[target_parent]="$f[target:h]"
+    f[target_name]="$f[target:t]"
+    f[target_parent_readable]=$(isdirreadable "$f[target_parent]")
+    f[link_input]="$2"
+    f[link]="${f[link_input]:A}"
+    f[link_parent]="$f[link:h]"
+    f[link_parent_writable]=$(isdirwritable "$f[link_parent]")
+    f[link_name]="$f[link:t]"
+    f[target_type]=$(ftype "$f[target]")
+    f[target_type_info]=$(ftypeinfo "$f[target_type]")
     local src="${1:A}"
     local dst="${2:A}"
     local src_dir="$(dirname "$src")"
