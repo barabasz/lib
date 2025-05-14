@@ -418,87 +418,81 @@ function www() {
 #
 
 ftype() {
-    local orig_path="$1"
-    local abs_path nlinks
-    if [[ "$orig_path" == "--help" ]]; then
-        echo "Usage: ftype <path>"
-        return 0
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Detects the type of file system object for a given path."
+    f[args_required]="path"
+    f[opts]="debug help info long version"
+    f[version]="0.4"; f[date]="2025-05-15"
+    f[help]="Returns type with error code 0 (or 1 for not_found):\n"
+    f[help]+=$(ftypeinfo)
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+    local type=""
+    local org_path="$1"
+    local abs_path="${org_path:A}"
+    if [[ ! -e "$org_path" && ! -L "$org_path" ]]; then
+        type="not_found"
     fi
-    if [[ -z "$orig_path" ]]; then
-        echo "not_found"
-        return 1
-    fi
-    if [[ ! -e "$orig_path" && ! -L "$orig_path" ]]; then
-        echo "not_found"
-        return 1
-    fi
-    if [[ -L "$orig_path" ]]; then
-        if [[ ! -e "$orig_path" ]]; then
-            echo "link_broken"
-            return 0
+    if [[ -L "$org_path" ]]; then
+        if [[ ! -e "$org_path" ]]; then
+            type="link_broken"
         fi
-        if [[ -d "$orig_path" ]]; then
-            echo "link_dir"
-        elif [[ -f "$orig_path" ]]; then
-            echo "link_file"
-        elif [[ -b "$orig_path" ]]; then
-            echo "link_block"
-        elif [[ -c "$orig_path" ]]; then
-            echo "link_char"
-        elif [[ -p "$orig_path" ]]; then
-            echo "link_pipe"
-        elif [[ -S "$orig_path" ]]; then
-            echo "link_socket"
+        if [[ -d "$org_path" ]]; then
+            type="link_dir"
+        elif [[ -f "$org_path" ]]; then
+            type="link_file"
+        elif [[ -b "$org_path" ]]; then
+            type="link_block"
+        elif [[ -c "$org_path" ]]; then
+            type="link_char"
+        elif [[ -p "$org_path" ]]; then
+            type="link_pipe"
+        elif [[ -S "$org_path" ]]; then
+            type="link_socket"
         else
-            echo "link_other"
+            type="link_other"
         fi
-        return 0
     fi
-    abs_path="${orig_path:A}"
     if [[ -d "$abs_path" ]]; then
-        echo "dir"
+        type="dir"
     elif [[ -f "$abs_path" ]]; then
-        nlinks=$(stat -c %h -- "$abs_path" 2>/dev/null)
-        if [[ -z "$nlinks" ]]; then
-            nlinks=$(stat -f %l -- "$abs_path" 2>/dev/null)
-        fi
-        if [[ -z "$nlinks" ]]; then
-            echo "unreadable"
-            return 1
-        fi
-        if [[ "$nlinks" -gt 1 ]]; then
-            echo "hardlink"
-        else
-            echo "file"
-        fi
+        type="file"
     elif [[ -b "$abs_path" ]]; then
-        echo "block"
+        type="block"
     elif [[ -c "$abs_path" ]]; then
-        echo "char"
+        type="char"
     elif [[ -p "$abs_path" ]]; then
-        echo "pipe"
+        type="pipe"
     elif [[ -S "$abs_path" ]]; then
-        echo "socket"
+        type="socket"
     else
-        echo "other"
+        type="other"
     fi
-    return 0
+    if [[ $o[l] == 1 ]]; then
+        echo $(ftypeinfo "$type")
+    else
+        echo "$type"
+    fi
+    if [[ $type == "not_found" ]]; then
+        return 1
+    else
+        return 0
+    fi
 }
 function ftypeinfo() {
     local -A f; local -A o; local -A a; local -A s
-    local y="$(ansi yellow)"; local r="$(ansi reset)"
+    local y="$(ansi yellow)"; local x="$(ansi reset)"
     f[info]="Companion function for ftype() to get file type information."
     f[help]="Returns description of the file type or an empty string if not found."
     f[help]+="\nWithout arguments, it returns a list of all file types."
     f[args_optional]="ftype_type"
     f[opts]="debug help info version"
     f[version]="0.1"; f[date]="2025-05-09"
-    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
     local type="$1"
     local -A types
     types[not_found]="destination does not exist"
-    types[unreadable]="file exists but cannot be tested (permission denied or stat error)"
     types[link_broken]="broken symbolic link"
     types[link_dir]="symbolic link to a directory"
     types[link_file]="symbolic link to a regular file"
@@ -507,7 +501,6 @@ function ftypeinfo() {
     types[link_pipe]="symbolic link to a named pipe (FIFO)"
     types[link_socket]="symbolic link to a socket"
     types[link_other]="symbolic link to another kind of file"
-    types[hardlink]="regular file with more than one hard link"
     types[dir]="regular directory"
     types[file]="regular file"
     types[block]="block special file (device)"
@@ -517,7 +510,7 @@ function ftypeinfo() {
     types[other]="other type of file"
     if [[ -z $type ]]; then
         for key value in ${(kv)types}; do
-            echo "${(r:10:)key} $y -> $r $value"
+            echo "${(r:10:)key} $y -> $x $value"
         done
         return 0
     fi | sort
@@ -566,7 +559,7 @@ function lns() {
     f[args_required]="existing_target new_link"
     f[opts]="debug force help info test version"
     f[version]="0.35"; f[date]="2025-05-09"
-    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
     f[target_input]="$1"
     f[target]="${f[target_input]:A}"
@@ -580,7 +573,6 @@ function lns() {
     f[link_name]="${f[link]:t}"
     f[target_type]=$(ftype "$f[target]")
     f[target_type_info]=$(ftypeinfo "$f[target_type]")
-    debugf
     local src="${1:A}"
     local dst="${2:A}"
     local src_dir="$(dirname "$src")"
@@ -697,7 +689,7 @@ function utype() {
     f[args_required]="command"
     f[opts]="debug help info version"
     f[version]="0.2"; f[date]="2025-05-06"
-    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
     local output
     if [[ $(shellname) == 'bash' ]]; then
@@ -760,15 +752,14 @@ function wheref() {
 # File: fn.sh
 #
 
-function make_fn() {
-    if ! typeset -p f &>/dev/null; then
-        log::error "make_fn must be called from a function"
+function fn_make() {
+    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
+        log::error "fn_make must be called from a function"
         return 1
     fi
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
     local arr_opts=( $(string_to_words "$f[opts]") )
-    local c=$(ansi cyan) g=$(ansi green) p=$(ansi bright purple) y=$(ansi yellow) r=$(ansi reset)
     f[name]="${funcstack[2]}"
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
@@ -805,20 +796,20 @@ function make_fn() {
     f[opts_input]="${f[opts_input]%" "}"
     [[ $f[err_opt_value] ]] && f[err_opt]=1
     [[ f[args_count] -lt $f[args_min] || $f[args_count] -gt $f[args_max] ]] && f[err_arg]=1
-    s[name]="${g}$f[name]$r"
-    s[path]="${c}$f[file_path]$r"
-    s[author]="${y}$f[author]$r"
-    s[year]="${y}${f[date]:0:4}$r"
-    [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$r"
-    [[ $f[err_arg] ]] && s[err_arg]="$(make_fn_err_arg)"
+    fn_load_colors
+    s[name]="${g}$f[name]$x"
+    s[path]="${c}$f[file_path]$x"
+    s[author]="${y}$f[author]$x"
+    s[year]="${y}${f[date]:0:4}$x"
+    [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$x"
+    [[ $f[err_arg] ]] && s[err_arg]="$(fn_check_args)"
     [[ $f[info] ]] && s[header]="$s[name]: $f[info]"
-    s[version]=$(make_fn_version)
-    s[footer]=$(make_fn_footer)
-    s[example]="$(make_fn_example)"
-    s[source]="This function is defined in $s[path]"
-    s[usage]="$(make_fn_usage)"
-    s[hint]="$(make_fn_hint)"
-    [[ "$o[d]" -eq "1" ]] && make_fn_debug
+    s[version]="$(fn_version)"
+    s[footer]="$(fn_footer)"
+    s[example]="$(fn_example)"
+    s[source]="$(fn_source)"
+    s[usage]="$(fn_usage)"
+    s[hint]="$(fn_hint)"
     if [[ "$o[v]" -eq "1" || "$o[i]" -eq "1" || "$o[h]" -eq "1" ]]; then
         if [[ "$o[v]" -eq "1" ]]; then
             echo $s[version]
@@ -832,7 +823,7 @@ function make_fn() {
         fi
         f[return]=0 && return 0
     fi
-    local err_msg="$r$s[name] error:"
+    local err_msg="$x$s[name] error:"
     if [[ $f[err_opt] || $f[err_arg] ]]; then
         [[ $f[err_opt] ]] && log::error "$err_msg $s[err_opt]"
         [[ $f[err_arg] ]] && log::error "$err_msg $s[err_arg]"
@@ -840,7 +831,7 @@ function make_fn() {
         f[return]=2 && return 0
     fi
 }
-function make_fn_err_arg() {
+function fn_check_args() {
     local expected
     if [[ $f[args_min] -eq $f[args_max] ]]; then
         expected="expected $f[args_min]"
@@ -865,71 +856,77 @@ function make_fn_err_arg() {
         f[err_arg]=1 && f[err_arg_type]=4
     fi
 }
-function make_fn_version() {
+function fn_version() {
     printf "$s[name]"
-    [[ -n $f[version] ]] && printf " $y$f[version]$r" || printf " [version unknown]"
+    [[ -n $f[version] ]] && printf " $y$f[version]$x" || printf " [version unknown]"
     [[ -n $f[date] ]] && printf " ($f[date])"
 }
-function make_fn_hint() {
+function fn_hint() {
     if [[ $o[i] && $o[h] ]]; then
-        log::info "Run $s[name] ${p}-i$r for basic usage or $s[name] ${p}-h$r for help."
+        log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
     elif [[ $o[i] ]]; then
-        log::info "Run $s[name] ${p}-i$r for usage information."
+        log::info "Run $s[name] ${p}-i$x for usage information."
     elif [[ $o[h] ]]; then
-        log::info "Run $s[name] ${p}-h$r for help."
+        log::info "Run $s[name] ${p}-h$x for help."
     else
         log::info "Check source code for usage information."
         log::comment $s[source]
     fi
 }
-function make_fn_footer() {
+function fn_source() {
+    local file="$f[file_path]"
+    local string="${f[name]}() {"
+    local line="$(grep -n "$string" "$file" | head -n 1 | cut -d: -f1)"
+    echo "This function is defined in $s[path] (line $c$line$x)"
+}
+function fn_footer() {
     printf "$s[version] copyright © "
     [[ -n $f[date] ]] && printf "$s[year] "
     printf "by $s[author]\n"
     printf "MIT License : https://opensource.org/licenses/MIT"
 }
-function make_fn_example() {
+function fn_example() {
     [[ $o[h] == 1 ]] && printf "\n"
     printf "Usage example:" 
     [[ $o[h] == 1 ]] && printf "\n\t" || printf " "
     printf "$s[name] "
     if [[ ${#arr_args_required[@]} -ne 0 ]]; then
         for a in "${arr_args_required[@]}"; do
-            printf "${c}<$a>${r} "
+            printf "${c}<$a>${x} "
         done | sort | tr -d '\n'
     elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
         for a in "${arr_args_optional[@]}"; do
-            printf "${c}[$a]${r} "
+            printf "${c}[$a]${x} "
         done | sort | tr -d '\n'
     fi
-    [[ $o[i] == 1 ]] && printf "\nRun '$s[name] ${p}-h$r' for more help."
+    [[ $o[i] == 1 ]] && printf "\nRun '$s[name] ${p}-h$x' for more help."
 }
-function make_fn_usage() {
+function fn_usage() {
     local i=1
     local usage="Usage details:\n\t$s[name] "
     if [[ ${#arr_opts[@]} -ne 0 ]]; then
-        usage+="${p}[options]${r} "
+        usage+="${p}[options]${x} "
     fi
     if [[ ${#arr_args_required[@]} -eq 1 ]]; then
-        usage+="${c}<${arr_args_required[1]}>${r}"
+        usage+="${c}<${arr_args_required[1]}>${x}"
     elif [[ ${#arr_args_required[@]} -ne 0 ]]; then
-        usage+="${c}<arguments>${r}"
+        usage+="${c}<arguments>${x}"
     elif [[ ${#arr_args_optional[@]} -eq 1 ]]; then
-        usage+="${c}[${arr_args_optional[1]}]${r}"
+        usage+="${c}[${arr_args_optional[1]}]${x}"
     elif [[ ${#arr_args_optional[@]} -ne 0 ]]; then
-        usage+="${c}[arguments]${r}"
+        usage+="${c}[arguments]${x}"
     fi
     if [[ ${#arr_opts[@]} -ne 0 ]]; then
         usage+="\nOptions:\n\t"
         for opt in "${arr_opts[@]}"; do
-            usage+="$p-$opt[1,1]$r or $p--$opt$r\n\t";
+            usage+="$p-$opt[1,1]$x or $p--$opt$x\n\t";
         done
         usage="${usage%\\n\\t}"
     fi
     if [[ ${#arr_args_required[@]} -ne 0 ]]; then
         usage+="\nRequired arguments:\n\t"
         for arg in "${arr_args_required[@]}"; do
-            usage+="$i: $c<$arg>$r\n\t";
+            usage+="$i: $c<$arg>$x\n\t";
             ((i++))
         done
         usage="${usage%\\n\\t}"
@@ -937,7 +934,7 @@ function make_fn_usage() {
     if [[ ${#arr_args_optional[@]} -ne 0 ]]; then
         usage+="\nOptional arguments:\n\t"
         for arg in "${arr_args_optional[@]}"; do
-            usage+="$i: ${c}[${arg}]$r\n\t";
+            usage+="$i: ${c}[${arg}]$x\n\t";
             ((i++))
         done
         usage="${usage%\\n\\t}"
@@ -948,43 +945,48 @@ function make_fn_usage() {
     fi
     printf "$usage\n"
 }
-function make_fn_debug() {
-    log::warning "Debug mode is on."
-    log::info "Arguments:"
-    for key value in "${(@kv)a}"; do
-        echo "    ${(r:15:)key} $y->$r '$value'"
-    done | sort
-    log::info "Options:"
-    for key value in "${(@kv)o}"; do
-        echo "    ${(r:15:)key} $y->$r '$value'"
-    done | sort
-    log::info "Function properties:"
-    for key value in "${(@kv)f}"; do
-        value=$(clean_string "$value")
-        echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
-        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
-    done | sort
-    log::info "Function strings:"
-    for key value in "${(@kv)s}"; do
-        value=$(clean_ansi "$value")
-        value=$(clean_string "$value")
-        echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
-        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
-    done | sort
+function fn_load_colors() {
+    b=$(ansi blue)
+    c=$(ansi cyan)
+    g=$(ansi green)
+    p=$(ansi bright purple)
+    r=$(ansi red)
+    w=$(ansi white)
+    y=$(ansi yellow)
+    x=$(ansi reset)
 }
-function debugf() {
-    local y=$(ansi yellow) r=$(ansi reset)
-    local max_key_length=0
+function fn_debug() {
+    local max_key_length=15
+    local max_value_length=40
+    local q="$y'$x"
     for key in "${(@k)f}"; do
         if [[ ${#key} -gt $max_key_length ]]; then
             max_key_length=${#key}
         fi
     done
+    print::header "${r}Debug info$x"
+    log::info "${y}Arguments${x}:"
+    for key value in "${(@kv)a}"; do
+        echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+    done | sort
+    log::info "${y}Options${x}:"
+    for key value in "${(@kv)o}"; do
+        echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+    done | sort
+    log::info "${y}Function properties${x}:"
     for key value in "${(@kv)f}"; do
         value=$(clean_string "$value")
-        echo -n "    ${(r:$max_key_length:)key} $y->$r '${value:0:40}'"
-        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
+        echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
+        [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
     done | sort
+    log::info "${y}Function strings${x}:"
+    for key value in "${(@kv)s}"; do
+        value=$(clean_ansi "$value")
+        value=$(clean_string "$value")
+        echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
+        [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
+    done | sort
+    echo
 }
 
 #
@@ -2042,8 +2044,9 @@ function fntest() {
     f[version]="0.2" # version of the function
     f[date]="2025-05-06" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
+    [[ "$o[d]" -eq "1" ]] && fn_debug # show debug info
     echo "This is the output of the $s[name] function."
     echo "This is the path to the function: $s[path]"
     echo "This is the first argument: $a[1]"

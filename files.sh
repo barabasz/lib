@@ -3,110 +3,78 @@
 # Better versions of some functions
 # Unless otherwise noted, they work with both bash and zsh
 
-
-
-
-
-
-# ftype()
 # Detects the type of file system object for a given path.
 # Usage: ftype <path>
-# Prints one of:
-# not_found      - destination does not exist or no input (returns 1)
-# unreadable     - file exists but cannot be tested
-# link_broken    - broken symbolic link
-# link_dir       - symlink to directory
-# link_file      - symlink to regular file
-# link_block     - symlink to block special file
-# link_char      - symlink to character special file
-# link_pipe      - symlink to named pipe (FIFO)
-# link_socket    - symlink to socket
-# link_other     - symlink to any other file
-# hardlink       - hardlink to a file (link count > 1)
-# dir            - regular directory
-# file           - regular file
-# block          - block special file
-# char           - character special file
-# pipe           - named pipe (FIFO)
-# socket         - socket
-# other          - any other file
-# Returns 0 for all except not_found or unreadable (returns 1)
-
+# Returns object type or 'not_found'
 ftype() {
-    local orig_path="$1"
-    local abs_path nlinks
+    local -A f; local -A o; local -A a; local -A s
+    f[info]="Detects the type of file system object for a given path."
+    f[args_required]="path"
+    f[opts]="debug help info long version"
+    f[version]="0.4"; f[date]="2025-05-15"
+    f[help]="Returns type with error code 0 (or 1 for not_found):\n"
+    f[help]+=$(ftypeinfo)
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    shift "$f[options_count]"
+### main function
+    local type=""
+    local org_path="$1"
+    local abs_path="${org_path:A}"
 
-    if [[ "$orig_path" == "--help" ]]; then
-        echo "Usage: ftype <path>"
-        return 0
+    if [[ ! -e "$org_path" && ! -L "$org_path" ]]; then
+        type="not_found"
     fi
-
-    if [[ -z "$orig_path" ]]; then
-        echo "not_found"
-        return 1
-    fi
-
-    # Existence (even if symlink)
-    if [[ ! -e "$orig_path" && ! -L "$orig_path" ]]; then
-        echo "not_found"
-        return 1
-    fi
-
     # Symlink handling
-    if [[ -L "$orig_path" ]]; then
-        if [[ ! -e "$orig_path" ]]; then
-            echo "link_broken"
-            return 0
+    if [[ -L "$org_path" ]]; then
+        # Broken symlink
+        if [[ ! -e "$org_path" ]]; then
+            type="link_broken"
         fi
-
-        if [[ -d "$orig_path" ]]; then
-            echo "link_dir"
-        elif [[ -f "$orig_path" ]]; then
-            echo "link_file"
-        elif [[ -b "$orig_path" ]]; then
-            echo "link_block"
-        elif [[ -c "$orig_path" ]]; then
-            echo "link_char"
-        elif [[ -p "$orig_path" ]]; then
-            echo "link_pipe"
-        elif [[ -S "$orig_path" ]]; then
-            echo "link_socket"
+        # Symlink to known type
+        if [[ -d "$org_path" ]]; then
+            type="link_dir"
+        elif [[ -f "$org_path" ]]; then
+            type="link_file"
+        elif [[ -b "$org_path" ]]; then
+            type="link_block"
+        elif [[ -c "$org_path" ]]; then
+            type="link_char"
+        elif [[ -p "$org_path" ]]; then
+            type="link_pipe"
+        elif [[ -S "$org_path" ]]; then
+            type="link_socket"
         else
-            echo "link_other"
+            type="link_other"
         fi
+    fi
+    # Check all file types using most common first
+    if [[ -d "$abs_path" ]]; then
+        type="dir"
+    elif [[ -f "$abs_path" ]]; then
+        type="file"
+    elif [[ -b "$abs_path" ]]; then
+        type="block"
+    elif [[ -c "$abs_path" ]]; then
+        type="char"
+    elif [[ -p "$abs_path" ]]; then
+        type="pipe"
+    elif [[ -S "$abs_path" ]]; then
+        type="socket"
+    else
+        type="other"
+    fi
+
+    if [[ $o[l] == 1 ]]; then
+        echo $(ftypeinfo "$type")
+    else
+        echo "$type"
+    fi
+
+    if [[ $type == "not_found" ]]; then
+        return 1
+    else
         return 0
     fi
-
-    abs_path="${orig_path:A}"
-
-    if [[ -d "$abs_path" ]]; then
-        echo "dir"
-    elif [[ -f "$abs_path" ]]; then
-        nlinks=$(stat -c %h -- "$abs_path" 2>/dev/null)
-        if [[ -z "$nlinks" ]]; then
-            nlinks=$(stat -f %l -- "$abs_path" 2>/dev/null)
-        fi
-        if [[ -z "$nlinks" ]]; then
-            echo "unreadable"
-            return 1
-        fi
-        if [[ "$nlinks" -gt 1 ]]; then
-            echo "hardlink"
-        else
-            echo "file"
-        fi
-    elif [[ -b "$abs_path" ]]; then
-        echo "block"
-    elif [[ -c "$abs_path" ]]; then
-        echo "char"
-    elif [[ -p "$abs_path" ]]; then
-        echo "pipe"
-    elif [[ -S "$abs_path" ]]; then
-        echo "socket"
-    else
-        echo "other"
-    fi
-    return 0
 }
 
 # Companion function for ftype to get file type information
@@ -114,21 +82,20 @@ ftype() {
 # Returns: description of the file type or an empty string if not found
 function ftypeinfo() {
     local -A f; local -A o; local -A a; local -A s
-    local y="$(ansi yellow)"; local r="$(ansi reset)"
+    local y="$(ansi yellow)"; local x="$(ansi reset)"
     f[info]="Companion function for ftype() to get file type information."
     f[help]="Returns description of the file type or an empty string if not found."
     f[help]+="\nWithout arguments, it returns a list of all file types."
     f[args_optional]="ftype_type"
     f[opts]="debug help info version"
     f[version]="0.1"; f[date]="2025-05-09"
-    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
 ### main function
     local type="$1"
     local -A types
     # fill array with types
     types[not_found]="destination does not exist"
-    types[unreadable]="file exists but cannot be tested (permission denied or stat error)"
     types[link_broken]="broken symbolic link"
     types[link_dir]="symbolic link to a directory"
     types[link_file]="symbolic link to a regular file"
@@ -137,7 +104,6 @@ function ftypeinfo() {
     types[link_pipe]="symbolic link to a named pipe (FIFO)"
     types[link_socket]="symbolic link to a socket"
     types[link_other]="symbolic link to another kind of file"
-    types[hardlink]="regular file with more than one hard link"
     types[dir]="regular directory"
     types[file]="regular file"
     types[block]="block special file (device)"
@@ -145,14 +111,14 @@ function ftypeinfo() {
     types[pipe]="named pipe (FIFO)"
     types[socket]="socket"
     types[other]="other type of file"
-
+    # list all types
     if [[ -z $type ]]; then
         for key value in ${(kv)types}; do
-            echo "${(r:10:)key} $y -> $r $value"
+            echo "${(r:10:)key} $y -> $x $value"
         done
         return 0
     fi | sort
-
+    # check if type is in the array
     if [[ -n ${types[$type]-} ]]; then
         echo "${types[$type]}"
         return 0
@@ -204,7 +170,7 @@ function lns() {
     f[args_required]="existing_target new_link"
     f[opts]="debug force help info test version"
     f[version]="0.35"; f[date]="2025-05-09"
-    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
 ### main function
     # target (existing file or directory)
@@ -222,7 +188,6 @@ function lns() {
     f[target_type]=$(ftype "$f[target]")
     f[target_type_info]=$(ftypeinfo "$f[target_type]")
 
-    debugf
 
 
     # get absolute paths
@@ -374,7 +339,7 @@ function utype() {
     f[args_required]="command"
     f[opts]="debug help info version"
     f[version]="0.2"; f[date]="2025-05-06"
-    make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[options_count]"
 ### main function
     local output
