@@ -570,16 +570,17 @@ function lns() {
     shift "$f[options_count]"
     f[target_input]="$1"
     f[target]="${f[target_input]:A}"
-    f[target_parent]="$f[target:h]"
-    f[target_name]="$f[target:t]"
+    f[target_parent]="${f[target]:h}"
+    f[target_name]="${f[target]:t}"
     f[target_parent_readable]=$(isdirreadable "$f[target_parent]")
     f[link_input]="$2"
     f[link]="${f[link_input]:A}"
-    f[link_parent]="$f[link:h]"
+    f[link_parent]="${f[link]:h}"
     f[link_parent_writable]=$(isdirwritable "$f[link_parent]")
-    f[link_name]="$f[link:t]"
+    f[link_name]="${f[link]:t}"
     f[target_type]=$(ftype "$f[target]")
     f[target_type_info]=$(ftypeinfo "$f[target_type]")
+    debugf
     local src="${1:A}"
     local dst="${2:A}"
     local src_dir="$(dirname "$src")"
@@ -760,6 +761,10 @@ function wheref() {
 #
 
 function make_fn() {
+    if ! typeset -p f &>/dev/null; then
+        log::error "make_fn must be called from a function"
+        return 1
+    fi
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
     local arr_opts=( $(string_to_words "$f[opts]") )
@@ -954,7 +959,6 @@ function make_fn_debug() {
         echo "    ${(r:15:)key} $y->$r '$value'"
     done | sort
     log::info "Function properties:"
-    local value_temp=""
     for key value in "${(@kv)f}"; do
         value=$(clean_string "$value")
         echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
@@ -965,6 +969,20 @@ function make_fn_debug() {
         value=$(clean_ansi "$value")
         value=$(clean_string "$value")
         echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
+        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
+    done | sort
+}
+function debugf() {
+    local y=$(ansi yellow) r=$(ansi reset)
+    local max_key_length=0
+    for key in "${(@k)f}"; do
+        if [[ ${#key} -gt $max_key_length ]]; then
+            max_key_length=${#key}
+        fi
+    done
+    for key value in "${(@kv)f}"; do
+        value=$(clean_string "$value")
+        echo -n "    ${(r:$max_key_length:)key} $y->$r '${value:0:40}'"
         [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
     done | sort
 }

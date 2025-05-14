@@ -1,11 +1,17 @@
 #!/bin/zsh
 
-# make_fn - a function for nahdling options and arguments.
+# fn_make - a function for nahdling options and arguments.
 # It will parse the options and arguments and check for errors.
 # This function must be called by the main function that uses it.
 # ⚠️ It is not meant to be used standalone. 
 
-function make_fn() {
+function fn_make() {
+### check if the function is called from a function
+    if ! typeset -p f &>/dev/null; then
+        log::error "fn_make must be called from a function"
+        return 1
+    fi
+
     local arr_args_required=( $(string_to_words "$f[args_required]") )
     local arr_args_optional=( $(string_to_words "$f[args_optional]") )
     local arr_opts=( $(string_to_words "$f[opts]") )
@@ -61,12 +67,12 @@ function make_fn() {
     [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$r"
     [[ $f[err_arg] ]] && s[err_arg]="$(make_fn_err_arg)"
     [[ $f[info] ]] && s[header]="$s[name]: $f[info]"
-    s[version]=$(make_fn_version)
-    s[footer]=$(make_fn_footer)
-    s[example]="$(make_fn_example)"
+    s[version]=$(fn_version)
+    s[footer]=$(fn_footer)
+    s[example]="$(fn_example)"
     s[source]="This function is defined in $s[path]"
-    s[usage]="$(make_fn_usage)"
-    s[hint]="$(make_fn_hint)"
+    s[usage]="$(fn_usage)"
+    s[hint]="$(fn_hint)"
 
 ### options handling
     # show debug infromation
@@ -127,14 +133,14 @@ function make_fn_err_arg() {
 }
 
 # prepare the version string
-function make_fn_version() {
+function fn_version() {
     printf "$s[name]"
     [[ -n $f[version] ]] && printf " $y$f[version]$r" || printf " [version unknown]"
     [[ -n $f[date] ]] && printf " ($f[date])"
 }
 
 # prepare the hint string
-function make_fn_hint() {
+function fn_hint() {
     if [[ $o[i] && $o[h] ]]; then
         log::info "Run $s[name] ${p}-i$r for basic usage or $s[name] ${p}-h$r for help."
     elif [[ $o[i] ]]; then
@@ -148,7 +154,7 @@ function make_fn_hint() {
 }
 
 # prepare the footer string
-function make_fn_footer() {
+function fn_footer() {
     printf "$s[version] copyright © "
     [[ -n $f[date] ]] && printf "$s[year] "
     printf "by $s[author]\n"
@@ -156,7 +162,7 @@ function make_fn_footer() {
 }
 
 # prepare the example string
-function make_fn_example() {
+function fn_example() {
     [[ $o[h] == 1 ]] && printf "\n"
     printf "Usage example:" 
     [[ $o[h] == 1 ]] && printf "\n\t" || printf " "
@@ -174,7 +180,7 @@ function make_fn_example() {
 }
 
 # prepare the full usage information
-function make_fn_usage() {
+function fn_usage() {
     local i=1
     local usage="Usage details:\n\t$s[name] "
     if [[ ${#arr_opts[@]} -ne 0 ]]; then
@@ -220,7 +226,7 @@ function make_fn_usage() {
 }
 
 # print debug information
-function make_fn_debug() {
+function fn_debug() {
     log::warning "Debug mode is on."
     log::info "Arguments:"
     for key value in "${(@kv)a}"; do
@@ -231,7 +237,6 @@ function make_fn_debug() {
         echo "    ${(r:15:)key} $y->$r '$value'"
     done | sort
     log::info "Function properties:"
-    local value_temp=""
     for key value in "${(@kv)f}"; do
         value=$(clean_string "$value")
         echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
@@ -242,6 +247,21 @@ function make_fn_debug() {
         value=$(clean_ansi "$value")
         value=$(clean_string "$value")
         echo -n "    ${(r:15:)key} $y->$r '${value:0:40}'"
+        [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
+    done | sort
+}
+
+function debugf() {
+    local y=$(ansi yellow) r=$(ansi reset)
+    local max_key_length=0
+    for key in "${(@k)f}"; do
+        if [[ ${#key} -gt $max_key_length ]]; then
+            max_key_length=${#key}
+        fi
+    done
+    for key value in "${(@kv)f}"; do
+        value=$(clean_string "$value")
+        echo -n "    ${(r:$max_key_length:)key} $y->$r '${value:0:40}'"
         [[ ${#value} -gt 40 ]] && echo "$y...$r" || echo
     done | sort
 }

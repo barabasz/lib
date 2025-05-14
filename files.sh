@@ -210,19 +210,19 @@ function lns() {
     # target (existing file or directory)
     f[target_input]="$1"
     f[target]="${f[target_input]:A}"
-    f[target_parent]="$f[target:h]"
-    f[target_name]="$f[target:t]"
+    f[target_parent]="${f[target]:h}"
+    f[target_name]="${f[target]:t}"
     f[target_parent_readable]=$(isdirreadable "$f[target_parent]")
     # link (new symbolic link)
     f[link_input]="$2"
     f[link]="${f[link_input]:A}"
-    f[link_parent]="$f[link:h]"
+    f[link_parent]="${f[link]:h}"
     f[link_parent_writable]=$(isdirwritable "$f[link_parent]")
-    f[link_name]="$f[link:t]"
+    f[link_name]="${f[link]:t}"
     f[target_type]=$(ftype "$f[target]")
     f[target_type_info]=$(ftypeinfo "$f[target_type]")
 
-
+    debugf
 
 
     # get absolute paths
