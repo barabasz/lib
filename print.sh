@@ -7,6 +7,10 @@ function print::header() {
     printf "\n$(ansi bold white)%s$(ansi reset)\n" "$(print::line "$*")";
 }
 
+function print::footer() {
+    printf "$(ansi bold white)%s$(ansi reset)\n\n" "$(print::line "$*")";
+}
+
 function print::line() {
     local TOTAL_CHARS=60
     local total=$TOTAL_CHARS-2

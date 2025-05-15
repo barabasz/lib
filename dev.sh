@@ -5,7 +5,7 @@
 # Start a local HTTP server in the specified directory
 # Usage: www <directory> 
 function www() {
-    local -A f; local -A o; local -A a; local -A s
+    local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="Start a local HTTP server in the specified directory"
     f[help]="If no directory is specified, the current directory will be used."
     f[help]+="\nDefault port is 8080. To supress auto-open, use -n."

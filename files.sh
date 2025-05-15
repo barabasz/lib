@@ -7,71 +7,89 @@
 # Usage: ftype <path>
 # Returns object type or 'not_found'
 ftype() {
-    local -A f; local -A o; local -A a; local -A s
+    local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="Detects the type of file system object for a given path."
     f[args_required]="path"
     f[opts]="debug help info long version"
     f[version]="0.4"; f[date]="2025-05-15"
     f[help]="Returns type with error code 0 (or 1 for not_found):\n"
     f[help]+=$(ftypeinfo)
-    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[opts_count]"
+    fn_make "$@" && [[ -n "$f[return]" ]] && return "$f[return]"
 ### main function
-    f[path_org]="$1"
-    f[path_abs]="${f[path_org]:A}"
+    t[path_org]="$a[1]"
+    t[path_abs]="$t[path_org]:a" # :a does not follow symlinks
     # check if file exists
-    if [[ ! -e "$f[path_org]" && ! -L "$f[path_org]" ]]; then
-        f[type]="not_found"
+    if [[ ! -e "$t[path_org]" && ! -L "$t[path_org]" ]]; then
+        t[type]="not_found"
+        t[not_found]="1"
     fi
     # symlink handling
-    if [[ -L "$f[path_org]" && -z "$type" ]]; then
+    if [[ -L "$t[path_org]" && -z "$t[type]" ]]; then
+        t[link]="1"
+        t[link_dst]=$(readlink "$t[path_org]")
         # Broken symlink
-        if [[ ! -e "$f[path_org]" ]]; then
-            f[type]="link_broken"
-        elif [[ -d "$f[path_org]" ]]; then
-            f[type]="link_dir"
-        elif [[ -f "$f[path_org]" ]]; then
-            f[type]="link_file"
-        elif [[ -b "$f[path_org]" ]]; then
-            f[type]="link_block"
-        elif [[ -c "$f[path_org]" ]]; then
-            f[type]="link_char"
-        elif [[ -p "$f[path_org]" ]]; then
-            f[type]="link_pipe"
-        elif [[ -S "$f[path_org]" ]]; then
-            f[type]="link_socket"
+        if [[ ! -e "$t[path_org]" ]]; then
+            t[type]="link_broken"
+        elif [[ -d "$t[path_org]" ]]; then
+            t[type]="link_dir"
+        elif [[ -f "$t[path_org]" ]]; then
+            t[type]="link_file"
+        elif [[ -b "$t[path_org]" ]]; then
+            t[type]="link_block"
+        elif [[ -c "$t[path_org]" ]]; then
+            t[type]="link_char"
+        elif [[ -p "$t[path_org]" ]]; then
+            t[type]="link_pipe"
+        elif [[ -S "$t[path_org]" ]]; then
+            t[type]="link_socket"
         else
-            f[type]="link_other"
+            t[type]="link_other"
         fi
     fi
     # regular file handling
-    if [[ -z "$type" ]]; then
-        if [[ -d "$f[path_abs]" ]]; then
-            f[type]="dir"
-        elif [[ -f "$f[path_abs]" ]]; then
-            f[type]="file"
-        elif [[ -b "$f[path_abs]" ]]; then
-            f[type]="block"
-        elif [[ -c "$f[path_abs]" ]]; then
-            f[type]="char"
-        elif [[ -p "$f[path_abs]" ]]; then
-            f[type]="pipe"
-        elif [[ -S "$f[path_abs]" ]]; then
-            f[type]="socket"
+    if [[ -z "$t[type]" ]]; then
+        t[link]="0"
+        if [[ -d "$t[path_abs]" ]]; then
+            t[type]="dir"
+        elif [[ -f "$t[path_abs]" ]]; then
+            t[type]="file"
+        elif [[ -b "$t[path_abs]" ]]; then
+            t[type]="block"
+        elif [[ -c "$t[path_abs]" ]]; then
+            t[type]="char"
+        elif [[ -p "$t[path_abs]" ]]; then
+            t[type]="pipe"
+        elif [[ -S "$t[path_abs]" ]]; then
+            t[type]="socket"
         else
-            f[type]="other"
+            t[type]="other"
         fi
+    fi
+    # get type information
+    t[type_info]=$(ftypeinfo "$t[type]")
+    case $t[type] in
+        not_found) s[type_info]="$c$t[path_abs]$x $t[type_info]";;
+        other) s[type_info]="$c$t[path_abs]$x is an $t[type_info]";;
+        *) s[type_info]="$c$t[path_abs]$x is a $t[type_info]";;
+    esac
+    if [[ $t[link] == 1 ]]; then
+        if [[ $t[type] == "link_broken" ]]; then
+            s[type_info]+=" to "
+        else
+            s[type_info]+=" "
+        fi
+        s[type_info]+="$c$t[link_dst]$x"
     fi
     # debug output
     [[ $o[d] == 1 ]] && fn_debug
-    # Print type
+    # print type
     if [[ $o[l] == 1 ]]; then
-        echo $(ftypeinfo "$type")
+        echo "$s[type_info]"
     else
-        echo "$type"
+        echo "$t[type]"
     fi
     # return error code
-    if [[ "$type" == "not_found" ]]; then
+    if [[ "$t[not_found]" ]]; then
         return 1
     else
         return 0
@@ -82,7 +100,7 @@ ftype() {
 # Usage: ftypeinfo <type>
 # Returns: description of the file type or an empty string if not found
 function ftypeinfo() {
-    local -A f; local -A o; local -A a; local -A s
+    local -A f; local -A o; local -A a; local -A s; local -A t
     local y="$(ansi yellow)"; local x="$(ansi reset)"
     f[info]="Companion function for ftype() to get file type information."
     f[help]="Returns description of the file type or an empty string if not found."
@@ -91,12 +109,11 @@ function ftypeinfo() {
     f[opts]="debug help info version"
     f[version]="0.1"; f[date]="2025-05-09"
     fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[opts_count]"
 ### main function
-    local type="$1"
+    local type="$a[1]"
     local -A types
     # fill array with types
-    types[not_found]="destination does not exist"
+    types[not_found]="does not exist"
     types[link_broken]="broken symbolic link"
     types[link_dir]="symbolic link to a directory"
     types[link_file]="symbolic link to a regular file"
@@ -132,7 +149,7 @@ function ftypeinfo() {
 
 # Function to remove file or directory only if it is a symbolic link
 function rmln() {
-    local -A f; local -A o; local -A a; local -A s
+    local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="Removes file or directory only if it is a symbolic link."
     f[args_required]="file_or_dir"
     f[opts]="debug help info version"
@@ -163,7 +180,7 @@ function rmln() {
 
 # Better ln command for creating symbolic links
 function lns() {
-    local -A f; local -A o; local -A a; local -A s
+    local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="A better ln command for creating symbolic links."
     f[help]="It creates a symbolic link only if such does not yet exist."
     f[help]+="\nSource and target may be provided as relative or absolute paths."
@@ -310,7 +327,7 @@ function lns() {
 # Creates a symbolic link for configuration dirs using lns
 # If the first argument is -p, it will use GHPRIVDIR instead of GHCONFDIR
 function lnsconfdir() {
-    local -A f; local -A o; local -A a; local -A s
+    local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="Creates a symbolic link for configuration dirs using lns."
     f[help]="If the -p optionis used, it will use GHPRIVDIR instead of GHCONFDIR"
     f[args_required]="directory"
@@ -334,7 +351,7 @@ function lnsconfdir() {
 # Universal better type command for bash and zsh
 # returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'
 function utype() {
-    local -A f; local -A o; local -A a; local -A s
+    local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="Universal better type command for bash and zsh."
     f[help]="Returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'"
     f[args_required]="command"

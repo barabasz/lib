@@ -86,7 +86,9 @@ function minimize-login-info() {
 
 # Test function for template
 function fntest() {
-    local -A f; local -A o; local -A a; local -A s
+    # $f[] - function properties, $a[] - arguments array, $o[] - options array
+    # $s[] - strings array, $t[] - this (main function) variables array
+    local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="Template for functions." # info about the function
     f[args_required]="agrument1 argument2" # required arguments
     f[args_optional]="agrument3 agrument4" # optional arguments
@@ -95,12 +97,24 @@ function fntest() {
     f[date]="2025-05-06" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
     fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[opts_count]"
+### main function
+    t[arg1]="${a[1]}" # example argument assignment to this array
+    t[this_is_very_long_key_name]="${a[2]}"
+    [[ "$o[d]" -eq "1" ]] && fn_debug # show debug info
+    echo "This is the output of the $s[name] function."
+    echo "This is the first argument: $a[1]"
+    echo "This is the secong from this array: $t[this_is_very_long_key_name]"
+    echo "This is the path to the function: $s[path]"
+    echo "This is 'example' option value: $o[e]"
+}
+
+# Super-simple function to test the template
+function fntest2() {
+    local -A f; local -A o; local -A a; local -A s; local -A t
+    f[info]="Super-short function."
+    f[opts]="debug help" # optional options
+    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
 ### main function
     [[ "$o[d]" -eq "1" ]] && fn_debug # show debug info
     echo "This is the output of the $s[name] function."
-    echo "This is the first argument: $1"
-    echo "This is the path to the function: $s[path]"
-    echo "This is the first argument: $a[1]"
-    echo "This is 'example' option value: $o[e]"
 }

@@ -249,6 +249,7 @@ function fn_load_colors() {
 function fn_debug() {
     local max_key_length=15
     local max_value_length=40
+    local count
     local q="$y'$x"
 # find the longest key
     for key in "${(@k)f}"; do
@@ -256,31 +257,51 @@ function fn_debug() {
             max_key_length=${#key}
         fi
     done
+    for key in "${(@k)t}"; do
+        if [[ ${#key} -gt $max_key_length ]]; then
+            max_key_length=${#key}
+        fi
+    done
+# debug header
+    print::header "${r}Debug start$x"
 # list arguments $a[]
-    print::header "${r}Debug info$x"
-    log::info "${y}Arguments${x}:"
+    [[ ${#a} -eq 0 ]] && count="(0)." || count="(${#a}):"
+    log::info "${y}Arguments${x} ${g}\$a[]$x $count"
     for key value in "${(@kv)a}"; do
         echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
     done | sort
 # list options $o[]
-    log::info "${y}Options${x}:"
+    [[ ${#o} -eq 0 ]] && count="(0)." || count="(${#o}):"
+    log::info "${y}Options${x} ${g}\$o[]$x $count"
     for key value in "${(@kv)o}"; do
         echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
     done | sort
 # list properties $f[]
-    log::info "${y}Function properties${x}:"
+    [[ ${#f} -eq 0 ]] && count="(0)." || count="(${#f}):"
+    log::info "${y}Function properties${x} ${g}\$f[]$x $count"
     for key value in "${(@kv)f}"; do
         value=$(clean_string "$value")
         echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
         [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
     done | sort
 # list strings $s[]
-    log::info "${y}Function strings${x}:"
+    [[ ${#s} -eq 0 ]] && count="(0)." || count="(${#s}):"
+    log::info "${y}Strings${x} ${g}\$s[]$x $count"
     for key value in "${(@kv)s}"; do
         value=$(clean_ansi "$value")
         value=$(clean_string "$value")
         echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
         [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
     done | sort
-    echo
+# list this function values $t[]
+    [[ ${#t} -eq 0 ]] && count="(0)." || count="(${#t}):"
+    log::info "${y}This function${x} ${g}\$t[]$x $count"
+    for key value in "${(@kv)t}"; do
+        value=$(clean_ansi "$value")
+        value=$(clean_string "$value")
+        echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
+        [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
+    done | sort 
+# debug footer
+    print::footer "${r}Debug end$x"
 }
