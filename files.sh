@@ -15,62 +15,63 @@ ftype() {
     f[help]="Returns type with error code 0 (or 1 for not_found):\n"
     f[help]+=$(ftypeinfo)
     fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
-    local type=""
-    local org_path="$1"
-    local abs_path="${org_path:A}"
-
-    if [[ ! -e "$org_path" && ! -L "$org_path" ]]; then
-        type="not_found"
+    f[path_org]="$1"
+    f[path_abs]="${f[path_org]:A}"
+    # check if file exists
+    if [[ ! -e "$f[path_org]" && ! -L "$f[path_org]" ]]; then
+        f[type]="not_found"
     fi
-    # Symlink handling
-    if [[ -L "$org_path" ]]; then
+    # symlink handling
+    if [[ -L "$f[path_org]" && -z "$type" ]]; then
         # Broken symlink
-        if [[ ! -e "$org_path" ]]; then
-            type="link_broken"
-        fi
-        # Symlink to known type
-        if [[ -d "$org_path" ]]; then
-            type="link_dir"
-        elif [[ -f "$org_path" ]]; then
-            type="link_file"
-        elif [[ -b "$org_path" ]]; then
-            type="link_block"
-        elif [[ -c "$org_path" ]]; then
-            type="link_char"
-        elif [[ -p "$org_path" ]]; then
-            type="link_pipe"
-        elif [[ -S "$org_path" ]]; then
-            type="link_socket"
+        if [[ ! -e "$f[path_org]" ]]; then
+            f[type]="link_broken"
+        elif [[ -d "$f[path_org]" ]]; then
+            f[type]="link_dir"
+        elif [[ -f "$f[path_org]" ]]; then
+            f[type]="link_file"
+        elif [[ -b "$f[path_org]" ]]; then
+            f[type]="link_block"
+        elif [[ -c "$f[path_org]" ]]; then
+            f[type]="link_char"
+        elif [[ -p "$f[path_org]" ]]; then
+            f[type]="link_pipe"
+        elif [[ -S "$f[path_org]" ]]; then
+            f[type]="link_socket"
         else
-            type="link_other"
+            f[type]="link_other"
         fi
     fi
-    # Check all file types using most common first
-    if [[ -d "$abs_path" ]]; then
-        type="dir"
-    elif [[ -f "$abs_path" ]]; then
-        type="file"
-    elif [[ -b "$abs_path" ]]; then
-        type="block"
-    elif [[ -c "$abs_path" ]]; then
-        type="char"
-    elif [[ -p "$abs_path" ]]; then
-        type="pipe"
-    elif [[ -S "$abs_path" ]]; then
-        type="socket"
-    else
-        type="other"
+    # regular file handling
+    if [[ -z "$type" ]]; then
+        if [[ -d "$f[path_abs]" ]]; then
+            f[type]="dir"
+        elif [[ -f "$f[path_abs]" ]]; then
+            f[type]="file"
+        elif [[ -b "$f[path_abs]" ]]; then
+            f[type]="block"
+        elif [[ -c "$f[path_abs]" ]]; then
+            f[type]="char"
+        elif [[ -p "$f[path_abs]" ]]; then
+            f[type]="pipe"
+        elif [[ -S "$f[path_abs]" ]]; then
+            f[type]="socket"
+        else
+            f[type]="other"
+        fi
     fi
-
+    # debug output
+    [[ $o[d] == 1 ]] && fn_debug
+    # Print type
     if [[ $o[l] == 1 ]]; then
         echo $(ftypeinfo "$type")
     else
         echo "$type"
     fi
-
-    if [[ $type == "not_found" ]]; then
+    # return error code
+    if [[ "$type" == "not_found" ]]; then
         return 1
     else
         return 0
@@ -90,7 +91,7 @@ function ftypeinfo() {
     f[opts]="debug help info version"
     f[version]="0.1"; f[date]="2025-05-09"
     fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
     local type="$1"
     local -A types
@@ -137,7 +138,7 @@ function rmln() {
     f[opts]="debug help info version"
     f[version]="0.6"; f[date]="2025-05-07"
     make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
     local file="$1" c="${cyan}" r="${reset}"
     if [[ ! -e $file ]]; then
@@ -171,7 +172,7 @@ function lns() {
     f[opts]="debug force help info test version"
     f[version]="0.35"; f[date]="2025-05-09"
     fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
     # target (existing file or directory)
     f[target_input]="$1"
@@ -316,7 +317,7 @@ function lnsconfdir() {
     f[opts]="debug help info version example"
     f[version]="0.15"; f[date]="2025-05-06"
     make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
     [[ $o[p] == 1 ]] && local priv=1
     [[ -z $1 ]] && log::error "No config directory provided" && return 1
@@ -340,7 +341,7 @@ function utype() {
     f[opts]="debug help info version"
     f[version]="0.2"; f[date]="2025-05-06"
     fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
     local output
     if [[ $(shellname) == 'bash' ]]; then

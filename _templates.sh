@@ -14,9 +14,9 @@ function _fn_tpl() {
     f[date]="2025-05-06" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
     fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
-    [[ "$o[d]" -eq "1" ]] && fn_debug # show debug info
+    [[ $o[d] == 1 ]] && fn_debug # show debug info
     echo "This is the output of the $s[name] function."
     echo "This is the path to the function: $s[path]"
     echo "This is the first argument: $a[1]"

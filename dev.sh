@@ -13,7 +13,7 @@ function www() {
     f[opts]="debug help info noopen version"
     f[version]="0.35"; f[date]="2025-05-10"
     make_fn "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[options_count]"
+    shift "$f[opts_count]"
 ### main function
     local cache="-c-1" # disable caching
     [[ $o[n] != 1 ]] && local open="-o"
