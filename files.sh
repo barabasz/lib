@@ -14,7 +14,7 @@ ftype() {
     f[version]="0.4"; f[date]="2025-05-15"
     f[help]="Returns type with error code 0 (or 1 for not_found):\n"
     f[help]+=$(ftypeinfo)
-    fn_make "$@" && [[ -n "$f[return]" ]] && return "$f[return]"
+    fn_make2 "$@" && [[ -n "$f[return]" ]] && return "$f[return]"
 ### main function
     t[path_org]="$a[1]"
     t[path_abs]="$t[path_org]:a" # :a does not follow symlinks
@@ -108,7 +108,7 @@ function ftypeinfo() {
     f[args_optional]="ftype_type"
     f[opts]="debug help info version"
     f[version]="0.1"; f[date]="2025-05-09"
-    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make2 "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
 ### main function
     local type="$a[1]"
     local -A types
@@ -188,7 +188,7 @@ function lns() {
     f[args_required]="existing_target new_link"
     f[opts]="debug force help info test version"
     f[version]="0.35"; f[date]="2025-05-09"
-    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make2 "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[opts_count]"
 ### main function
     # target (existing file or directory)
@@ -357,7 +357,7 @@ function utype() {
     f[args_required]="command"
     f[opts]="debug help info version"
     f[version]="0.2"; f[date]="2025-05-06"
-    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make2 "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
     shift "$f[opts_count]"
 ### main function
     local output

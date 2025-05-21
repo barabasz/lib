@@ -84,37 +84,37 @@ function minimize-login-info() {
     touch "$HOME/.hushlogin"
 }
 
-# Test function for template
-function fntest() {
-    # $f[] - function properties, $a[] - arguments array, $o[] - options array
-    # $s[] - strings array, $t[] - this (main function) variables array
+
+# Full function template
+function fn_test() {
+    # f = properties, a - arguments, o - options, s - strings, t - this
     local -A f; local -A o; local -A a; local -A s; local -A t
+    # Define function properties
     f[info]="Template for functions." # info about the function
-    f[args_required]="agrument1 argument2" # required arguments
-    f[args_optional]="agrument3 agrument4" # optional arguments
-    f[opts]="debug help info version example" # optional options
-    f[version]="0.2" # version of the function
-    f[date]="2025-05-06" # date of last update
+    f[version]="0.25" # version of the function
+    f[date]="2025-05-20" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    # Define arguments (in order in which they should be passed)
+    a[1]="agrument1,r,description of the first argument"
+    a[2]="agrument2,r,description of the second argument"
+    a[3]="agrument3,o,description of the third argument"
+    a[4]="agrument4,o,description of the fourth argument"
+    # Define extra options (default are: info, help, version, debug)
+    o[verbose]="V,0,enable verbose mode"
+    # Run fn_make() to parse arguments and options
+    fn_make "$@"
+    [[ "$o[debug]" == "1" ]] && fn_debug # show debug info
+    [[ -n "${f[return]}" ]] && return "${f[return]}"
 ### main function
-    t[arg1]="${a[1]}" # example argument assignment to this array
-    t[this_is_very_long_key_name]="${a[2]}"
-    [[ "$o[d]" -eq "1" ]] && fn_debug # show debug info
     echo "This is the output of the $s[name] function."
-    echo "This is the first argument: $a[1]"
-    echo "This is the secong from this array: $t[this_is_very_long_key_name]"
-    echo "This is the path to the function: $s[path]"
-    echo "This is 'example' option value: $o[e]"
 }
 
-# Super-simple function to test the template
-function fntest2() {
+# Full function template
+function fn_test2() {
     local -A f; local -A o; local -A a; local -A s; local -A t
-    f[info]="Super-short function."
-    f[opts]="debug help" # optional options
-    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    a[1]="agrument1,r,description of the first argument"
+    a[2]="agrument2,r,description of the second argument"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
 ### main function
-    [[ "$o[d]" -eq "1" ]] && fn_debug # show debug info
     echo "This is the output of the $s[name] function."
 }

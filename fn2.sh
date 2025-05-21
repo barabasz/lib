@@ -1,240 +1,103 @@
 #!/bin/zsh
 
-# The functions below are intended for exclusive use in the Zsh shell.
-# They intentionally leverage Zsh-specific syntax and features for simplicity and seamless integration.
-# checkargs() is a helper function that parses arguments and options for other Zsh functions.
-# mainfn() is an example function demonstrating how to use checkargs() for argument and option parsing.
+# fn_make - a function for handling options and arguments.
+# It parses the options and arguments and checks for errors.
+# Additionally, it prints usage, help, and version information.
 
-# mainfn() is an example function that uses checkargs() to parse arguments and options.
-# Arguments and options are defined in this function using the $a[] and $o[] arrays with CSV format.
-# Arguments use the format: $a[position]="name,?,description", where "?" is either "r" (required) or "o" (optional).
-# Options use the format: $o[fullname]="shortname,default value,description", where the default value is optional.
-# Option short names must be exactly one letter; full names must be at least two letters long.
-# An additional $f[] array is used to store function properties (e.g., version, args_count, opts_count).
-# The associative arrays $f, $a, and $o are passed to checkargs() via Zsh's dynamic scoping feature.
-function mainfn() {
-    # Declare associative arrays
-    local -A f; local -A a; local -A o
-    # Define function properties
-    f[version]="0.1"
-    # Define arguments
-    a[1]="target,r,path to the existing target file"
-    a[2]="output,r,path to the new output file"
-    a[3]="logfile,o,path to the log file"
-    # Define options
-    o[info]="i,0,show basic info and usage"
-    o[help]="h,0,show full help"
-    o[version]="v,0,show version"
-    o[debug]="d,0,enable debug mode"
-    o[verbose]="V,0,enable verbose mode"
+# This function must be called by the parrent function that uses it.
+# ⚠️ It is not meant to be used standalone. 
 
-    # Run checkargs() to parse arguments and options
-    checkargs "$@"
-    # if f[return] is set, return with the same value
-    [[ -n "${f[return]}" ]] && return "${f[return]}"
+function fn_make2() {
+### check if the function is called from a function
+    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
+        log::error "fn_make must be called from a function"
+        return 1
+    fi
 
-    # Show parsed arguments and options
-    echo "$f[args_cnt] arguments and $f[opts_cnt] options found."
-}
+### argunments and options arrays
+    local arr_args_required=( $(string_to_words "$f[args_required]") )
+    local arr_args_optional=( $(string_to_words "$f[args_optional]") )
+    local arr_opts=( $(string_to_words "$f[opts]") )
 
-# checkargs() iterates over the provided arguments, separating them into options and positional arguments.
-# This function cannot be used standalone; it must be called from a parent function like mainfn().
-# The associative arrays $f, $a, and $o are passed via dynamic scoping.
-# Arguments must not start with a dash and are stored in the order they are passed.
-# Options must start with a single dash for one-letter options (short names) or a double dash for full names.
-# Options can be followed by an equal sign to provide a value (e.g., --option=value).
-# Only the --fullname=value or -o=value (short name) formats are allowed for security reasons.
-# If an option is not followed by a value, it is assigned a default value of 1.
-# checkargs() replaces the initial settings values from $a[] and $o[] with the actual values from arguments.
-function checkargs() {
-    # Create argument names array
-    local -A a_name
-    # Create required arguments array (to check if all required arguments are passed)
-    local -A a_req
-    # Create arguments help array (to generate help - for future use)
-    local -A a_help
-
-    # Parse $a arguments array
-    local args_min=0 args_opt=0
-    for key value in "${(@kv)a}"; do
-        # Split CSV value into settings
-        local settings=(${(s:,:)value})
-        # Check if there are exactly 3 non-empty settings values
-        if [[ ${#settings} -ne 3 ]]; then
-            echo "Error: Invalid argument '$key' format in '$value' (missing comma or empty value?)"
-            f[return]=1 && return 1
-        fi
-        a_name[$key]="${settings[1]}"
-        # Check if argument type is either "r" (required) or "o" (optional)
-        if [[ "ro" != *"${settings[2]}"* ]]; then
-            echo "Error: Invalid argument '$key' type '${settings[2]}' (must be 'r' or 'o')"
-            continue
-        fi
-        # Check if the argument is required
-        if [[ ${settings[2]} == r ]]; then
-            a_req[${settings[1]}]=required
-            ((args_min++))
-        else
-            a_req[${settings[1]}]=optional
-            ((args_opt++))
-        fi
-        # Get help value
-        a_help[${settings[1]}]="${settings[3]}"
-        # Unset original $a array value
-        unset "a[$key]"
-        # Add to $a array the argument name with an empty value
-        a[${settings[1]}]=""
-    done
-    f[args_min]=$args_min
-    f[args_opt]=$args_opt
-    f[args_max]=$((args_min + args_opt))
-
-    # Create short options array (to resolve short option names to long ones)
-    local -A o_short
-    # Create options help array (to generate help - for future use)
-    local -A o_help
+### prepare function properties
+    f[name]="${funcstack[2]}"
+    [[ -z $f[author] ]] && f[author]="gh/barabasz"
+    f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
+    f[file_dir]="${f[file_path]%/*}"
+    f[file_name]="${f[file_path]##*/}"
+    f[args_min]=${#arr_args_required}
+    f[args_max]=$(($f[args_min]+${#arr_args_optional}))
+    f[opts_max]="${#arr_opts}"
+    f[args_count]=0
+    f[opts_input]=""
+    f[opts_count]=0
+    f[return]=""
     
-    # Parse $o options array
-    local opts_max=0
-    for key value in "${(@kv)o}"; do
-        # Split CSV value into settings
-        local settings=(${(s:,:)value})
-        # Check if there are exactly 3 non-empty settings values
-        if [[ ${#settings} -ne 3 ]]; then
-            echo "Error: Invalid option '$key' format in '$value' (missing comma or empty value?)"
-            f[return]=1 && return 1
-        fi
-        # Check if the short option name is exactly one letter
-        if [[ ${#settings[1]} -ne 1 ]]; then
-            echo "Error: Short option name must be exactly one letter in '$key' ($value)"
-            f[return]=1 && return 1
-        else 
-            o_short[${settings[1]}]=$key
-        fi
-        # Replace original $o array value with only default value
-        o[$key]="${settings[2]}"
-        # Get help value
-        o_help[$key]="${settings[3]}"
-        ((opts_max++))
+### parse options and arguments
+    # create options array
+    for opt in $arr_opts; do
+        o[$opt[1,1]]=0
     done
-    f[opts_max]=$opts_max
-
-    # Declare indexes
-    local i=0 # Index for arguments
-    local j=0 # Index for options
-    local used_opts="" # List of used options
-
-    # Main loop - iterate over all arguments
+    # loop through arguments
+    local i=1
     for arg in "$@"; do
-        # Check if the argument starts with a dash (then it is an option)
         if [[ $arg == -* ]]; then
-
-            # Get number of leading dashes
-            local dashes=${#arg%%[![-]*}
-            
-            # Check that there are no more than 2 leading dashes
-            if [[ $dashes -gt 2 ]]; then
-                echo "Error: Too many leading dashes in $arg"
-                continue
-            fi
-            
-            # Get number of equal signs
-            local equals=${#arg//[^=]/}
-            
-            # Check that there is no more than one equal sign
-            if [[ $equals -gt 1 ]]; then
-                echo "Error: Too many equal signs in $arg"
-                continue
-            fi
-
-            # Get the length of the option name without leading dashes
-            local namelen=${#${${arg##*-}%%=*}}
-
-            # Check if option name is not empty
-            if [[ $namelen -eq 0 ]]; then
-                echo "Error: Option name is empty in $arg"
-                continue
-            fi
-
-            # Check if there are two leading dashes but a one-letter option name
-            if [[ $dashes -eq 2 && $namelen -eq 1 ]]; then
-                echo "Error: Long option names must be longer than 1 character in $arg"
-                echo -n "Hint: Did you mean '-${arg[-1]}'"
-                if [[ $o_short[${arg[-1]}] ]]; then
-                    echo -n " or '--$o_short[${arg[-1]}]'"
-                fi
-                echo "?"
-                continue
-            fi
-
-            # Check if there is exactly one leading dash but the option name is longer than 1 character
-            if [[ $dashes -eq 1 && $namelen -gt 1 ]]; then
-                echo "Error: Short option names must be exactly 1 character in '$arg'"
-                echo "Hint: Did you mean '-${arg:1:1}'?"
-                continue
-            fi
-
-            # Remove all leading dashes (leave only name or pair name=value)
-            arg="${arg//-}"
-            # Get the option name (or pair name=value)
-            local name="${arg%%=*}"
-
-            # Check if the short option name (with one leading dash) is in the $o_short options array
-            if [[ $dashes -eq 1 ]]; then
-                if [[ -z "${o_short[$name]}" ]]; then
-                    echo "Error: Unknown short option $arg"
-                    continue
-                else
-                    # Replace short option name with long one
-                    name="${o_short[$name]}"
-                fi
-            fi
-
-            # Check if the long option name (with two leading dashes) is in the $o options array
-            if [[ $dashes -eq 2 ]]; then
-                if [[ -z "${o[$name]}" ]]; then
-                    echo "Error: Unknown long option $arg"
-                    continue
-                fi
-            fi
-
-            # Check if it is a pair name=value
-            if [[ $arg == *"="* ]]; then
-                # Get the value (after the equal sign)
-                value="${arg#*=}"
-            # Otherwise, it is a standalone option without a value
+            f[opts_input]+="$arg "
+            opt_long="${arg#${arg%%[^-]*}}"
+            opt=${opt_long[1,1]}
+            if [[ $arr_opts =~ $opt_long ]]; then
+                o[$opt]=1
             else
-                value="1"
+                [[ -z "$f[err_opt_value]" ]] && f[err_opt_value]=$arg
             fi
-
-            # Check if the option is already used
-            if [[ $used_opts == *"$name"* ]]; then
-                echo "Error: Option '$name' was already used"
-                continue
-            fi
-
-            # Replace default value in $o array with the new one
-            o[$name]=$value
-            used_opts+="$name "
-            ((j++))
-        
-        # When there are no leading dashes, it is an argument
+            f[opts_count]=$(( f[opts_count] + 1 ))
         else
-            local index=$((i + 1))
-            # Check if the argument is required
-            if [[ $a_req[$a_name[$index]] == "required" && -z $arg ]]; then
-                echo "Error: argument $index ($a_name[$index]) is required"
-            fi
-            if [[ $a_name[$index] ]]; then
-                a[$a_name[$index]]="$arg"
-            else
-                a[$index]="$arg"
-            fi
+            f[args_count]=$(( f[args_count] + 1 ))
+            a[$i]=$arg
             ((i++))
         fi
     done
+    f[opts_input]="${f[opts_input]%" "}"
+    [[ $f[err_opt_value] ]] && f[err_opt]=1
+    [[ f[args_count] -lt $f[args_min] || $f[args_count] -gt $f[args_max] ]] && f[err_arg]=1
 
-    # Save the number of arguments and options
-    f[args_cnt]=$i
-    f[opts_cnt]=$j
+### function strings
+    fn_load_colors
+    s[name]="${g}$f[name]$x"
+    s[path]="${c}$f[file_path]$x"
+    s[author]="${y}$f[author]$x"
+    s[year]="${y}${f[date]:0:4}$x"
+    [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$x"
+    [[ $f[err_arg] ]] && s[err_arg]="$(fn_check_args)"
+    [[ $f[info] ]] && s[header]="$s[name]: $f[info]"
+    s[version]="$(fn_version)"
+    s[footer]="$(fn_footer)"
+    s[example]="$(fn_example)"
+    s[source]="$(fn_source)"
+    s[usage]="$(fn_usage)"
+    s[hint]="$(fn_hint)"
+
+### options handling
+    # show version, basic info (usage) or help
+    if [[ "$o[v]" -eq "1" || "$o[i]" -eq "1" || "$o[h]" -eq "1" ]]; then
+        if [[ "$o[v]" -eq "1" ]]; then
+            echo $s[version]
+        elif [[ "$o[i]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo $s[header]
+            echo $s[example]
+        elif [[ "$o[h]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo $s[header]
+            [[ $f[help] ]] && echo $f[help]
+            echo "$s[example]\n$s[usage]\n\n$s[footer]\n$s[source]"
+        fi
+        f[return]=0 && return 0
+    fi
+    # error handling
+    local err_msg="$x$s[name] error:"
+    if [[ $f[err_opt] || $f[err_arg] ]]; then
+        [[ $f[err_opt] ]] && log::error "$err_msg $s[err_opt]"
+        [[ $f[err_arg] ]] && log::error "$err_msg $s[err_arg]"
+        echo "$s[hint]"
+        f[return]=2 && return 0
+    fi
 }
