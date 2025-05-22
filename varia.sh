@@ -84,7 +84,6 @@ function minimize-login-info() {
     touch "$HOME/.hushlogin"
 }
 
-
 # Full function template
 function fn_test() {
     # f = properties, a - arguments, o - options, s - strings, t - this
@@ -102,9 +101,7 @@ function fn_test() {
     # Define extra options (default are: info, help, version, debug)
     o[verbose]="V,0,enable verbose mode"
     # Run fn_make() to parse arguments and options
-    fn_make "$@"
-    [[ "$o[debug]" == "1" ]] && fn_debug # show debug info
-    [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
 ### main function
     echo "This is the output of the $s[name] function."
 }
@@ -117,4 +114,24 @@ function fn_test2() {
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
 ### main function
     echo "This is the output of the $s[name] function."
+}
+
+# Test function to demonstrate fn_print_assoc function
+function fn_test_assoc() {
+    local -A my_array1
+    my_array1=(
+        [ala_ma_kota]="Ala ma kota"
+        [2]=23
+        [key_3]="<div>test</div>"
+        [4]="<div>test</div>"
+        [cytat]="Litwo, ojczyzno moja! ty jesteś jak zdrowie; ile cię trzeba cenić, ten tylko się dowie, kto cię stracił."
+    )
+    local my_array2=(
+        "Ala ma kota"
+        "A kot ma Alę"
+        "Ala go kocha"
+        "a kot ją wcale"
+    )
+    print::arr "$(typeset -p my_array1)"
+    print::arr "$(typeset -p my_array2)"
 }

@@ -3,6 +3,55 @@
 # Console print library
 # https://raw.githubusercontent.com/barabasz/lib/main/print.sh
 
+# Pretty print serialized array (indexed or associative)
+# Usage: print::arr <serialized_array>
+# Example: print::arr "$(typeset -p my_array)"
+function print::arr() {
+    local input="$1"
+    # Check if input is valid array serialization
+    if [[ ! $input == *"typeset -"[aA]* ]]; then
+        print -u2 "Error: Unsupported array serialization type."
+        return 1
+    fi
+    # Get array type, name and content
+    local array_type="${${input#*typeset -}%% *}"
+    local array_name="${${input#*typeset -[aA] }%%=*}"
+    local array_content="${${${input#*=}#\(}%\)}"
+    [[ "$array_content" =~ ^[[:space:]]*$ ]] && array_content=""
+    # Set array type and description
+    if [[ $array_type == "A" ]]; then
+        local -A arr
+        local array_desc="associative array"
+    else
+        local -a arr
+        local array_desc="indexed array"
+    fi
+    # Fill the array with content
+    if [[ -n $array_content ]]; then
+        eval "arr=($array_content)" 2>/dev/null || {
+            print -u2 "Error: Failed to deserialize the $array_desc."
+            return 1
+        }
+        # Convert indexed array to associative array
+        if [[ $array_type == "a" ]]; then
+            local -a arr_temp=("${arr[@]}")
+            unset arr
+            local -A arr
+            for i in {1..$#arr_temp}; do
+                arr[$i]=${arr_temp[i]}
+            done
+        fi 
+    fi
+    local array_len=${#arr}
+    # Print the array
+    print "Array name: $array_name"
+    print "Array type: $array_desc"
+    print "Array length: $array_len"
+    for key in ${(ko)arr}; do
+        print "$key: ${arr[$key]}"
+    done
+}
+
 function print::header() {
     printf "\n$(ansi bold white)%s$(ansi reset)\n" "$(print::line "$*")";
 }

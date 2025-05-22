@@ -294,80 +294,6 @@ function ansi() {
 }
 
 #
-# File: colors.sh
-#
-
-function showcolors() {
-    printh "Standard colors"
-    printf "${red}red${reset}, ${green}green${reset}, ${yellow}yellow${reset}, ${blue}blue${reset}, ${purple}purple${reset}, ${cyan}cyan${reset}, ${white}white${reset}"
-    printh "Intensive colors"
-    printf "${redi}red${reset}, ${greeni}green${reset}, ${yellowi}yellow${reset}, ${bluei}blue${reset}, ${purplei}purple${reset}, ${cyani}cyan${reset}, ${whitei}white${reset}"
-    printh "Bold colors"
-    printf "${redb}red${reset}, ${greenb}green${reset}, ${yellowb}yellow${reset}, ${blueb}blue${reset}, ${purpleb}purple${reset}, ${cyanb}cyan${reset}, ${whiteb}white${reset}"
-    printh "Background colors"
-    printf "${bgred}   ${reset}, ${bggreen}     ${reset}, ${bgyellow}yellow${reset}, ${bgblue}blue${reset}, ${bgpurple}purple${reset}, ${bgcyan}cyan${reset}, ${bgwhite}white${reset}"
-    printh "Intensive background colors"
-    printf "${bgredi}red${reset}, ${bggreeni}green${reset}, ${bgyellowi}yellow${reset}, ${bgbluei}blue${reset}, ${bgpurplei}purple${reset}, ${bgcyani}cyan${reset}, ${bgwhitei}white${reset}"
-    printf "\n"
-}
-function showcolors256() {
-    printh "256 colors"
-    for code in {0..255}
-        do echo -e "\e[38;5;${code}m"'\\e[38;5;'"$code"m"\e[0m"
-    done
-}
-clear='\e[0m'
-reset='\e[0m'
-black='\e[0;30m'
-red='\e[0;31m'
-green='\e[0;32m'
-yellow='\e[0;33m'
-blue='\e[0;34m'
-purple='\e[0;35m'
-cyan='\e[0;36m'
-white='\e[0;37m'
-blackb='\e[1;30m'
-redb='\e[1;31m'
-greenb='\e[1;32m'
-yellowb='\e[1;33m'
-blueb='\e[1;34m'
-purpleb='\e[1;35m'
-cyanb='\e[1;36m'
-whiteb='\e[1;37m'
-blacki='\e[0;90m'
-redi='\e[0;91m'
-greeni='\e[0;92m'
-yellowi='\e[0;93m'
-bluei='\e[0;94m'
-purplei='\e[0;95m'
-cyani='\e[0;96m'
-whitei='\e[0;97m'
-blackbi='\e[1;90m'
-redbi='\e[1;91m'
-greenbi='\e[1;92m'
-yellowbi='\e[1;93m'
-bluebi='\e[1;94m'
-purplebi='\e[1;95m'
-cyanbi='\e[1;96m'
-whitebi='\e[1;97m'
-bgblack='\e[40m'
-bgred='\e[41m'
-bggreen='\e[42m'
-bgyellow='\e[43m'
-bgblue='\e[44m'
-bgpurple='\e[45m'
-bgcyan='\e[46m'
-bgwhite='\e[47m'
-bgblacki='\e[0;100m'
-bgredi='\e[0;101m'
-bggreeni='\e[0;102m'
-bgyellowi='\e[0;103m'
-bgbluei='\e[0;104m'
-bgpurplei='\e[0;105m'
-bgcyani='\e[0;106m'
-bgwhitei='\e[0;107m'
-
-#
 # File: dev.sh
 #
 
@@ -771,21 +697,36 @@ function wheref() {
 
 function fn_make() {
     fn_load_colors
-    local time_start=$(fn_get_timestamp)
     if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
         log::error "${c}fn_make$x function cannot be called directly"
         return 1
     fi
     local -A a_name; local -A a_req; local -A a_help
-    local -A o_short; local -A o_long; local -A o_help
-    local -A e_msg; local -A e_hint 
+    local -A o_default; local -A o_short; local -A o_long; local -A o_help
+    local -A e_msg; local -A e_hint
     fn_set_properties
-    fn_parse_settings
+    fn_add_defaults
+    fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_parse_arguments "$@"
     fn_set_strings
     fn_set_time $time_start
-    [[ "$o[debug]" != "0" && -n "$o[debug]" ]] && fn_debug
-    [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_debug && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_handle_options && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_handle_errors && [[ -n "${f[return]}" ]] && return "${f[return]}"
+}
+function fn_handle_errors() {
+    if [[ ${#e_msg} != 0 ]]; then
+        [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
+        log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
+        for key in ${(ok)e_msg}; do
+            local value="${e_msg[$key]}"
+            log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
+        done
+        echo "$s[hint]"
+        f[return]=1 && return 1
+    fi
+}
+function fn_handle_options() {
     if [[ "$o[version]" -eq "1" || "$o[info]" -eq "1" || "$o[help]" -eq "1" ]]; then
         if [[ "$o[version]" -eq "1" ]]; then
             echo $s[version]
@@ -799,19 +740,9 @@ function fn_make() {
         fi
         f[return]=0 && return 0
     fi
-    local err_msg="$x$s[name] error:"
-    if [[ ${#e_msg} != 0 ]]; then
-        [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
-        log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
-        for key in ${(ok)e_msg}; do
-            local value="${e_msg[$key]}"
-            log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
-        done
-        echo "$s[hint]"
-        f[return]=1 && return 1
-    fi
 }
 function fn_set_properties() {
+    f[time_fnmake_start]=$(fn_get_timestamp)
     f[name]="${funcstack[3]}"
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
@@ -834,10 +765,10 @@ function fn_get_timestamp() {
     fi
 }
 function fn_set_time() {
-    local time_start=$1
     local time_end=$(fn_get_timestamp)
-    local time_diff=$((time_end - time_start))
+    local time_diff=$((time_end - f[time_fnmake_start]))
     f[time_fnmake]=$time_diff
+    unset "f[time_fnmake_start]"
 }
 function fn_usage() {
     local i=1 usage=""
@@ -877,8 +808,8 @@ function fn_usage() {
     fi
     if [[ $f[opts_max] -ne 0 && ${#o_long} -ne 0 && ${#o_help} -ne 0 ]]; then
         usage+="\n${y}Options:$x\n\t"
-        for opt in ${(ok)o}; do
-            usage+="-$c$o_long[$opt]$x or ${c}--${opt}$x\t- $o_help[$opt]\n\t";
+        for opt in ${(ok)o_long}; do
+            usage+="-$p$o_long[$opt]$x or ${p}--${opt}$x\t- $o_help[$opt]\n\t";
         done
         usage="${usage%\\n\\t}"
     fi
@@ -897,7 +828,9 @@ function fn_usage() {
     fi
     if [[ $f[opts_max] -gt 0 ]]; then
         usage+="\nOptions may be submitted in any place and in any order."
-        usage+="\nTo pass a value to a supported options use syntax ${c}option=value$x."
+        usage+="\nTo pass a value to a supported options, use the syntax ${p}option=value$x."
+        usage+="\nOptions without a value take the default value from the settings."
+        usage+="\nTo list option default values, use the ${p}--debug=D$x option."
     fi
     printf "$usage\n"
 }
@@ -907,11 +840,11 @@ function fn_version() {
     [[ -n $f[date] ]] && printf " ($f[date])"
 }
 function fn_hint() {
-    if [[ $o[info] && $o[help] ]]; then
+    if [[ $f[info] && $f[help] ]]; then
         log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
-    elif [[ $o[info] ]]; then
+    elif [[ $f[info] ]]; then
         log::info "Run $s[name] ${p}-i$x for usage information."
-    elif [[ $o[help] ]]; then
+    elif [[ $f[help] ]]; then
         log::info "Run $s[name] ${p}-h$x for help."
     else
         log::info "Check source code for usage information."
@@ -971,13 +904,13 @@ function fn_check_args() {
         echo "No arguments expected ($given)"
         f[err_arg]=1 && f[err_arg_type]=1
     elif [[ $f[args_count] -eq 0 && $f[args_max] -eq 1 ]]; then
-        echo "Missing argument ($expected)"
+        echo "Missing required argument ($expected)"
         f[err_arg]=1 && f[err_arg_type]=
     elif [[ $f[args_count] -eq 0 ]]; then
-        echo "Missing arguments ($expected)"
+        echo "Missing required arguments ($expected)"
         f[err_arg]=1 && f[err_arg_type]=2
     elif [[ $f[args_count] -lt $f[args_min] ]]; then
-        echo "Not enough arguments ($expected, $given)"
+        echo "Not enough required arguments ($expected, $given)"
         f[err_arg]=1 && f[err_arg_type]=3
     elif [[ $f[args_count] -gt $f[args_max] ]]; then
         echo "Too many arguments ($expected, $given)"
@@ -1051,7 +984,7 @@ function fn_parse_arguments() {
             if [[ $arg == *"="* ]]; then
                 value="${arg#*=}"
             else
-                value=1
+                value=$o_default[$name]
             fi
             if [[ ${#argname} != 0 && $used_opts == *"$name"* ]]; then
                 e_msg[o$i]="Option $oic name '$argnamec' in $argc was already used as "
@@ -1095,6 +1028,14 @@ function fn_load_colors() {
     y=$(ansi yellow)
     x=$(ansi reset)
 }
+function fn_add_defaults() {
+    [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage"
+    [[ -z ${o[help]} ]] && o[help]="h,1,show full help"
+    [[ -z ${o[version]} ]] && o[version]="v,1,show version"
+    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${c}-d=h$x for help)"
+    [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode"
+    f[opts_max]="${#o}" # maximum number of options
+}
 function fn_parse_settings() {
     for key in ${(ok)a}; do
         local value="${a[$key]}"
@@ -1126,11 +1067,6 @@ function fn_parse_settings() {
         unset "a[$key]"
         a[${settings[1]}]=""
     done
-    [[ -z ${o[info]} ]] && o[info]="i,0,show basic info and usage"
-    [[ -z ${o[help]} ]] && o[help]="h,0,show full help"
-    [[ -z ${o[version]} ]] && o[version]="v,0,show version"
-    [[ -z ${o[debug]} ]] && o[debug]="d,0,enable debug mode"
-    f[opts_max]="${#o}" # maximum number of options
     for key in ${(ok)o}; do
         local value="${o[$key]}"
         local settings=(${(s:,:)value})
@@ -1146,16 +1082,16 @@ function fn_parse_settings() {
         if [[ ${#settings[1]} -ne 1 ]]; then
             echo "Error: Short option name must be exactly one letter in '$key' ($value)"
             f[return]=1 && return 1
-        else 
-            o_short[${settings[1]}]=$key
-            o_long[$key]="${settings[1]}"
-        fi
-        o[$key]="${settings[2]}"
+        fi 
+        o_default[$key]="${settings[2]}"
+        o_short[${settings[1]}]=$key
+        o_long[$key]="${settings[1]}"
         o_help[$key]="${settings[3]}"
+        unset "o[$key]"
     done
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
-        log::debug "$r${#e_msg} fatal error$plr in function $c$f[name]$x ${r}settings:$x"
+        log::debug "$r${#e_msg} fatal error$plr in function $g$f[name]$x ${r}settings:$x"
         for key in ${(ok)e_msg}; do
             local value="${e_msg[$key]}"
             log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
@@ -1165,121 +1101,139 @@ function fn_parse_settings() {
 }
 function fn_debug() {
     local debug=$o[debug]
-    [[ $debug == "1" || $debug == "" ]] && debug="f"
-    local max_key_length=15
-    local max_value_length=40
-    local count
-    local q="$y'$x"
-    local -A modes
-    modes[h]="Help (default)"
-    modes[a]="Arguments"
-    modes[o]="Options"
-    modes[e]="Exit after debug"
-    modes[i]="Internal fn_make() arrays"
-    modes[f]="Function properties"
-    modes[s]="Strings"
-    modes[t]="This function"
-    for key in "${(@k)f}"; do
-        if [[ ${#key} -gt $max_key_length ]]; then
-            max_key_length=${#key}
+    if [[ "$debug" && ! $debug =~ "d" ]]; then
+        local max_key_length=15
+        local max_value_length=40
+        local count
+        local q="$y'$x"
+        local -A modes=(
+            [a]="Arguments from $y\$a[]$x array"
+            [d]="Disable debugging inside ${g}fn_make$x"
+            [D]="Default values for options"
+            [e]="Exit after debugging"
+            [f]="Function properties from $y\$f[]$x array"
+            [h]="Help $y(default)$x"
+            [i]="Internal ${g}fn_make$x arrays"
+            [o]="Options from $y\$o[]$x array"
+            [s]="Strings from $y\$s[]$x array"
+            [t]="This function from $y\$t[]$x array"
+        )
+        for key in "${(@k)f}"; do
+            if [[ ${#key} -gt $max_key_length ]]; then
+                max_key_length=${#key}
+            fi
+        done
+        for key in "${(@k)t}"; do
+            if [[ ${#key} -gt $max_key_length ]]; then
+                max_key_length=${#key}
+            fi
+        done
+        print::header "${r}Debug mode$x '$debug'"
+        if [[ $debug =~ "e" ]]; then
+            log::warning "Exit mode enabled: $s[name] will exit after debug."
+            f[return]=0
         fi
-    done
-    for key in "${(@k)t}"; do
-        if [[ ${#key} -gt $max_key_length ]]; then
-            max_key_length=${#key}
+        if [[ ! $debug =~ "h" ]]; then
+            log::info "Use option ${c}-d=h$x to show available debug modes."
         fi
-    done
-    print::header "${r}Debug mode$x '$debug'"
-    if [[ $debug =~ "e" ]]; then
-        log::warning "Exit mode enabled: $s[name] will exit after debug."
-        f[return]=0
+        if [[ $debug =~ "h" ]]; then
+            max_key_length=2
+            log::info "${y}Debug modes${x} (${#modes}):"
+            for key value in "${(@kv)modes}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+            echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
+            echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
+        fi
+        if [[ $debug =~ "D" ]]; then
+            [[ ${#o_default} -eq 0 ]] && count="is empty." || count="(${#o_default}):"
+            log::info "${y}Options default values${x} from ${g}\$o_default[]$x $count"
+            for key value in "${(@kv)o_default}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+        fi
+        if [[ $debug =~ "i" ]]; then
+            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
+            log::info "${y}Arguments${x} ${g}\$a_name[]$x $count"
+            for key value in "${(@kv)a_name}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
+            log::info "${y}Arguments${x} ${g}\$a_req[]$x $count"
+            for key value in "${(@kv)a_req}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
+            log::info "${y}Arguments${x} ${g}\$a_help[]$x $count"
+            for key value in "${(@kv)a_help}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+            [[ ${#o_default} -eq 0 ]] && count="is empty." || count="(${#o_default}):"
+            log::info "${y}Options${x} ${g}\$o_default[]$x $count"
+            for key value in "${(@kv)o_default}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
+            log::info "${y}Options${x} ${g}\$o_short[]$x $count"
+            for key value in "${(@kv)o_short}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
+            log::info "${y}Options${x} ${g}\$o_long[]$x $count"
+            for key value in "${(@kv)o_long}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
+            log::info "${y}Options${x} ${g}\$o_help[]$x $count"
+            for key value in "${(@kv)o_help}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+        fi
+        if [[ $debug =~ "a" ]]; then
+            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
+            log::info "${y}Arguments${x} ${g}\$a[]$x $count"
+            for key value in "${(@kv)a}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+        fi
+        if [[ $debug =~ "o" ]]; then
+            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
+            log::info "${y}Options${x} ${g}\$o[]$x $count"
+            for key value in "${(@kv)o}"; do
+                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+            done | sort
+        fi
+        if [[ $debug =~ "f" ]]; then
+            [[ ${#f} -eq 0 ]] && count="is empty." || count="(${#f}):"
+            log::info "${y}Function properties${x} ${g}\$f[]$x $count"
+            for key value in "${(@kv)f}"; do
+                value=$(clean_string "$value")
+                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
+                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
+            done | sort
+        fi
+        if [[ $debug =~ "s" ]]; then
+            [[ ${#s} -eq 0 ]] && count="is empty." || count="(${#s}):"
+            log::info "${y}Strings${x} ${g}\$s[]$x $count"
+            for key value in "${(@kv)s}"; do
+                value=$(clean_ansi "$value")
+                value=$(clean_string "$value")
+                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
+                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
+            done | sort
+        fi
+        if [[ $debug =~ "t" ]]; then
+            [[ ${#t} -eq 0 ]] && count="is empty." || count="(${#t}):"
+            log::info "${y}This function${x} ${g}\$t[]$x $count"
+            for key value in "${(@kv)t}"; do
+                value=$(clean_ansi "$value")
+                value=$(clean_string "$value")
+                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
+                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
+            done | sort 
+        fi
+        print::footer "${r}Debug end$x"
     fi
-    if [[ ! $debug =~ "h" ]]; then
-        log::info "Use option ${c}-d=h$x to show available debug modes."
-    fi
-    if [[ $debug =~ "h" ]]; then
-        log::info "${y}Debug modes${x} (${#modes}):"
-        for key value in "${(@kv)modes}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-        echo "Debug modes can be combined, e.g. $c-d=aof$x"
-    fi
-    if [[ $debug =~ "i" ]]; then
-        [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-        log::info "${y}Arguments${x} ${g}\$a_name[]$x $count"
-        for key value in "${(@kv)a_name}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-        [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-        log::info "${y}Arguments${x} ${g}\$a_req[]$x $count"
-        for key value in "${(@kv)a_req}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-        [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-        log::info "${y}Arguments${x} ${g}\$a_help[]$x $count"
-        for key value in "${(@kv)a_help}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-        [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-        log::info "${y}Options${x} ${g}\$o_short[]$x $count"
-        for key value in "${(@kv)o_short}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-        [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-        log::info "${y}Options${x} ${g}\$o_long[]$x $count"
-        for key value in "${(@kv)o_long}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-        [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-        log::info "${y}Options${x} ${g}\$o_help[]$x $count"
-        for key value in "${(@kv)o_help}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-    fi
-    if [[ $debug =~ "a" ]]; then
-        [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-        log::info "${y}Arguments${x} ${g}\$a[]$x $count"
-        for key value in "${(@kv)a}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-    fi
-    if [[ $debug =~ "o" ]]; then
-        [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-        log::info "${y}Options${x} ${g}\$o[]$x $count"
-        for key value in "${(@kv)o}"; do
-            echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-        done | sort
-    fi
-    if [[ $debug =~ "f" ]]; then
-        [[ ${#f} -eq 0 ]] && count="is empty." || count="(${#f}):"
-        log::info "${y}Function properties${x} ${g}\$f[]$x $count"
-        for key value in "${(@kv)f}"; do
-            value=$(clean_string "$value")
-            echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-            [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-        done | sort
-    fi
-    if [[ $debug =~ "s" ]]; then
-        [[ ${#s} -eq 0 ]] && count="is empty." || count="(${#s}):"
-        log::info "${y}Strings${x} ${g}\$s[]$x $count"
-        for key value in "${(@kv)s}"; do
-            value=$(clean_ansi "$value")
-            value=$(clean_string "$value")
-            echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-            [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-        done | sort
-    fi
-    if [[ $debug =~ "t" ]]; then
-        [[ ${#t} -eq 0 ]] && count="is empty." || count="(${#t}):"
-        log::info "${y}This function${x} ${g}\$t[]$x $count"
-        for key value in "${(@kv)t}"; do
-            value=$(clean_ansi "$value")
-            value=$(clean_string "$value")
-            echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-            [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-        done | sort 
-    fi
-    print::footer "${r}Debug end$x"
 }
 
 #
@@ -2205,6 +2159,45 @@ function uptimeh() {
 # File: print.sh
 #
 
+function print::arr() {
+    local input="$1"
+    if [[ ! $input == *"typeset -"[aA]* ]]; then
+        print -u2 "Error: Unsupported array serialization type."
+        return 1
+    fi
+    local array_type="${${input#*typeset -}%% *}"
+    local array_name="${${input#*typeset -[aA] }%%=*}"
+    local array_content="${${${input#*=}#\(}%\)}"
+    [[ "$array_content" =~ ^[[:space:]]*$ ]] && array_content=""
+    if [[ $array_type == "A" ]]; then
+        local -A arr
+        local array_desc="associative array"
+    else
+        local -a arr
+        local array_desc="indexed array"
+    fi
+    if [[ -n $array_content ]]; then
+        eval "arr=($array_content)" 2>/dev/null || {
+            print -u2 "Error: Failed to deserialize the $array_desc."
+            return 1
+        }
+        if [[ $array_type == "a" ]]; then
+            local -a arr_temp=("${arr[@]}")
+            unset arr
+            local -A arr
+            for i in {1..$#arr_temp}; do
+                arr[$i]=${arr_temp[i]}
+            done
+        fi 
+    fi
+    local array_len=${#arr}
+    print "Array name: $array_name"
+    print "Array type: $array_desc"
+    print "Array length: $array_len"
+    for key in ${(ko)arr}; do
+        print "$key: ${arr[$key]}"
+    done
+}
 function print::header() {
     printf "\n$(ansi bold white)%s$(ansi reset)\n" "$(print::line "$*")";
 }
@@ -2326,6 +2319,30 @@ function set_default_shell() {
 }
 
 #
+# File: test.sh
+#
+
+function test_print_arr() {
+    local podstawowa_tablica
+    podstawowa_tablica=("Pierwszy element" "Drugi element" "Trzeci element")
+    log::info "Podstawowa zwykła tablica"
+    print::arr "$(typeset -p podstawowa_tablica)"
+    local -A dane_osobowe
+    dane_osobowe[imie]="Anna"
+    dane_osobowe[nazwisko]="Kowalska"
+    dane_osobowe[wiek]="25"
+    dane_osobowe[miasto]="Kraków"
+    log::info "\nPodstawowa tablica asocjacyjna:"
+    print::arr "$(typeset -p dane_osobowe)"
+    local pusta_zwykla=()
+    log::info "\nPusta zwykła tablica:"
+    print::arr "$(typeset -p pusta_zwykla)"
+    local -A pusta_asocjacyjna=()
+    log::info "\nPusta tablica asocjacyjna:"
+    print::arr "$(typeset -p pusta_asocjacyjna)"
+}
+
+#
 # File: text.sh
 #
 
@@ -2426,9 +2443,7 @@ function fn_test() {
     a[3]="agrument3,o,description of the third argument"
     a[4]="agrument4,o,description of the fourth argument"
     o[verbose]="V,0,enable verbose mode"
-    fn_make "$@"
-    [[ "$o[debug]" == "1" ]] && fn_debug # show debug info
-    [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
     echo "This is the output of the $s[name] function."
 }
 function fn_test2() {
@@ -2437,5 +2452,23 @@ function fn_test2() {
     a[2]="agrument2,r,description of the second argument"
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
     echo "This is the output of the $s[name] function."
+}
+function fn_test_assoc() {
+    local -A my_array1
+    my_array1=(
+        [ala_ma_kota]="Ala ma kota"
+        [2]=23
+        [key_3]="<div>test</div>"
+        [4]="<div>test</div>"
+        [cytat]="Litwo, ojczyzno moja! ty jesteś jak zdrowie; ile cię trzeba cenić, ten tylko się dowie, kto cię stracił."
+    )
+    local my_array2=(
+        "Ala ma kota"
+        "A kot ma Alę"
+        "Ala go kocha"
+        "a kot ją wcale"
+    )
+    print::arr "$(typeset -p my_array1)"
+    print::arr "$(typeset -p my_array2)"
 }
 
