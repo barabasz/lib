@@ -44,6 +44,7 @@ function macosname() {
     local version=$(sw_vers -productVersion)
     local major=$(echo $version | cut -d. -f1)
     case $major in
+        26) printf "Tahoe" ;;
         15) printf "Seqouia" ;;
         14) printf "Sonoma" ;;
         13) printf "Ventura" ;;
