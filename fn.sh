@@ -11,7 +11,36 @@
 # Function template to be used with fn_make()
 ##############################################
 
+# Full function template
+function fn_template_full() {
+    # f = properties, a - arguments, o - options, s - strings, t - this
+    local -A f; local -A o; local -A a; local -A s; local -A t
+    # Define function properties
+    f[info]="Template for functions." # info about the function
+    f[version]="0.25" # version of the function
+    f[date]="2025-05-20" # date of last update
+    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
+    # Define arguments (in order in which they should be passed)
+    a[1]="agrument1,r,description of the first argument"
+    a[2]="agrument2,r,description of the second argument"
+    a[3]="agrument3,o,description of the third argument"
+    a[4]="agrument4,o,description of the fourth argument"
+    # Define extra options (default are: info, help, version, debug)
+    o[verbose]="V,0,enable verbose mode"
+    o[something]="s,0,esome other option"
+    # Run fn_make() to parse arguments and options
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    ### main function
+    echo "This is the output of the $s[name] function."
+}
 
+# Minimal function template
+function fn_template_short() {
+    local -A f; local -A o; local -A a; local -A s; local -A t
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    ### main function
+    echo "This is the output of the $s[name] function."
+}
 
 ##############################################
 # Main function
@@ -126,9 +155,24 @@ function fn_set_time() {
 
 # Prepare the full usage information
 function fn_usage() {
-    local i=1 usage=""
+    local i=1 usage="\n" max_len=0 a_pad o_pad indent="    "
     
-    usage+="${y}Usage details:$x\n\t$s[name] "
+    # Find maximum length of argument and option names
+    if [[ ${#a} -ne 0 ]]; then
+        for arg in ${(ok)a}; do
+            (( ${#arg} > max_len )) && max_len=${#arg}
+        done
+    fi
+    if [[ ${#o_help} -ne 0 ]]; then
+        for oh in ${(ok)o_help}; do
+            (( ${#oh} > max_len )) && max_len=${#oh}
+        done
+    fi
+    # Set a_pad (argument padding) and o_pad (option padding)
+    (( a_pad = max_len + 6 ))
+    (( o_pad = max_len + 1 ))
+
+    usage+="${y}Usage details:$x\n$indent$s[name] "
     if [[ ${#a} -ne 0 ]]; then
         usage+="${p}[options]${x} "
     fi
@@ -146,10 +190,10 @@ function fn_usage() {
     fi
 
     if [[ $f[args_min] -ne 0 ]]; then
-        usage+="\n${y}Required arguments:$x\n\t"
+        usage+="\n\n${y}Required arguments:$x\n$indent"
         for arg in ${(ok)a}; do
             if [[ $a_req[$arg] == "required" ]]; then
-                usage+="$i: $c$arg$x\t- $a_help[$arg]\n\t";
+                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
                 ((i++))
             fi
         done
@@ -157,10 +201,10 @@ function fn_usage() {
     fi
 
     if [[ $f[args_opt] -ne 0 ]]; then
-        usage+="\n${y}Optional arguments:$x\n\t"
+        usage+="\n${y}Optional arguments:$x\n$indent"
         for arg in ${(ok)a}; do
             if [[ $a_req[$arg] == "optional" ]]; then
-                usage+="$i: $c$arg$x\t- $a_help[$arg]\n\t";
+                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
                 ((i++))
             fi
         done
@@ -168,9 +212,11 @@ function fn_usage() {
     fi
 
     if [[ $f[opts_max] -ne 0 && ${#o_long} -ne 0 && ${#o_help} -ne 0 ]]; then
-        usage+="\n${y}Options:$x\n\t"
+        usage+="\n${y}Options:$x\n$indent"
         for opt in ${(ok)o_long}; do
-            usage+="-$p$o_long[$opt]$x or ${p}--${opt}$x\t- $o_help[$opt]\n\t";
+            usage+="-$p$o_long[$opt]$x"
+            usage+=" or "
+            usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]\n$indent"
         done
         usage="${usage%\\n\\t}"
     fi
@@ -184,16 +230,18 @@ function fn_usage() {
     fi
 
     if [[ $f[args_max] -gt 1 ]]; then
-        usage+="\n\nArguments must be provided in the specified sequence."
+        usage+="\n${c}Arguments$x must be provided in the specified sequence."
     fi
 
     if [[ $f[args_opt] -gt 1 ]]; then
         usage+="\nTo skip an argument, pass an empty value $c\"\"$x (only valid for optional arguments)."
     fi
 
+    (( f[args_max] > 0 )) && usage+=$'\n'
+
     if [[ $f[opts_max] -gt 0 ]]; then
-        usage+="\nOptions may be submitted in any place and in any order."
-        usage+="\nTo pass a value to a supported options, use the syntax ${p}option=value$x."
+        usage+="\n${p}Options$x may be submitted in any place and in any order."
+        usage+="\nTo pass a value to a supported options, use the syntax ${p}--option=value$x."
         usage+="\nOptions without a value take the default value from the settings."
         usage+="\nTo list option default values, use the ${p}--debug=D$x option."
     fi
@@ -239,9 +287,10 @@ function fn_footer() {
 
 # prepare the example string
 function fn_example() {
+    local indent="    "
     [[ $o[help] == 1 ]] && printf "\n"
     printf "${y}Usage example:$x" 
-    [[ $o[help] == 1 ]] && printf "\n\t" || printf " "
+    [[ $o[help] == 1 ]] && printf "\n$indent" || printf " "
     printf "$s[name] "
     if [[ ${#a} -ne 0 ]]; then
         for arg in ${(ok)a}; do
@@ -465,7 +514,7 @@ function fn_add_defaults() {
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help"
     [[ -z ${o[version]} ]] && o[version]="v,1,show version"
-    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${c}-d=h$x for help)"
+    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help)"
     [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode"
     f[opts_max]="${#o}" # maximum number of options
 }

@@ -42,6 +42,7 @@ function oscodename() {
 # Get macOS codename
 function macosname() {
     local version=$(sw_vers -productVersion)
+    local version="10.5"
     local major=$(echo $version | cut -d. -f1)
     case $major in
         26) printf "Tahoe" ;;
@@ -50,6 +51,24 @@ function macosname() {
         13) printf "Ventura" ;;
         12) printf "Monterey" ;;
         11) printf "Big Sur" ;;
+        10) 
+            local minor=$(echo $version | cut -d. -f2)
+            case $minor in
+                16) printf "Big Sur" ;;
+                15) printf "Catalina" ;;
+                14) printf "Mojave" ;;
+                13) printf "High Sierra" ;;
+                12) printf "Sierra" ;;
+                11) printf "El Capitan" ;;
+                10) printf "Yosemite" ;;
+                9)  printf "Mavericks" ;;
+                8)  printf "Mountain Lion" ;;
+                7)  printf "Lion" ;;
+                6)  printf "Snow Leopard" ;;
+                5)  printf "Leopard" ;;
+                *)  printf "Unknown" ;;
+            esac
+            ;;
         *)  printf "Unknown" ;;
     esac
 }
