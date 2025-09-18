@@ -723,7 +723,7 @@ function fn_make() {
     fi
     local -A a_name; local -A a_req; local -A a_help
     local -A o_default; local -A o_short; local -A o_long; local -A o_help
-    local -A e_msg; local -A e_hint
+    local -A e_msg; local -A e_hint; local -A e_dym
     fn_set_properties
     fn_add_defaults
     fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
@@ -740,7 +740,9 @@ function fn_handle_errors() {
         log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
         for key in ${(ok)e_msg}; do
             local value="${e_msg[$key]}"
-            log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
+            log::error "$value"
+            [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]" 
+            [[ $e_dym[$key] ]] && log::info "$e_dym[$key]"
         done
         echo "$s[hint]"
         f[return]=1 && return 1
@@ -929,121 +931,38 @@ function fn_set_strings() {
     s[hint]="$(fn_hint)"
 }
 function fn_check_args() {
-    local expected
-    if [[ $f[args_min] -eq $f[args_max] ]]; then
-        expected="expected $f[args_min]"
-    else
-        expected="expected $f[args_min] to $f[args_max]"
-    fi
-    local given="given $f[args_count]"
-    if [[ $f[args_max] -eq 0 && $f[args_count] -gt 0 ]]; then
+    (( f[args_min] <= f[args_count] && f[args_count] <= f[args_max] )) && return
+    local expected="expected $y$f[args_min]$x"
+    local given="given $y$f[args_count]$x"
+    (( f[args_max] == 0 && f[args_count] > 0 )) && {
         echo "No arguments expected ($given)"
-        f[err_arg]=1 && f[err_arg_type]=1
-    elif [[ $f[args_count] -eq 0 && $f[args_max] -eq 1 ]]; then
-        echo "Missing required argument ($expected)"
-        f[err_arg]=1 && f[err_arg_type]=
-    elif [[ $f[args_count] -eq 0 ]]; then
-        echo "Missing required arguments ($expected)"
-        f[err_arg]=1 && f[err_arg_type]=2
-    elif [[ $f[args_count] -lt $f[args_min] ]]; then
-        echo "Not enough required arguments ($expected, $given)"
-        f[err_arg]=1 && f[err_arg_type]=3
-    elif [[ $f[args_count] -gt $f[args_max] ]]; then
-        echo "Too many arguments ($expected, $given)"
-        f[err_arg]=1 && f[err_arg_type]=4
-    fi
+        return
+    }
+    (( f[args_count] < f[args_min] )) && {
+        local msg="Missing required argument"
+        (( f[args_min] - f[args_count] > 1 )) && msg+="s"
+        echo "$msg ($expected, $given)"
+        return
+    }
+    (( f[args_count] > f[args_max] )) && {
+        echo "Too many arguments ($expected to $y$f[args_max]$x, $given)"
+        return
+    }
 }
 function fn_parse_arguments() {
-    local used_opts="" # List of used options
+    local used_opts=""
+    local -A used_opts_full
     local i=0 ai=0 oi=0
     for arg in "$@"; do
-        ((i++))
-        local argc="'$y$arg$x'"
-        local argname="${arg//-}" && argname="${argname%%=*}"
-        local argnamec="$y$argname$x"
+        (( i++ ))
         if [[ $arg == -* ]]; then
-            ((oi++)); local oic="$y$oi$x"
+            (( oi++ ))
             f[opts_input]+="$arg "
-            local dashes=${#arg%%[![-]*}
-            if [[ $dashes -gt 2 ]]; then
-                e_msg[o$i]="Option $oic has too many leading dashes in $argc"
-                if [[ ${#argname} == 1 ]]; then
-                    e_hint[o$i]="Short option name must be preceded by one dash."
-                    e_hint[o$i]+=" Did you mean '${y}-${argname}$x'?"
-                else
-                    e_hint[o$i]="Full option name must be preceded by two dashes."
-                    e_hint[o$i]+=" Did you mean '${y}--${argname}$x'?"
-                fi
-                ((i++))
-            fi
-            local equals=${#arg//[^=]/}
-            if [[ $equals -gt 1 ]]; then
-                e_msg[o$i]="Option $oic has too many equal signs in $argc"
-                e_hint[o$i]="Optional value must be passed in the form of '${y}--option=value$x' or '${y}-o=value$x'"
-                ((i++))
-            fi
-            local namelen=${#${${arg##*-}%%=*}}
-            if [[ $namelen -eq 0 ]]; then
-                e_msg[o$i]="Option $oic has empty name in $argc"
-                ((i++))
-            fi
-            if [[ $dashes -eq 2 && $namelen -eq 1 ]]; then
-                e_msg[o$i]="Option $oic name must be longer than 1 character in $argc"
-                e_hint[o$i]="Two dashes must be followed by full option name. Did you mean '${y}-${arg[-1]}$x'"
-                if [[ $o_short[${arg[-1]}] ]]; then
-                    e_hint[o$i]+=" or '--$o_short[${arg[-1]}]'"
-                fi
-                e_hint[o$i]+="?"
-                ((i++))
-            fi
-            if [[ $dashes -eq 1 && $namelen -gt 1 ]]; then
-                e_msg[o$i]="Option $oic name is too long in $argc"
-                e_hint[o$i]="Short names must be exactly 1 character long. Did you mean '-${arg:1:1}'?"
-                continue
-            fi
-            arg="${arg//-}"
-            local name="${arg%%=*}"
-            if [[ $dashes -eq 1 ]]; then
-                if [[ -z "${o_short[$name]}" ]]; then
-                    e_msg[o$i]="Option $oic short name $y$name$x unknown in $argc"
-                    continue
-                else
-                    name="${o_short[$name]}"
-                fi
-            fi
-            if [[ $dashes -eq 2 ]]; then
-                if [[ -z "${o[$name]}" ]]; then
-                    e_msg[o$i]="Option $oic full name $y$name$x unknown in $argc"
-                    continue
-                fi
-            fi
-            if [[ $arg == *"="* ]]; then
-                value="${arg#*=}"
-            else
-                value=$o_default[$name]
-            fi
-            if [[ ${#argname} != 0 && $used_opts == *"$name"* ]]; then
-                e_msg[o$i]="Option $oic name '$argnamec' in $argc was already used as "
-                if [[ ${#argname} -eq 1 ]]; then
-                    e_msg[o$i]+="'${y}--$o_short[$argname]$x'"
-                else
-                    e_msg[o$i]+="'${y}-$o_long[$argname]$x'"
-                fi
-                continue
-            fi
-            o[$name]=$value
-            used_opts+="$name "
+            fn_parse_option "$arg" "$i" "$oi"
         else
-            ((ai++)); local aic="$y$ai$x"
+            (( ai++ ))
             f[args_input]+="'$arg' "
-            if [[ $a_req[$a_name[$ai]] == "required" && -z $arg ]]; then
-                e_msg[a$i]="Argument $aic ($y$a_name[$ai]$x) cannot be empty"
-            fi
-            if [[ $a_name[$ai] ]]; then
-                a[$a_name[$ai]]="$arg"
-            else
-                a[$ai]="$arg"
-            fi
+            fn_parse_argument "$arg" "$i" "$ai"
         fi
     done
     f[opts_count]=$oi
@@ -1053,6 +972,95 @@ function fn_parse_arguments() {
     if [[ f[args_count] -lt $f[args_min] || $f[args_count] -gt $f[args_max] ]]; then
         e_msg[0]=$(fn_check_args)
     fi
+}
+function fn_parse_option() {
+    local dashes=${#arg%%[![-]*}
+    local name="${arg//-}" && name="${name%%=*}"
+    local equals=${#arg//[^=]/}
+    local namelen=${#name}
+    local value=${arg##*=}
+    local valuelen=${#value}
+    local dym=$(fn_option_suggestion "$name" "$value")
+    local argc="'$p$arg$x'"
+    local argnamec="'$p$name$x'"
+    local dymc="'$p$dym$x'"
+    local namec="'$p$name$x'"
+    local oic="$y$oi$x"
+    if (( dashes > 2 )); then
+        e_msg[o$i]="Option $oic has too many leading dashes in $argc"
+        if (( namelen == 1 )); then
+            e_hint[o$i]="Short option name must be preceded by one dash."
+        else
+            e_hint[o$i]="Full option name must be preceded by two dashes."
+        fi
+        e_dym[o$i]="Did you mean $dymc?"
+        return
+    fi
+    if (( namelen == 0 )); then
+        e_msg[o$i]="Option $oic has empty name in $argc"
+        return
+    fi
+    if (( dashes == 2 && namelen == 1 )); then
+        e_msg[o$i]="Option $oic name must be longer than 1 character in $argc"
+        e_hint[o$i]="Two dashes must be followed by full option name. "
+        e_dym[o$i]="Did you mean $dymc?"
+        return
+    fi
+    if (( dashes == 1 && namelen > 1 )); then
+        e_msg[o$i]="Option $oic name is too long in $argc"
+        e_hint[o$i]="Short names must be exactly 1 character long."
+        e_dym[o$i]="Did you mean $dymc?"
+        return
+    fi
+    if (( equals > 1 )); then
+        e_msg[o$i]="Option $oic has too many equal signs in $argc"
+        e_hint[o$i]="Optional value must be preceded by a single equal sign."
+        e_dym[o$i]="Did you mean $dymc?"
+        return
+    fi
+    if (( dashes == 1 )); then
+        if [[ -z "${o_short[$name]}" ]]; then
+            e_msg[o$i]="Option $oic short name $namec unknown in $argc"
+            return
+        else
+            name="${o_short[$name]}"
+        fi
+    elif [[ $dashes -eq 2 && -z "${o[$name]}" ]]; then
+        e_msg[o$i]="Option $oic full name $namec unknown in $argc"
+        return
+    fi
+    if [[ $used_opts == *"$name"* ]]; then
+        e_msg[o$i]="Option $oic name $argnamec in $argc was previously used as "
+        e_msg[o$i]+="'$p${used_opts_full[$name]}$x'"
+        return
+    fi
+    if (( equals == 0 )); then
+        value="${o_default[$name]}"
+    fi
+    o[$name]=$value
+    used_opts+="$name "
+    used_opts_full[$name]="$arg"
+}
+function fn_parse_argument() {
+    local aic="$y$ai$x"
+    if [[ $a_req[$a_name[$ai]] == "required" && -z $arg ]]; then
+        e_msg[a$i]="Argument $aic ($y$a_name[$ai]$x) cannot be empty"
+    fi
+    if [[ $a_name[$ai] ]]; then
+        a[$a_name[$ai]]="$arg"
+    else
+        a[$ai]="$arg"
+    fi
+}
+function fn_option_suggestion() {
+    local name="$1" val="$2"
+    local suggestion=""
+    if [[ ${#name} == 1 ]]; then
+        suggestion="-${name}=$val?"
+    else
+        suggestion="--${name}=$val?"
+    fi
+    echo "$suggestion"
 }
 function fn_load_colors() {
     b=$(ansi blue)
@@ -1094,10 +1102,10 @@ function fn_parse_settings() {
         fi
         if [[ ${settings[2]} == r ]]; then
             a_req[${settings[1]}]=required
-            ((f[args_min]++))
+            (( f[args_min]++ ))
         else
             a_req[${settings[1]}]=optional
-            ((f[args_opt]++))
+            (( f[args_opt]++ ))
         fi
         a_help[${settings[1]}]="${settings[3]}"
         unset "a[$key]"
@@ -2396,23 +2404,6 @@ function test_print_arr() {
     local -A pusta_asocjacyjna=()
     log::info "\nPusta tablica asocjacyjna:"
     print::arr "$(typeset -p pusta_asocjacyjna)"
-}
-function nowafunkcja() {
-    local -A f; local -A o; local -A a; local -A s; local -A t
-    f[info]="Template for functions." # info about the function
-    f[args_required]="agrument1 argument2" # required arguments
-    f[args_optional]="agrument3 agrument4" # optional arguments
-    f[opts]="debug help info version example" # optional options
-    f[version]="0.2" # version of the function
-    f[date]="2025-05-06" # date of last update
-    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    fn_make "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    t[arg1]="${a[1]}" # example argument assignment to this array
-    [[ $o[d] == 1 ]] && fn_debug # show debug info
-    echo "This is the output of the $s[name] function."
-    echo "This is the path to the function: $s[path]"
-    echo "This is the first argument: $a[1]"
-    echo "This is 'example' option value: $o[e]"
 }
 
 #
