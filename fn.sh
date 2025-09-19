@@ -805,36 +805,50 @@ function fn_parse_settings() {
     ### Parse $o options array
     for key in ${(ok)o}; do
         local value="${o[$key]}"
-        # Split CSV value into settings
-        local settings=(${(s:,:)value})
-        # We need at least 3 values (short name, default value, description)
-        if [[ ${#settings} -lt 3 ]]; then
+        
+        # Count commas to ensure we have at least 2
+        local comma_count=$(echo "$value" | tr -cd ',' | wc -c)
+        if [[ $comma_count -lt 2 ]]; then
             e_msg[$key]="Invalid settings for option '$y$key$x' in '$y$value$x'"
             e_hint[$key]="Missing comma or empty value in settings string (must have at least 3 values/2 commas)"
             continue
         fi
+        
+        # Split CSV value into settings, preserving empty fields
+        local short_name=$(echo "$value" | cut -d, -f1)
+        local default_value=$(echo "$value" | cut -d, -f2)
+        local description=$(echo "$value" | cut -d, -f3- | sed 's/,\[.*\]$//')
+        local validation=""
+        
+        # Extract validation part if present
+        if [[ "$value" == *",["*"]" ]]; then
+            validation=$(echo "$value" | grep -o ',\[.*\]$' | sed 's/^,//')
+        fi
+        
         # Check if the option short name wasn't already used
-        if [[ -n ${o_short[${settings[1]}]+_} ]]; then
-            e_msg[$key]="Option short name '${settings[1]}' already used in '$key' ($value)"
+        if [[ -n ${o_short[$short_name]+_} ]]; then
+            e_msg[$key]="Option short name '$short_name' already used in '$key' ($value)"
             e_hint[$key]="Each option must have a unique short name and a unique full name."
             continue
         fi
+        
         # Check if the short option name is exactly one letter
-        if [[ ${#settings[1]} -ne 1 ]]; then
+        if [[ ${#short_name} -ne 1 ]]; then
             e_msg[$key]="Short option name must be exactly one letter in '$key' ($value)"
             e_hint[$key]="Correct '$key' by using a single letter for the short option name."
             continue
         fi 
-        # Fill internal helper arrays
-        o_default[$key]="${settings[2]}"
-        o_short[${settings[1]}]=$key
-        o_long[$key]="${settings[1]}"
-        o_help[$key]="${settings[3]}"
         
-        # Check for allowed values (4th element)
-        if [[ ${#settings} -ge 4 && "${settings[4]}" == \[*\] ]]; then
+        # Fill internal helper arrays
+        o_default[$key]="$default_value"
+        o_short[$short_name]=$key
+        o_long[$key]="$short_name"
+        o_help[$key]="$description"
+        
+        # Check for allowed values in validation
+        if [[ -n "$validation" && "$validation" == \[*\] ]]; then
             # Extract values inside square brackets
-            local allowed="${settings[4]}"
+            local allowed="${validation}"
             allowed="${allowed#\[}" # Remove opening bracket
             allowed="${allowed%\]}" # Remove closing bracket
             o_allowed[$key]="$allowed"
@@ -843,6 +857,7 @@ function fn_parse_settings() {
         # Unset original $o array value
         unset "o[$key]"
     done
+
     # Print error messages if any and exit
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
