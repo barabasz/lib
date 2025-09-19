@@ -21,8 +21,14 @@
 
 # Full function template
 function fn_template_full() {
- ## Initialize associative arrays
-    local -A a; local -A f; local -A i; local -A o; local -A s; local -A t
+ ## Initialize required associative arrays
+    local -A a; local -A f; local -A o; local -A s; 
+ ## Initialize optional associative arrays
+    # If you don't need these arrays, you can omit their initialization
+    # t[] array is optional and can be used by the parent function to store temporary values
+    local -A t
+    # i[] array is optional and stores information about the environment and execution context
+    local -A i
  ## Define function properties
     f[info]="Template for functions." # info about the function
     f[version]="1.05" # version of the function
@@ -31,26 +37,36 @@ function fn_template_full() {
  ## Define arguments
     # Arguments are positional and must be provided in the specified sequence
     # Format: a[<position>]="<name>,<required_flag>,<description>"
-    a[1]="agrument1,r,description of the first argument"
-    a[2]="agrument2,r,description of the second argument"
-    a[3]="agrument3,o,description of the third argument"
-    a[4]="agrument4,o,description of the fourth argument"
+    a[1]="argument1,r,description of the first argument"
+    a[2]="argument2,r,description of the second argument"
+    a[3]="argument3,o,description of the third argument"
+    a[4]="argument4,o,description of the fourth argument"
  ## Define extra options
     # Default options are: [i]nfo, [h]elp, [v]ersion, [d]ebug, [V]erbose
     # Format: o[<long_name>]="<short_name>,<default_value>,<description>,[allowed_values]"
     # Examples:
-    o[something]="s,0,some other option,[0|1|2]"             # Restricts values to only 0, 1, or 2
+    o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
     o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
     o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
     o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
     o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
     # Run fn_make() to parse arguments and options
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
- ## Main function
-    echo "This is the output of the $s[name] function."
-    ### Debug example inside parent function
-    # t[something]="Abcd"
-    # fn_debug t
+ ## Main function goes here
+    # Setting a value in 'this' t[] array
+    t[test]="Abcd"
+    # Accessing arguments in a[] array:
+    echo "This is the 1st argument: ${a[argument1]}"
+    # Accessing options in o[] array:
+    echo "This is the value of the 'something' option: ${o[something]}"
+    # Accessing strings in s[] array:
+    echo "This is the name of the function: ${s[name]}"
+    # Accessing function properties in f[] array:
+    echo "This is the path to the function file: ${f[file_path]}"
+    # Accessing information in i[] array:
+    echo "This function was run by user: ${i[user]}"
+    # Debugging the t[] array
+    fn_debug t
 }
 
 # Short function template (without i[] and t[] arrays)
@@ -83,14 +99,17 @@ function fn_make() {
     local -A o_default; local -A o_short; local -A o_long; local -A o_help; local -A o_allowed
     # Error messages, hints and suggestions arrays
     local -A e_msg; local -A e_hint; local -A e_dym
+
     # Prepare function properties
     fn_set_properties
     # Gather basic environment information
-    fn_set_info
+    [[ "${(t)i}" == *"association"* ]] &&  fn_set_info
     # Add default options to the $o array
     fn_add_defaults
     # Parse arguments and options settings arrays, exit on error
+    local timestamp=$(gdate +%s%3N 2>/dev/null)
     fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_how_long_it_took "fn_parse_settings"
     # Parse function arguments
     fn_parse_arguments "$@"
     # Make function strings
@@ -762,11 +781,14 @@ function fn_add_defaults() {
 
 # Parse arguments and options settings arrays
 function fn_parse_settings() {
+
     ### Parse $a arguments array
     for key in ${(ok)a}; do
         local value="${a[$key]}"
+        
         # Split CSV value into settings
         local settings=(${(s:,:)value})
+        
         # Check if there are exactly 3 non-empty settings values
         if [[ ${#settings} -ne 3 ]]; then
             e_msg[$key]="Invalid argument $y$key$x format in '$y$value$x'"
@@ -774,18 +796,21 @@ function fn_parse_settings() {
             continue
         fi
         a_name[$key]="${settings[1]}"
+        
         # Check if the argument name wasn't already used
         if [[ -n ${a[${settings[1]}]+_} ]]; then
             e_msg[$key]="Argument $y$key$x name '$y${settings[1]}$x' already used before"
             e_hint[$key]="Correct '$y$value$x' by giving a unique name"
             continue
         fi
+        
         # Check if argument type is either "r" (required) or "o" (optional)
         if [[ "ro" != *"${settings[2]}"* ]]; then
             e_msg[$key]="Invalid argument $y$key$x type '$y${settings[2]}$x' in '$y$value$x'"
             e_hint[$key]="Argument type must be '${y}r$x' (required) or '${y}o$x' (optional)"
             continue
         fi
+        
         # Check if the argument is required
         if [[ ${settings[2]} == r ]]; then
             a_req[${settings[1]}]=required
@@ -794,10 +819,13 @@ function fn_parse_settings() {
             a_req[${settings[1]}]=optional
             (( f[args_opt]++ ))
         fi
+        
         # Get help value
         a_help[${settings[1]}]="${settings[3]}"
+        
         # Unset original $a array value
         unset "a[$key]"
+        
         # Add to $a array the argument name with an empty value
         a[${settings[1]}]=""
     done
@@ -806,33 +834,53 @@ function fn_parse_settings() {
     for key in ${(ok)o}; do
         local value="${o[$key]}"
         
-        # Count commas to ensure we have at least 2
-        local comma_count=$(echo "$value" | tr -cd ',' | wc -c)
-        if [[ $comma_count -lt 2 ]]; then
+        # Check minimum number of commas using native Zsh operations
+        local comma_count=${value//[^,]/}
+        if [[ ${#comma_count} -lt 2 ]]; then
             e_msg[$key]="Invalid settings for option '$y$key$x' in '$y$value$x'"
             e_hint[$key]="Missing comma or empty value in settings string (must have at least 3 values/2 commas)"
             continue
         fi
         
-        # Split CSV value into settings, preserving empty fields
-        local short_name=$(echo "$value" | cut -d, -f1)
-        local default_value=$(echo "$value" | cut -d, -f2)
-        local description=$(echo "$value" | cut -d, -f3- | sed 's/,\[.*\]$//')
+        # Extract validation part (if exists) using native Zsh operations
         local validation=""
-        
-        # Extract validation part if present
-        if [[ "$value" == *",["*"]" ]]; then
-            validation=$(echo "$value" | grep -o ',\[.*\]$' | sed 's/^,//')
+        if [[ "$value" == *,\[*\] ]]; then
+            # Find the last occurrence of ,[
+            local last_open=${value##*,\[}
+            local val_start=$((${#value} - ${#last_open} - 1))
+            validation=${value:$val_start}
+            
+            # Remove validation from the original value
+            value=${value:0:$val_start}
         fi
         
-        # Check if the option short name wasn't already used
+        # Split into parts preserving empty fields
+        local parts=("${(@s:,:)value}")
+        
+        # Get the first two fields
+        local short_name="${parts[1]:-}"
+        local default_value="${parts[2]:-}"
+        
+        # Combine description from remaining parts
+        local description=""
+        
+        # Zsh-specific syntax for numerical loop
+        integer i
+        for (( i=3; i<=${#parts}; i++ )); do
+            if [[ $i -gt 3 ]]; then
+                description+=","
+            fi
+            description+="${parts[i]:-}"
+        done
+        
+        # Check if short_name is already used
         if [[ -n ${o_short[$short_name]+_} ]]; then
             e_msg[$key]="Option short name '$short_name' already used in '$key' ($value)"
             e_hint[$key]="Each option must have a unique short name and a unique full name."
             continue
         fi
         
-        # Check if the short option name is exactly one letter
+        # Check if short_name is exactly one letter
         if [[ ${#short_name} -ne 1 ]]; then
             e_msg[$key]="Short option name must be exactly one letter in '$key' ($value)"
             e_hint[$key]="Correct '$key' by using a single letter for the short option name."
@@ -845,16 +893,15 @@ function fn_parse_settings() {
         o_long[$key]="$short_name"
         o_help[$key]="$description"
         
-        # Check for allowed values in validation
-        if [[ -n "$validation" && "$validation" == \[*\] ]]; then
-            # Extract values inside square brackets
-            local allowed="${validation}"
-            allowed="${allowed#\[}" # Remove opening bracket
-            allowed="${allowed%\]}" # Remove closing bracket
-            o_allowed[$key]="$allowed"
+        # Handle validation if present
+        if [[ -n "$validation" ]]; then
+            # Extract content inside brackets
+            local val_content=${validation#,\[}
+            val_content=${val_content%\]}
+            o_allowed[$key]="$val_content"
         fi
         
-        # Unset original $o array value
+        # Unset original option value
         unset "o[$key]"
     done
 
@@ -868,6 +915,7 @@ function fn_parse_settings() {
         done
         f[return]=1 && return 1
     fi
+
 }
 
 # Print debug information
@@ -1017,4 +1065,15 @@ function fn_list_array() {
     for key value in "${(@Pkv)array_name}"; do
         echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
     done | sort
+}
+
+# Aux function to print milliseconds from start
+function fn_how_long_it_took() {
+    local r=$(ansi bright red)
+    local x=$(ansi reset)
+    local stage="$1"
+    local start=$timestamp
+    local now=$(gdate +%s%3N 2>/dev/null)
+    local diff=$((now - start))
+    print -- "${r}[${(l:4:: :)diff} ms]${x} $stage"
 }

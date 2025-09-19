@@ -696,22 +696,30 @@ function wheref() {
 #
 
 function fn_template_full() {
-    local -A a; local -A f; local -A i; local -A o; local -A s; local -A t
+    local -A a; local -A f; local -A o; local -A s; 
+    local -A t
+    local -A i
     f[info]="Template for functions." # info about the function
     f[version]="1.05" # version of the function
     f[date]="2025-05-20" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    a[1]="agrument1,r,description of the first argument"
-    a[2]="agrument2,r,description of the second argument"
-    a[3]="agrument3,o,description of the third argument"
-    a[4]="agrument4,o,description of the fourth argument"
-    o[something]="s,0,some other option,[0|1|2]"             # Restricts values to only 0, 1, or 2
+    a[1]="argument1,r,description of the first argument"
+    a[2]="argument2,r,description of the second argument"
+    a[3]="argument3,o,description of the third argument"
+    a[4]="argument4,o,description of the fourth argument"
+    o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
     o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
     o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
     o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
     o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    echo "This is the output of the $s[name] function."
+    t[test]="Abcd"
+    echo "This is the 1st argument: ${a[argument1]}"
+    echo "This is the value of the 'something' option: ${o[something]}"
+    echo "This is the name of the function: ${s[name]}"
+    echo "This is the path to the function file: ${f[file_path]}"
+    echo "This function was run by user: ${i[user]}"
+    fn_debug t
 }
 function fn_template_short() {
     local -A a; local -A f; local -A o; local -A s
@@ -732,9 +740,11 @@ function fn_make() {
     local -A o_default; local -A o_short; local -A o_long; local -A o_help; local -A o_allowed
     local -A e_msg; local -A e_hint; local -A e_dym
     fn_set_properties
-    fn_set_info
+    [[ "${(t)i}" == *"association"* ]] &&  fn_set_info
     fn_add_defaults
+    local timestamp=$(gdate +%s%3N 2>/dev/null)
     fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_how_long_it_took "fn_parse_settings"
     fn_parse_arguments "$@"
     fn_set_strings
     fn_set_time $time_start
@@ -1259,19 +1269,30 @@ function fn_parse_settings() {
     done
     for key in ${(ok)o}; do
         local value="${o[$key]}"
-        local comma_count=$(echo "$value" | tr -cd ',' | wc -c)
-        if [[ $comma_count -lt 2 ]]; then
+        local comma_count=${value//[^,]/}
+        if [[ ${#comma_count} -lt 2 ]]; then
             e_msg[$key]="Invalid settings for option '$y$key$x' in '$y$value$x'"
             e_hint[$key]="Missing comma or empty value in settings string (must have at least 3 values/2 commas)"
             continue
         fi
-        local short_name=$(echo "$value" | cut -d, -f1)
-        local default_value=$(echo "$value" | cut -d, -f2)
-        local description=$(echo "$value" | cut -d, -f3- | sed 's/,\[.*\]$//')
         local validation=""
-        if [[ "$value" == *",["*"]" ]]; then
-            validation=$(echo "$value" | grep -o ',\[.*\]$' | sed 's/^,//')
+        if [[ "$value" == *,\[*\] ]]; then
+            local last_open=${value##*,\[}
+            local val_start=$((${#value} - ${#last_open} - 1))
+            validation=${value:$val_start}
+            value=${value:0:$val_start}
         fi
+        local parts=("${(@s:,:)value}")
+        local short_name="${parts[1]:-}"
+        local default_value="${parts[2]:-}"
+        local description=""
+        integer i
+        for (( i=3; i<=${#parts}; i++ )); do
+            if [[ $i -gt 3 ]]; then
+                description+=","
+            fi
+            description+="${parts[i]:-}"
+        done
         if [[ -n ${o_short[$short_name]+_} ]]; then
             e_msg[$key]="Option short name '$short_name' already used in '$key' ($value)"
             e_hint[$key]="Each option must have a unique short name and a unique full name."
@@ -1286,11 +1307,10 @@ function fn_parse_settings() {
         o_short[$short_name]=$key
         o_long[$key]="$short_name"
         o_help[$key]="$description"
-        if [[ -n "$validation" && "$validation" == \[*\] ]]; then
-            local allowed="${validation}"
-            allowed="${allowed#\[}" # Remove opening bracket
-            allowed="${allowed%\]}" # Remove closing bracket
-            o_allowed[$key]="$allowed"
+        if [[ -n "$validation" ]]; then
+            local val_content=${validation#,\[}
+            val_content=${val_content%\]}
+            o_allowed[$key]="$val_content"
         fi
         unset "o[$key]"
     done
@@ -1418,6 +1438,15 @@ function fn_list_array() {
     for key value in "${(@Pkv)array_name}"; do
         echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
     done | sort
+}
+function fn_how_long_it_took() {
+    local r=$(ansi bright red)
+    local x=$(ansi reset)
+    local stage="$1"
+    local start=$timestamp
+    local now=$(gdate +%s%3N 2>/dev/null)
+    local diff=$((now - start))
+    print -- "${r}[${(l:4:: :)diff} ms]${x} $stage"
 }
 
 #
