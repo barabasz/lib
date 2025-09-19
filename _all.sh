@@ -696,22 +696,21 @@ function wheref() {
 #
 
 function fn_template_full() {
-    local -A f; local -A o; local -A a; local -A s; local -A t
+    local -A a; local -A f; local -A i; local -A o; local -A s; local -A t
     f[info]="Template for functions." # info about the function
-    f[version]="0.25" # version of the function
+    f[version]="1.0" # version of the function
     f[date]="2025-05-20" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
     a[1]="agrument1,r,description of the first argument"
     a[2]="agrument2,r,description of the second argument"
     a[3]="agrument3,o,description of the third argument"
     a[4]="agrument4,o,description of the fourth argument"
-    o[verbose]="V,0,enable verbose mode"
-    o[something]="s,0,esome other option"
+    o[something]="s,0,some other option"
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
     echo "This is the output of the $s[name] function."
 }
 function fn_template_short() {
-    local -A f; local -A o; local -A a; local -A s; local -A t
+    local -A a; local -A f; local -A o; local -A s
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
     echo "This is the output of the $s[name] function."
 }
@@ -721,10 +720,15 @@ function fn_make() {
         log::error "${c}fn_make$x function cannot be called directly"
         return 1
     fi
+    if [[ -z $ZSH_VERSION ]]; then
+        log::error "${c}fn_make$x function can only be used in Zsh shell"
+        return 1
+    fi
     local -A a_name; local -A a_req; local -A a_help
     local -A o_default; local -A o_short; local -A o_long; local -A o_help
     local -A e_msg; local -A e_hint; local -A e_dym
     fn_set_properties
+    fn_set_info
     fn_add_defaults
     fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_parse_arguments "$@"
@@ -764,7 +768,8 @@ function fn_handle_options() {
     fi
 }
 function fn_set_properties() {
-    f[time_fnmake_start]=$(fn_get_timestamp)
+    f[time_started]=$(date +"%Y-%m-%d %H:%M:%S")
+    (( $+commands[gdate] )) && f[time_fnmake_start]=$(gdate +%s%3N) || f[time_fnmake_start]=$(date +%s)
     f[name]="${funcstack[3]}"
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
@@ -779,15 +784,8 @@ function fn_set_properties() {
     f[opts_input]="" # string of options passed
     f[return]="" # return value
 }
-function fn_get_timestamp() {
-    if which gdate >/dev/null 2>&1; then
-        echo $(gdate +%s%3N)
-    else
-        echo $(date +%s)
-    fi
-}
 function fn_set_time() {
-    local time_end=$(fn_get_timestamp)
+    (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
     local time_diff=$((time_end - f[time_fnmake_start]))
     f[time_fnmake]=$time_diff
     unset "f[time_fnmake_start]"
@@ -806,10 +804,7 @@ function fn_usage() {
     fi
     (( a_pad = max_len + 6 ))
     (( o_pad = max_len + 1 ))
-    usage+="${y}Usage details:$x\n$indent$s[name] "
-    if [[ ${#a} -ne 0 ]]; then
-        usage+="${p}[options]${x} "
-    fi
+    usage+="${y}Usage details:$x\n$indent$s[name] ${p}[options]${x} "
     if [[ $f[args_min] -eq 1 ]]; then
         usage+="${c}<${a_name[1]}>${x} "
     elif [[ $f[args_min] -ne 0 ]]; then
@@ -840,22 +835,14 @@ function fn_usage() {
         done
         usage="${usage%\\n\\t}"
     fi
-    if [[ $f[opts_max] -ne 0 && ${#o_long} -ne 0 && ${#o_help} -ne 0 ]]; then
-        usage+="\n${y}Options:$x\n$indent"
-        for opt in ${(ok)o_long}; do
-            usage+="-$p$o_long[$opt]$x"
-            usage+=" or "
-            usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]\n$indent"
-        done
-        usage="${usage%\\n\\t}"
-    fi
-    if [[ ${#arr_opts[@]} -ne 0 ]]; then
-        usage+="\n${y}Options:$x\n\t"
-        for opt in "${arr_opts[@]}"; do
-            usage+="$p-$opt[1,1]$x or $p--$opt$x\n\t";
-        done
-        usage="${usage%\\n\\t}"
-    fi
+    (( ${#a} == 0 )) && usage+="\n"
+    usage+="\n${y}Options:$x\n$indent"
+    for opt in ${(ok)o_long}; do
+        usage+="-$p$o_long[$opt]$x"
+        usage+=" or "
+        usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]\n$indent"
+    done
+    usage="${usage%\\n\\t}"
     if [[ $f[args_max] -gt 1 ]]; then
         usage+="\n${c}Arguments$x must be provided in the specified sequence."
     fi
@@ -1063,14 +1050,14 @@ function fn_option_suggestion() {
     echo "$suggestion"
 }
 function fn_load_colors() {
-    b=$(ansi blue)
-    c=$(ansi cyan)
-    g=$(ansi green)
-    p=$(ansi bright purple)
-    r=$(ansi red)
-    w=$(ansi white)
-    y=$(ansi yellow)
-    x=$(ansi reset)
+    b=$(ansi blue)          # arrows
+    c=$(ansi cyan)          # arguments, url, file path
+    g=$(ansi green)         # function name
+    p=$(ansi bright purple) # options
+    r=$(ansi red)           # errors
+    w=$(ansi white)         # plain text
+    y=$(ansi yellow)        # highlight
+    x=$(ansi reset)         # reset
 }
 function fn_add_defaults() {
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage"
@@ -1144,24 +1131,34 @@ function fn_parse_settings() {
     fi
 }
 function fn_debug() {
-    local debug=$o[debug]
+    local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
         local max_key_length=15
         local max_value_length=40
         local count
         local q="$y'$x"
+        local arr="$b→$x"
         local -A modes=(
+            [A]="All possible arrays"
             [a]="Arguments from $y\$a[]$x array"
-            [d]="Disable debugging inside ${g}fn_make$x"
             [D]="Default values for options"
+            [d]="Disable debugging inside ${g}fn_make$x"
             [e]="Exit after debugging"
             [f]="Function properties from $y\$f[]$x array"
             [h]="Help $y(default)$x"
-            [i]="Internal ${g}fn_make$x arrays"
+            [I]="Internal ${g}fn_make$x arrays"
+            [i]="Information from $y\$i[]$x array"
             [o]="Options from $y\$o[]$x array"
             [s]="Strings from $y\$s[]$x array"
             [t]="This function from $y\$t[]$x array"
         )
+        if [[ $debug =~ "A" ]]; then
+            debug="adefIiost"
+        fi
+        if [[ ! $debug =~ [aDdefhIiost] ]]; then
+            log::info "No valid debug mode set, falling back to help mode."
+            debug="h"
+        fi
         for key in "${(@k)f}"; do
             if [[ ${#key} -gt $max_key_length ]]; then
                 max_key_length=${#key}
@@ -1184,100 +1181,64 @@ function fn_debug() {
             max_key_length=2
             log::info "${y}Debug modes${x} (${#modes}):"
             for key value in "${(@kv)modes}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+                echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
             done | sort
             echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
             echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
         fi
         if [[ $debug =~ "D" ]]; then
-            [[ ${#o_default} -eq 0 ]] && count="is empty." || count="(${#o_default}):"
-            log::info "${y}Options default values${x} from ${g}\$o_default[]$x $count"
-            for key value in "${(@kv)o_default}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
+            fn_list_array "o_default" "Option default values"
         fi
-        if [[ $debug =~ "i" ]]; then
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a_name[]$x $count"
-            for key value in "${(@kv)a_name}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a_req[]$x $count"
-            for key value in "${(@kv)a_req}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a_help[]$x $count"
-            for key value in "${(@kv)a_help}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            [[ ${#o_default} -eq 0 ]] && count="is empty." || count="(${#o_default}):"
-            log::info "${y}Options${x} ${g}\$o_default[]$x $count"
-            for key value in "${(@kv)o_default}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o_short[]$x $count"
-            for key value in "${(@kv)o_short}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o_long[]$x $count"
-            for key value in "${(@kv)o_long}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o_help[]$x $count"
-            for key value in "${(@kv)o_help}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
+        if [[ $debug =~ "I" ]]; then
+            fn_list_array "a_name" "Argument names"
+            fn_list_array "a_req" "Required arguments"
+            fn_list_array "a_help" "Argument help strings"
+            fn_list_array "o_default" "Option default values"
+            fn_list_array "o_short" "Option short names"
+            fn_list_array "o_long" "Option full names"
+            fn_list_array "o_help" "Option help strings"
         fi
-        if [[ $debug =~ "a" ]]; then
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a[]$x $count"
-            for key value in "${(@kv)a}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-        fi
-        if [[ $debug =~ "o" ]]; then
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o[]$x $count"
-            for key value in "${(@kv)o}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-        fi
-        if [[ $debug =~ "f" ]]; then
-            [[ ${#f} -eq 0 ]] && count="is empty." || count="(${#f}):"
-            log::info "${y}Function properties${x} ${g}\$f[]$x $count"
-            for key value in "${(@kv)f}"; do
-                value=$(clean_string "$value")
-                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-            done | sort
-        fi
-        if [[ $debug =~ "s" ]]; then
-            [[ ${#s} -eq 0 ]] && count="is empty." || count="(${#s}):"
-            log::info "${y}Strings${x} ${g}\$s[]$x $count"
-            for key value in "${(@kv)s}"; do
-                value=$(clean_ansi "$value")
-                value=$(clean_string "$value")
-                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-            done | sort
-        fi
-        if [[ $debug =~ "t" ]]; then
-            [[ ${#t} -eq 0 ]] && count="is empty." || count="(${#t}):"
-            log::info "${y}This function${x} ${g}\$t[]$x $count"
-            for key value in "${(@kv)t}"; do
-                value=$(clean_ansi "$value")
-                value=$(clean_string "$value")
-                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-            done | sort 
-        fi
+        [[ $debug =~ "a" ]] && fn_list_array "a" "Arguments"
+        [[ $debug =~ "o" ]] && fn_list_array "o" "Options"
+        [[ $debug =~ "f" ]] && fn_list_array "f" "Function properties"
+        [[ $debug =~ "i" ]] && fn_list_array "i" "Environment information"
+        [[ $debug =~ "s" ]] && fn_list_array "s" "Strings"
+        [[ $debug =~ "t" ]] && fn_list_array "t" "This function"
         print::footer "${r}Debug end$x"
+        [[ $debug =~ "e" ]] && f[return]=0 && return 0
     fi
+}
+function fn_set_info() {
+    if [[ "${(t)i}" == *"association"* ]]; then
+        i[arch]=$(uname -m)             # system architecture
+        i[brew]=$+commands[brew]        # is Homebrew installed
+        i[date]=$(date +"%Y-%m-%d")     # current date
+        i[dir]=$PWD                     # current directory
+        i[domain]=$(hostname -d)        # domain name
+        i[host]=$(hostname -s)          # host name
+        i[ip]=$(lanip)                  # local IP address
+        i[os]=$(uname -s)               # operating system
+        i[time]=$(date +"%H:%M:%S")     # current time
+        i[user]=$(whoami)               # current user
+        i[zsh]=$(echo $ZSH_VERSION)     # zsh version
+        i[git]=$+commands[git]          # is git installed
+        i[tty]=$(tty | sed 's|/dev/||') # terminal type
+    fi
+}
+function fn_list_array() {
+    local array_name=$1
+    local display_name=$2
+    local count
+    if (( ${(P)#array_name} == 0 )); then
+        count="is empty."
+    else
+        count="(${(P)#array_name}):"
+    fi
+    log::info "${y}${display_name}${x} ${g}\$${array_name}[]$x $count"
+    local key value
+    for key value in "${(@Pkv)array_name}"; do
+        echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
+    done | sort
 }
 
 #
@@ -2091,6 +2052,125 @@ log::debug()   { log::log debug "$*"; }
 log::note()    { log::log note "$*"; }
 log::normal()  { log::log normal "$*"; }
 log::msg()     { log::log normal "$*"; }
+
+#
+# File: net.sh
+#
+
+wanip() {
+    local ipv6 verbose timeout=1 ip service
+    local -a services_v4 services_v6
+    while [[ "$1" == -* ]]; do
+        case "$1" in
+            -6) ipv6=1 ;;
+            -v) verbose=1 ;;
+            -t) timeout="$2"; shift ;;
+            *) echo "Unknown option: $1" >&2; return 1 ;;
+        esac
+        shift
+    done
+    services_v4=(
+        "icanhazip.com:curl -4 -fsS -m $timeout https://icanhazip.com"
+        "ifconfig.me:curl -4 -fsS -m $timeout https://ifconfig.me/ip"
+        "ipify.org:curl -4 -fsS -m $timeout https://api.ipify.org"
+        "ipecho.net:curl -4 -fsS -m $timeout https://ipecho.net/plain"
+        "OpenDNS:dig +short -4 myip.opendns.com @resolver1.opendns.com"
+        "Akamai:dig +short -4 whoami.akamai.net @ns1-1.akamaitech.net"
+    )
+    services_v6=(
+        "icanhazip.com:curl -6 -fsS -m $timeout https://icanhazip.com"
+        "ifconfig.me:curl -6 -fsS -m $timeout https://ifconfig.me/ip"
+        "ipify.org:curl -6 -fsS -m $timeout https://api6.ipify.org"
+        "ipv6.icanhazip.com:curl -6 -fsS -m $timeout https://ipv6.icanhazip.com"
+    )
+    local -a services
+    if [[ -n "$ipv6" ]]; then
+        services=("${services_v6[@]}")
+        ip_regex='^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{0,4}:){1,7}:[0-9a-fA-F]{0,4}$|^([0-9a-fA-F]{0,4}:){1,7}:$|^:([0-9a-fA-F]{0,4}:){1,7}$|^::$|^::([0-9a-fA-F]{0,4}:){1,7}$|^([0-9a-fA-F]{0,4}:){1,7}::$'
+    else
+        services=("${services_v4[@]}")
+        ip_regex='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
+    fi
+    for service_info in "${services[@]}"; do
+        service_name=${service_info%%:*}
+        service_cmd=${service_info#*:}
+        ip=$(eval "$service_cmd" 2>/dev/null)
+        if [[ $ip =~ $ip_regex ]]; then
+            if [[ -n "$verbose" ]]; then
+                echo "IP found using $service_name: $ip" >&2
+            fi
+            echo "$ip"
+            return 0
+        fi
+    done
+    [[ -n "$verbose" ]] && echo "Failed to retrieve public IP address" >&2
+    return 1
+}
+lanip() {
+    local ipv6 interface all_ips
+    local result=""
+    while [[ "$1" == -* ]]; do
+        case "$1" in
+            -6) ipv6=1 ;;
+            -i) interface="$2"; shift ;;
+            -a) all_ips=1 ;;
+            *) echo "Unknown option: $1" >&2; return 1 ;;
+        esac
+        shift
+    done
+    local ip_family="inet"
+    local localhost_pattern="^127\."
+    local ip_cmd_args=""
+    if [[ -n "$ipv6" ]]; then
+        ip_family="inet6"
+        localhost_pattern="^::1"
+    fi
+    if [[ -n "$interface" ]]; then
+        ip_cmd_args="dev $interface"
+    fi
+    if (( $+commands[ip] )); then
+        if [[ -n "$all_ips" ]]; then
+            result=$(ip -f $ip_family addr show $ip_cmd_args 2>/dev/null | awk -v pattern="$localhost_pattern" '$1 == "inet" || $1 == "inet6" {gsub(/\/.*$/, "", $2); if ($2 !~ pattern) print $2}')
+        else
+            result=$(ip -f $ip_family addr show $ip_cmd_args 2>/dev/null | awk -v pattern="$localhost_pattern" '$1 == "inet" || $1 == "inet6" {gsub(/\/.*$/, "", $2); if ($2 !~ pattern) {print $2; exit}}')
+        fi
+    elif (( $+commands[ifconfig] )); then
+        if [[ -n "$interface" ]]; then
+            if [[ -n "$all_ips" ]]; then
+                result=$(ifconfig "$interface" 2>/dev/null | awk -v family="$ip_family" -v pattern="$localhost_pattern" '$1 == family && $2 !~ pattern {print $2}')
+            else
+                result=$(ifconfig "$interface" 2>/dev/null | awk -v family="$ip_family" -v pattern="$localhost_pattern" '$1 == family && $2 !~ pattern {print $2; exit}')
+            fi
+        else
+            if [[ -n "$all_ips" ]]; then
+                result=$(ifconfig 2>/dev/null | awk -v family="$ip_family" -v pattern="$localhost_pattern" '$1 == family && $2 !~ pattern {print $2}')
+            else
+                result=$(ifconfig 2>/dev/null | awk -v family="$ip_family" -v pattern="$localhost_pattern" '$1 == family && $2 !~ pattern {print $2; exit}')
+            fi
+        fi
+    elif (( $+commands[hostname] )); then
+        if [[ -n "$ipv6" ]]; then
+            result=$(hostname -I 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i ~ /^[0-9a-fA-F:]+$/ && $i !~ /^::1/) print $i}')
+            if [[ -n "$all_ips" ]]; then
+                :
+            else
+                result=$(echo "$result" | head -n 1)
+            fi
+        else
+            if [[ -n "$all_ips" ]]; then
+                result=$(hostname -I 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ && $i !~ /^127\./) print $i}')
+            else
+                result=$(hostname -I 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ && $i !~ /^127\./) {print $i; exit}}')
+            fi
+        fi
+    fi
+    if [[ -n "$result" ]]; then
+        echo "$result"
+        return 0
+    else
+        return 1
+    fi
+}
 
 #
 # File: omz.sh

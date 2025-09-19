@@ -1,44 +1,55 @@
 #!/bin/zsh
 # The functions below are intended for exclusive use in the Zsh shell.
-
+#
 # fn_make() is a helper function for handling options and arguments.
 # It parses the options and arguments of parent function and checks for errors.
 # Additionally, it prints usage, help, and version information.
-# The associative arrays $f, $a, and $o are passed via dynamic scoping.
-# ⚠️ These functions cannot be used standalone.
+#
+# fn_make() uses associative arrays passed via dynamic scoping:
+#  a[] - arguments
+#  f[] - function properties
+#  i[] - information (user, date, time, etc.)
+#  o[] - options
+#  s[] - strings
+#  t[] - array to be used by the parent function
 
 ##############################################
-# Function template to be used with fn_make()
+# Function templates to be used with fn_make()
 ##############################################
 
-# Full function template / example
+# Full function template
 function fn_template_full() {
-    # f = properties, a - arguments, o - options, s - strings, t - this
-    local -A f; local -A o; local -A a; local -A s; local -A t
-    # Define function properties
+ ## Initialize associative arrays
+    local -A a; local -A f; local -A i; local -A o; local -A s; local -A t
+ ## Define function properties
     f[info]="Template for functions." # info about the function
-    f[version]="0.25" # version of the function
+    f[version]="1.0" # version of the function
     f[date]="2025-05-20" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    # Define arguments (in order in which they should be passed)
+ ## Define arguments
+    # Arguments are positional and must be provided in the specified sequence
+    # Format: a[<position>]="<name>,<required_flag>,<description>"
     a[1]="agrument1,r,description of the first argument"
     a[2]="agrument2,r,description of the second argument"
     a[3]="agrument3,o,description of the third argument"
     a[4]="agrument4,o,description of the fourth argument"
-    # Define extra options (default are: info, help, version, debug)
-    o[verbose]="V,0,enable verbose mode"
-    o[something]="s,0,esome other option"
+ ## Define extra options
+    # Default options are: [i]nfo, [h]elp, [v]ersion, [d]ebug, [V]erbose
+    # Format: o[<long_name>]="<short_name>,<default_value>,<description>"
+    o[something]="s,0,some other option"
     # Run fn_make() to parse arguments and options
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    ### main function
+ ## Main function
     echo "This is the output of the $s[name] function."
+    ### Debug example inside parent function
+    # t[something]="Abcd"
+    # fn_debug t
 }
 
-# Minimal function template / example
+# Short function template (without i[] and t[] arrays)
 function fn_template_short() {
-    local -A f; local -A o; local -A a; local -A s; local -A t
+    local -A a; local -A f; local -A o; local -A s
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    ### main function
     echo "This is the output of the $s[name] function."
 }
 
@@ -54,6 +65,11 @@ function fn_make() {
         log::error "${c}fn_make$x function cannot be called directly"
         return 1
     fi
+    # Check if the function is running in Zsh
+    if [[ -z $ZSH_VERSION ]]; then
+        log::error "${c}fn_make$x function can only be used in Zsh shell"
+        return 1
+    fi
     # Arguments arrays (name, required flag, help string)
     local -A a_name; local -A a_req; local -A a_help
     # Options arrays (default values, short names, full names, help string)
@@ -62,6 +78,8 @@ function fn_make() {
     local -A e_msg; local -A e_hint; local -A e_dym
     # Prepare function properties
     fn_set_properties
+    # Gather basic environment information
+    fn_set_info
     # Add default options to the $o array
     fn_add_defaults
     # Parse arguments and options settings arrays, exit on error
@@ -119,7 +137,9 @@ function fn_handle_options() {
 
 # Prepare function properties
 function fn_set_properties() {
-    f[time_fnmake_start]=$(fn_get_timestamp)
+    f[time_started]=$(date +"%Y-%m-%d %H:%M:%S")
+    # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
+    (( $+commands[gdate] )) && f[time_fnmake_start]=$(gdate +%s%3N) || f[time_fnmake_start]=$(date +%s)
     f[name]="${funcstack[3]}"
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
     # File with parent function
@@ -139,18 +159,10 @@ function fn_set_properties() {
     f[return]="" # return value
 }
 
-# Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
-function fn_get_timestamp() {
-    if which gdate >/dev/null 2>&1; then
-        echo $(gdate +%s%3N)
-    else
-        echo $(date +%s)
-    fi
-}
-
 # Set time difference
 function fn_set_time() {
-    local time_end=$(fn_get_timestamp)
+    # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
+    (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
     local time_diff=$((time_end - f[time_fnmake_start]))
     f[time_fnmake]=$time_diff
     unset "f[time_fnmake_start]"
@@ -175,11 +187,7 @@ function fn_usage() {
     (( a_pad = max_len + 6 ))
     (( o_pad = max_len + 1 ))
 
-    usage+="${y}Usage details:$x\n$indent$s[name] "
-    if [[ ${#a} -ne 0 ]]; then
-        usage+="${p}[options]${x} "
-    fi
-
+    usage+="${y}Usage details:$x\n$indent$s[name] ${p}[options]${x} "
     if [[ $f[args_min] -eq 1 ]]; then
         usage+="${c}<${a_name[1]}>${x} "
     elif [[ $f[args_min] -ne 0 ]]; then
@@ -214,23 +222,14 @@ function fn_usage() {
         usage="${usage%\\n\\t}"
     fi
 
-    if [[ $f[opts_max] -ne 0 && ${#o_long} -ne 0 && ${#o_help} -ne 0 ]]; then
-        usage+="\n${y}Options:$x\n$indent"
-        for opt in ${(ok)o_long}; do
-            usage+="-$p$o_long[$opt]$x"
-            usage+=" or "
-            usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]\n$indent"
-        done
-        usage="${usage%\\n\\t}"
-    fi
-
-    if [[ ${#arr_opts[@]} -ne 0 ]]; then
-        usage+="\n${y}Options:$x\n\t"
-        for opt in "${arr_opts[@]}"; do
-            usage+="$p-$opt[1,1]$x or $p--$opt$x\n\t";
-        done
-        usage="${usage%\\n\\t}"
-    fi
+    (( ${#a} == 0 )) && usage+="\n"
+    usage+="\n${y}Options:$x\n$indent"
+    for opt in ${(ok)o_long}; do
+        usage+="-$p$o_long[$opt]$x"
+        usage+=" or "
+        usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]\n$indent"
+    done
+    usage="${usage%\\n\\t}"
 
     if [[ $f[args_max] -gt 1 ]]; then
         usage+="\n${c}Arguments$x must be provided in the specified sequence."
@@ -515,14 +514,14 @@ function fn_option_suggestion() {
 
 # Load base colors (ANSI escape codes)
 function fn_load_colors() {
-    b=$(ansi blue)
-    c=$(ansi cyan)
-    g=$(ansi green)
-    p=$(ansi bright purple)
-    r=$(ansi red)
-    w=$(ansi white)
-    y=$(ansi yellow)
-    x=$(ansi reset)
+    b=$(ansi blue)          # arrows
+    c=$(ansi cyan)          # arguments, url, file path
+    g=$(ansi green)         # function name
+    p=$(ansi bright purple) # options
+    r=$(ansi red)           # errors
+    w=$(ansi white)         # plain text
+    y=$(ansi yellow)        # highlight
+    x=$(ansi reset)         # reset
 }
 
 # Add default options to the $o array
@@ -621,25 +620,38 @@ function fn_parse_settings() {
 
 # Print debug information
 function fn_debug() {
-    local debug=$o[debug]
+    #local debug=$o[debug]
+    local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
         local max_key_length=15
         local max_value_length=40
         local count
         local q="$y'$x"
+        local arr="$b→$x"
         # Debug modes
         local -A modes=(
+            [A]="All possible arrays"
             [a]="Arguments from $y\$a[]$x array"
-            [d]="Disable debugging inside ${g}fn_make$x"
             [D]="Default values for options"
+            [d]="Disable debugging inside ${g}fn_make$x"
             [e]="Exit after debugging"
             [f]="Function properties from $y\$f[]$x array"
             [h]="Help $y(default)$x"
-            [i]="Internal ${g}fn_make$x arrays"
+            [I]="Internal ${g}fn_make$x arrays"
+            [i]="Information from $y\$i[]$x array"
             [o]="Options from $y\$o[]$x array"
             [s]="Strings from $y\$s[]$x array"
             [t]="This function from $y\$t[]$x array"
         )
+        # If 'A' mode is set, enable all other modes except 'd'
+        if [[ $debug =~ "A" ]]; then
+            debug="adefIiost"
+        fi
+        # If no valid mode is set, show help
+        if [[ ! $debug =~ [aDdefhIiost] ]]; then
+            log::info "No valid debug mode set, falling back to help mode."
+            debug="h"
+        fi
 
         # find the longest key
         for key in "${(@k)f}"; do
@@ -663,120 +675,88 @@ function fn_debug() {
         if [[ ! $debug =~ "h" ]]; then
             log::info "Use option ${c}-d=h$x to show available debug modes."
         fi
+
         # list modes
         if [[ $debug =~ "h" ]]; then
             max_key_length=2
             log::info "${y}Debug modes${x} (${#modes}):"
             for key value in "${(@kv)modes}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
+                echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
             done | sort
             echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
             echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
         fi
-        if [[ $debug =~ "D" ]]; then
+
         # List internal $o_default[] array (options default values)
-            [[ ${#o_default} -eq 0 ]] && count="is empty." || count="(${#o_default}):"
-            log::info "${y}Options default values${x} from ${g}\$o_default[]$x $count"
-            for key value in "${(@kv)o_default}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
+        if [[ $debug =~ "D" ]]; then
+            fn_list_array "o_default" "Option default values"
         fi
         # List all internal fn_make() arrays
-        if [[ $debug =~ "i" ]]; then
-            # list $a_name[]
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a_name[]$x $count"
-            for key value in "${(@kv)a_name}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            # list $a_req[]
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a_req[]$x $count"
-            for key value in "${(@kv)a_req}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            # list $a_help[]
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a_help[]$x $count"
-            for key value in "${(@kv)a_help}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            # list $o_default[]
-            [[ ${#o_default} -eq 0 ]] && count="is empty." || count="(${#o_default}):"
-            log::info "${y}Options${x} ${g}\$o_default[]$x $count"
-            for key value in "${(@kv)o_default}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            # list $o_short[]
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o_short[]$x $count"
-            for key value in "${(@kv)o_short}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            # list $o_long[]
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o_long[]$x $count"
-            for key value in "${(@kv)o_long}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-            # list $o_help[]
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o_help[]$x $count"
-            for key value in "${(@kv)o_help}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
+        if [[ $debug =~ "I" ]]; then
+            fn_list_array "a_name" "Argument names"
+            fn_list_array "a_req" "Required arguments"
+            fn_list_array "a_help" "Argument help strings"
+            fn_list_array "o_default" "Option default values"
+            fn_list_array "o_short" "Option short names"
+            fn_list_array "o_long" "Option full names"
+            fn_list_array "o_help" "Option help strings"
         fi
         # list arguments $a[]
-        if [[ $debug =~ "a" ]]; then
-            [[ ${#a} -eq 0 ]] && count="is empty." || count="(${#a}):"
-            log::info "${y}Arguments${x} ${g}\$a[]$x $count"
-            for key value in "${(@kv)a}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-        fi
+        [[ $debug =~ "a" ]] && fn_list_array "a" "Arguments"
         # list options $o[]
-        if [[ $debug =~ "o" ]]; then
-            [[ ${#o} -eq 0 ]] && count="is empty." || count="(${#o}):"
-            log::info "${y}Options${x} ${g}\$o[]$x $count"
-            for key value in "${(@kv)o}"; do
-                echo "    ${(r:$max_key_length:)key} $y->$x $q$value$q"
-            done | sort
-        fi
+        [[ $debug =~ "o" ]] && fn_list_array "o" "Options"
         # list properties $f[]
-        if [[ $debug =~ "f" ]]; then
-            [[ ${#f} -eq 0 ]] && count="is empty." || count="(${#f}):"
-            log::info "${y}Function properties${x} ${g}\$f[]$x $count"
-            for key value in "${(@kv)f}"; do
-                value=$(clean_string "$value")
-                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-            done | sort
-        fi
+        [[ $debug =~ "f" ]] && fn_list_array "f" "Function properties"
+        # list info $i[]
+        [[ $debug =~ "i" ]] && fn_list_array "i" "Environment information"
         # list strings $s[]
-        if [[ $debug =~ "s" ]]; then
-            [[ ${#s} -eq 0 ]] && count="is empty." || count="(${#s}):"
-            log::info "${y}Strings${x} ${g}\$s[]$x $count"
-            for key value in "${(@kv)s}"; do
-                value=$(clean_ansi "$value")
-                value=$(clean_string "$value")
-                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-            done | sort
-        fi
+        [[ $debug =~ "s" ]] && fn_list_array "s" "Strings"
         # list this function values $t[]
-        if [[ $debug =~ "t" ]]; then
-            [[ ${#t} -eq 0 ]] && count="is empty." || count="(${#t}):"
-            log::info "${y}This function${x} ${g}\$t[]$x $count"
-            for key value in "${(@kv)t}"; do
-                value=$(clean_ansi "$value")
-                value=$(clean_string "$value")
-                echo -n "    ${(r:$max_key_length:)key} $y->$x $q${value:0:$max_value_length}$q"
-                [[ ${#value} -gt $max_value_length ]] && echo "$y...$x" || echo
-            done | sort 
-        fi
+        [[ $debug =~ "t" ]] && fn_list_array "t" "This function"
         # debug footer
         print::footer "${r}Debug end$x"
         # exit if debug mode is set to 'e'
-        # [[ $debug =~ "e" ]] && exit
+        [[ $debug =~ "e" ]] && f[return]=0 && return 0
     fi
+}
+
+# Gather basic ennvironment information
+function fn_set_info() {
+    if [[ "${(t)i}" == *"association"* ]]; then
+        i[arch]=$(uname -m)             # system architecture
+        i[brew]=$+commands[brew]        # is Homebrew installed
+        i[date]=$(date +"%Y-%m-%d")     # current date
+        i[dir]=$PWD                     # current directory
+        i[domain]=$(hostname -d)        # domain name
+        i[host]=$(hostname -s)          # host name
+        i[ip]=$(lanip)                  # local IP address
+        i[os]=$(uname -s)               # operating system
+        i[time]=$(date +"%H:%M:%S")     # current time
+        i[user]=$(whoami)               # current user
+        i[zsh]=$(echo $ZSH_VERSION)     # zsh version
+        i[git]=$+commands[git]          # is git installed
+        i[tty]=$(tty | sed 's|/dev/||') # terminal type
+    fi
+}
+
+# Function for listing associative array contents
+function fn_list_array() {
+    local array_name=$1
+    local display_name=$2
+    local count
+    
+    # Check array size using indirect variable reference
+    if (( ${(P)#array_name} == 0 )); then
+        count="is empty."
+    else
+        count="(${(P)#array_name}):"
+    fi
+    
+    log::info "${y}${display_name}${x} ${g}\$${array_name}[]$x $count"
+    
+    # Iterate through array elements
+    local key value
+    for key value in "${(@Pkv)array_name}"; do
+        echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
+    done | sort
 }
