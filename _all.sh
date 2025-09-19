@@ -965,27 +965,57 @@ function fn_option_suggestion() {
     local suggestion=""
     case $error_type in
         too_many_dashes_short)
-            suggestion="-${name}"
-            (( has_value )) && suggestion+="=$value"
+            if [[ -n "${o_short[$name]}" ]]; then
+                suggestion="-${name}"
+                (( has_value )) && suggestion+="=$value"
+                suggestion="${p}${suggestion}${x}"
+            fi
             ;;
         too_many_dashes_long)
-            suggestion="--${name}"
-            (( has_value )) && suggestion+="=$value"
+            if [[ " ${(k)o_long} " == *" $name "* ]]; then
+                suggestion="--${name}"
+                (( has_value )) && suggestion+="=$value"
+                suggestion="${p}${suggestion}${x}"
+            fi
             ;;
         multiple_equals)
             local fixed_value=${arg#*=}; fixed_value=${fixed_value%%=*}
             suggestion="${arg%%=*}=${fixed_value}"
+            suggestion="${p}${suggestion}${x}"
             ;;
         long_short)
-            local short_suggest="-${name[1]}"
-            local long_suggest="--${name}"
-            (( has_value )) && { short_suggest+="=$value"; long_suggest+="=$value"; }
-            suggestion="${p}${short_suggest}${x} or ${p}${long_suggest}${x}"
+            local has_short=0
+            local has_long=0
+            local short_suggest=""
+            local long_suggest=""
+            if [[ -n "${o_short[${name[1]}]}" ]]; then
+                short_suggest="-${name[1]}"
+                (( has_value )) && short_suggest+="=$value"
+                has_short=1
+            fi
+            if [[ " ${(k)o_long} " == *" $name "* ]]; then
+                long_suggest="--${name}"
+                (( has_value )) && long_suggest+="=$value"
+                has_long=1
+            fi
+            if (( has_short && has_long )); then
+                suggestion="${p}${short_suggest}${x} or ${p}${long_suggest}${x}"
+            elif (( has_short )); then
+                suggestion="${p}${short_suggest}${x}"
+            elif (( has_long )); then
+                suggestion="${p}${long_suggest}${x}"
+            fi
             ;;
         short_long)
-            local short_suggestion="-${name}"
-            (( has_value )) && short_suggestion+="=$value"
+            local has_short=0
+            local has_long=0
+            local short_suggestion=""
             local long_suggestion=""
+            if [[ -n "${o_short[$name]}" ]]; then
+                short_suggestion="-${name}"
+                (( has_value )) && short_suggestion+="=$value"
+                has_short=1
+            fi
             local best_match="" best_score=0
             for key in "${(@k)o_long}"; do
                 if [[ ${key:0:1} == ${name} ]]; then
@@ -998,9 +1028,14 @@ function fn_option_suggestion() {
             if [[ -n "$best_match" ]]; then
                 long_suggestion="--${best_match}"
                 (( has_value )) && long_suggestion+="=$value"
+                has_long=1
+            fi
+            if (( has_short && has_long )); then
                 suggestion="${p}${short_suggestion}${x} or ${p}${long_suggestion}${x}"
-            else
+            elif (( has_short )); then
                 suggestion="${p}${short_suggestion}${x}"
+            elif (( has_long )); then
+                suggestion="${p}${long_suggestion}${x}"
             fi
             ;;
         unknown_short)
@@ -1329,90 +1364,6 @@ function fn_list_array() {
     for key value in "${(@Pkv)array_name}"; do
         echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
     done | sort
-}
-
-#
-# File: fn2.sh
-#
-
-function fn_make2() {
-    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
-        log::error "fn_make must be called from a function"
-        return 1
-    fi
-    local arr_args_required=( $(string_to_words "$f[args_required]") )
-    local arr_args_optional=( $(string_to_words "$f[args_optional]") )
-    local arr_opts=( $(string_to_words "$f[opts]") )
-    f[name]="${funcstack[2]}"
-    [[ -z $f[author] ]] && f[author]="gh/barabasz"
-    f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
-    f[file_dir]="${f[file_path]%/*}"
-    f[file_name]="${f[file_path]##*/}"
-    f[args_min]=${#arr_args_required}
-    f[args_max]=$(($f[args_min]+${#arr_args_optional}))
-    f[opts_max]="${#arr_opts}"
-    f[args_count]=0
-    f[opts_input]=""
-    f[opts_count]=0
-    f[return]=""
-    for opt in $arr_opts; do
-        o[$opt[1,1]]=0
-    done
-    local i=1
-    for arg in "$@"; do
-        if [[ $arg == -* ]]; then
-            f[opts_input]+="$arg "
-            opt_long="${arg#${arg%%[^-]*}}"
-            opt=${opt_long[1,1]}
-            if [[ $arr_opts =~ $opt_long ]]; then
-                o[$opt]=1
-            else
-                [[ -z "$f[err_opt_value]" ]] && f[err_opt_value]=$arg
-            fi
-            f[opts_count]=$(( f[opts_count] + 1 ))
-        else
-            f[args_count]=$(( f[args_count] + 1 ))
-            a[$i]=$arg
-            ((i++))
-        fi
-    done
-    f[opts_input]="${f[opts_input]%" "}"
-    [[ $f[err_opt_value] ]] && f[err_opt]=1
-    [[ f[args_count] -lt $f[args_min] || $f[args_count] -gt $f[args_max] ]] && f[err_arg]=1
-    fn_load_colors
-    s[name]="${g}$f[name]$x"
-    s[path]="${c}$f[file_path]$x"
-    s[author]="${y}$f[author]$x"
-    s[year]="${y}${f[date]:0:4}$x"
-    [[ $f[err_opt] ]] && s[err_opt]="unknown option $p$f[err_opt_value]$x"
-    [[ $f[err_arg] ]] && s[err_arg]="$(fn_check_args)"
-    [[ $f[info] ]] && s[header]="$s[name]: $f[info]"
-    s[version]="$(fn_version)"
-    s[footer]="$(fn_footer)"
-    s[example]="$(fn_example)"
-    s[source]="$(fn_source)"
-    s[usage]="$(fn_usage)"
-    s[hint]="$(fn_hint)"
-    if [[ "$o[v]" -eq "1" || "$o[i]" -eq "1" || "$o[h]" -eq "1" ]]; then
-        if [[ "$o[v]" -eq "1" ]]; then
-            echo $s[version]
-        elif [[ "$o[i]" -eq "1" ]]; then
-            [[ $f[info] ]] && echo $s[header]
-            echo $s[example]
-        elif [[ "$o[h]" -eq "1" ]]; then
-            [[ $f[info] ]] && echo $s[header]
-            [[ $f[help] ]] && echo $f[help]
-            echo "$s[example]\n$s[usage]\n\n$s[footer]\n$s[source]"
-        fi
-        f[return]=0 && return 0
-    fi
-    local err_msg="$x$s[name] error:"
-    if [[ $f[err_opt] || $f[err_arg] ]]; then
-        [[ $f[err_opt] ]] && log::error "$err_msg $s[err_opt]"
-        [[ $f[err_arg] ]] && log::error "$err_msg $s[err_arg]"
-        echo "$s[hint]"
-        f[return]=2 && return 0
-    fi
 }
 
 #

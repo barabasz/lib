@@ -25,7 +25,7 @@ function fn_template_full() {
     local -A a; local -A f; local -A i; local -A o; local -A s; local -A t
  ## Define function properties
     f[info]="Template for functions." # info about the function
-    f[version]="1.0" # version of the function
+    f[version]="1.05" # version of the function
     f[date]="2025-05-20" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
  ## Define arguments
@@ -394,30 +394,60 @@ function fn_option_suggestion() {
     case $error_type in
         too_many_dashes_short)
             # Too many dashes for short option (single character)
-            suggestion="-${name}"
-            (( has_value )) && suggestion+="=$value"
+            # Only suggest if short option exists
+            if [[ -n "${o_short[$name]}" ]]; then
+                suggestion="-${name}"
+                (( has_value )) && suggestion+="=$value"
+                suggestion="${p}${suggestion}${x}"
+            fi
             ;;
             
         too_many_dashes_long)
             # Too many dashes for long option (multiple characters)
-            suggestion="--${name}"
-            (( has_value )) && suggestion+="=$value"
+            # Only suggest if long option exists
+            if [[ " ${(k)o_long} " == *" $name "* ]]; then
+                suggestion="--${name}"
+                (( has_value )) && suggestion+="=$value"
+                suggestion="${p}${suggestion}${x}"
+            fi
             ;;
             
         multiple_equals)
             # Keep only the first equals sign and value
             local fixed_value=${arg#*=}; fixed_value=${fixed_value%%=*}
             suggestion="${arg%%=*}=${fixed_value}"
+            suggestion="${p}${suggestion}${x}"
             ;;
             
         long_short)
             # Either single character with single dash or full name with double dash
-            local short_suggest="-${name[1]}"
-            local long_suggest="--${name}"
-            (( has_value )) && { short_suggest+="=$value"; long_suggest+="=$value"; }
+            local has_short=0
+            local has_long=0
+            local short_suggest=""
+            local long_suggest=""
             
-            # Fix color formatting - only colorize the option parts
-            suggestion="${p}${short_suggest}${x} or ${p}${long_suggest}${x}"
+            # Check if short option exists
+            if [[ -n "${o_short[${name[1]}]}" ]]; then
+                short_suggest="-${name[1]}"
+                (( has_value )) && short_suggest+="=$value"
+                has_short=1
+            fi
+            
+            # Check if long option exists
+            if [[ " ${(k)o_long} " == *" $name "* ]]; then
+                long_suggest="--${name}"
+                (( has_value )) && long_suggest+="=$value"
+                has_long=1
+            fi
+            
+            # Build suggestion based on what exists
+            if (( has_short && has_long )); then
+                suggestion="${p}${short_suggest}${x} or ${p}${long_suggest}${x}"
+            elif (( has_short )); then
+                suggestion="${p}${short_suggest}${x}"
+            elif (( has_long )); then
+                suggestion="${p}${long_suggest}${x}"
+            fi
             ;;
             
         short_long)
@@ -425,12 +455,19 @@ function fn_option_suggestion() {
             # 1. Short option with extra dash (--s → -s)
             # 2. Abbreviated long option (--s → --something)
             
-            # First, the simple short option suggestion
-            local short_suggestion="-${name}"
-            (( has_value )) && short_suggestion+="=$value"
-            
-            # Then, look for possible long option matches
+            local has_short=0
+            local has_long=0
+            local short_suggestion=""
             local long_suggestion=""
+            
+            # Check if short option exists
+            if [[ -n "${o_short[$name]}" ]]; then
+                short_suggestion="-${name}"
+                (( has_value )) && short_suggestion+="=$value"
+                has_short=1
+            fi
+            
+            # Look for possible long option matches
             local best_match="" best_score=0
             
             # Look for long options starting with this character
@@ -448,12 +485,16 @@ function fn_option_suggestion() {
             if [[ -n "$best_match" ]]; then
                 long_suggestion="--${best_match}"
                 (( has_value )) && long_suggestion+="=$value"
-                
-                # Fix color formatting - only colorize the option parts
+                has_long=1
+            fi
+            
+            # Build suggestion based on what exists
+            if (( has_short && has_long )); then
                 suggestion="${p}${short_suggestion}${x} or ${p}${long_suggestion}${x}"
-            else
-                # Only provide short option suggestion
+            elif (( has_short )); then
                 suggestion="${p}${short_suggestion}${x}"
+            elif (( has_long )); then
+                suggestion="${p}${long_suggestion}${x}"
             fi
             ;;
             
