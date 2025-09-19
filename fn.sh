@@ -13,7 +13,7 @@
 #  s[] - strings
 #  t[] - array to be used by the parent function
 #
-# ver. 1.1 (2025-05-20) by gh/barabasz, MIT License
+# ver. 1.2 (2025-09-19) by gh/barabasz, MIT License
 
 ##############################################
 # Function templates to be used with fn_make()
@@ -37,8 +37,13 @@ function fn_template_full() {
     a[4]="agrument4,o,description of the fourth argument"
  ## Define extra options
     # Default options are: [i]nfo, [h]elp, [v]ersion, [d]ebug, [V]erbose
-    # Format: o[<long_name>]="<short_name>,<default_value>,<description>"
-    o[something]="s,0,some other option"
+    # Format: o[<long_name>]="<short_name>,<default_value>,<description>,[allowed_values]"
+    # Examples:
+    o[something]="s,0,some other option,[0|1|2]"             # Restricts values to only 0, 1, or 2
+    o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
+    o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
+    o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
+    o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
     # Run fn_make() to parse arguments and options
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
  ## Main function
@@ -74,8 +79,8 @@ function fn_make() {
     fi
     # Arguments arrays (name, required flag, help string)
     local -A a_name; local -A a_req; local -A a_help
-    # Options arrays (default values, short names, full names, help string)
-    local -A o_default; local -A o_short; local -A o_long; local -A o_help
+    # Options arrays (default values, short names, full names, help string, allowed values)
+    local -A o_default; local -A o_short; local -A o_long; local -A o_help; local -A o_allowed
     # Error messages, hints and suggestions arrays
     local -A e_msg; local -A e_hint; local -A e_dym
     # Prepare function properties
@@ -229,7 +234,14 @@ function fn_usage() {
     for opt in ${(ok)o_long}; do
         usage+="-$p$o_long[$opt]$x"
         usage+=" or "
-        usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]\n$indent"
+        usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]"
+        
+        # Display allowed values if defined and not empty
+        if [[ -n "${o_allowed[$opt]}" && "${o_allowed[$opt]}" != "" ]]; then
+            usage+=" ${y}[${o_allowed[$opt]}]$x"
+        fi
+        
+        usage+="\n$indent"
     done
     usage="${usage%\\n\\t}"
 
@@ -666,6 +678,43 @@ function fn_parse_option() {
     
     # Set value and update tracking variables
     (( has_value == 0 )) && value="${o_default[$canonical_name]}"
+    
+    # Validate option value against allowed values if defined
+    if [[ -n "${o_allowed[$canonical_name]}" && "${o_allowed[$canonical_name]}" != "" && $has_value -eq 1 ]]; then
+        local allowed="${o_allowed[$canonical_name]}"
+        local valid=0
+        
+        # Special case for debug option - allow any combination of allowed characters
+        if [[ "$canonical_name" == "debug" ]]; then
+            valid=1
+            # Use Zsh-friendly method to iterate through characters
+            for char in ${(s::)value}; do
+                if [[ "$allowed" != *"$char"* ]]; then
+                    valid=0
+                    break
+                fi
+            done
+        else
+            # Create array of allowed values by splitting on pipe character
+            local -a allowed_values=(${(s:|:)allowed})
+            
+            # Check if the provided value matches any allowed value
+            for allowed_val in "${allowed_values[@]}"; do
+                if [[ "$value" == "$allowed_val" ]]; then
+                    valid=1
+                    break
+                fi
+            done
+        fi
+        
+        # If value is not valid, create error message
+        if [[ $valid -eq 0 ]]; then
+            e_msg[o$i]="Option $oic has invalid value '$p$value$x' in $argc"
+            e_hint[o$i]="Allowed values for this option are: $allowed"
+            return
+        fi
+    fi
+    
     o[$canonical_name]=$value
     used_opts+=" $canonical_name "  # Add spaces to ensure exact matching
     used_opts_full[$canonical_name]="$arg"
@@ -703,11 +752,11 @@ function fn_load_colors() {
 # Add default options to the $o array
 function fn_add_defaults() {
     # Add default options to the list
-    [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage"
-    [[ -z ${o[help]} ]] && o[help]="h,1,show full help"
-    [[ -z ${o[version]} ]] && o[version]="v,1,show version"
-    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help)"
-    [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode"
+    [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
+    [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
+    [[ -z ${o[version]} ]] && o[version]="v,1,show version,[0|1]"
+    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|f|h|I|i|o|s|t|V]"
+    [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
     f[opts_max]="${#o}" # maximum number of options
 }
 
@@ -758,27 +807,39 @@ function fn_parse_settings() {
         local value="${o[$key]}"
         # Split CSV value into settings
         local settings=(${(s:,:)value})
-        # Check if there are exactly 3 non-empty settings values
-        if [[ ${#settings} -ne 3 ]]; then
+        # We need at least 3 values (short name, default value, description)
+        if [[ ${#settings} -lt 3 ]]; then
             e_msg[$key]="Invalid settings for option '$y$key$x' in '$y$value$x'"
-            e_hint[$key]="Missing comma or empty value in settings string (must have 3 values/2 commas)"
+            e_hint[$key]="Missing comma or empty value in settings string (must have at least 3 values/2 commas)"
             continue
         fi
-        # Check if the optoion short name wasn't already used
+        # Check if the option short name wasn't already used
         if [[ -n ${o_short[${settings[1]}]+_} ]]; then
             e_msg[$key]="Option short name '${settings[1]}' already used in '$key' ($value)"
             e_hint[$key]="Each option must have a unique short name and a unique full name."
+            continue
         fi
         # Check if the short option name is exactly one letter
         if [[ ${#settings[1]} -ne 1 ]]; then
             e_msg[$key]="Short option name must be exactly one letter in '$key' ($value)"
             e_hint[$key]="Correct '$key' by using a single letter for the short option name."
+            continue
         fi 
         # Fill internal helper arrays
         o_default[$key]="${settings[2]}"
         o_short[${settings[1]}]=$key
         o_long[$key]="${settings[1]}"
         o_help[$key]="${settings[3]}"
+        
+        # Check for allowed values (4th element)
+        if [[ ${#settings} -ge 4 && "${settings[4]}" == \[*\] ]]; then
+            # Extract values inside square brackets
+            local allowed="${settings[4]}"
+            allowed="${allowed#\[}" # Remove opening bracket
+            allowed="${allowed%\]}" # Remove closing bracket
+            o_allowed[$key]="$allowed"
+        fi
+        
         # Unset original $o array value
         unset "o[$key]"
     done
@@ -818,13 +879,14 @@ function fn_debug() {
             [o]="Options from $y\$o[]$x array"
             [s]="Strings from $y\$s[]$x array"
             [t]="This function from $y\$t[]$x array"
+            [V]="Validation settings for options (allowed values)"
         )
         # If 'A' mode is set, enable all other modes except 'd'
         if [[ $debug =~ "A" ]]; then
-            debug="adefIiost"
+            debug="aDefIiostV"
         fi
         # If no valid mode is set, show help
-        if [[ ! $debug =~ [aDdefhIiost] ]]; then
+        if [[ ! $debug =~ [aDdefhIiostV] ]]; then
             log::info "No valid debug mode set, falling back to help mode."
             debug="h"
         fi
@@ -876,6 +938,11 @@ function fn_debug() {
             fn_list_array "o_short" "Option short names"
             fn_list_array "o_long" "Option full names"
             fn_list_array "o_help" "Option help strings"
+            fn_list_array "o_allowed" "Option allowed values"
+        fi
+        # List validation settings
+        if [[ $debug =~ "V" ]]; then
+            fn_list_array "o_allowed" "Option allowed values"
         fi
         # list arguments $a[]
         [[ $debug =~ "a" ]] && fn_list_array "a" "Arguments"
