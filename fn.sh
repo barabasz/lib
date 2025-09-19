@@ -12,6 +12,8 @@
 #  o[] - options
 #  s[] - strings
 #  t[] - array to be used by the parent function
+#
+# ver. 1.1 (2025-05-20) by gh/barabasz, MIT License
 
 ##############################################
 # Function templates to be used with fn_make()
@@ -384,101 +386,248 @@ function fn_parse_arguments() {
     fi
 }
 
+# Generate option suggestion based on error type
+function fn_option_suggestion() {
+    local error_type="$1"
+    local suggestion=""
+    
+    case $error_type in
+        too_many_dashes_short)
+            # Too many dashes for short option (single character)
+            suggestion="-${name}"
+            (( has_value )) && suggestion+="=$value"
+            ;;
+            
+        too_many_dashes_long)
+            # Too many dashes for long option (multiple characters)
+            suggestion="--${name}"
+            (( has_value )) && suggestion+="=$value"
+            ;;
+            
+        multiple_equals)
+            # Keep only the first equals sign and value
+            local fixed_value=${arg#*=}; fixed_value=${fixed_value%%=*}
+            suggestion="${arg%%=*}=${fixed_value}"
+            ;;
+            
+        long_short)
+            # Either single character with single dash or full name with double dash
+            local short_suggest="-${name[1]}"
+            local long_suggest="--${name}"
+            (( has_value )) && { short_suggest+="=$value"; long_suggest+="=$value"; }
+            
+            # Fix color formatting - only colorize the option parts
+            suggestion="${p}${short_suggest}${x} or ${p}${long_suggest}${x}"
+            ;;
+            
+        short_long)
+            # Could be either:
+            # 1. Short option with extra dash (--s → -s)
+            # 2. Abbreviated long option (--s → --something)
+            
+            # First, the simple short option suggestion
+            local short_suggestion="-${name}"
+            (( has_value )) && short_suggestion+="=$value"
+            
+            # Then, look for possible long option matches
+            local long_suggestion=""
+            local best_match="" best_score=0
+            
+            # Look for long options starting with this character
+            for key in "${(@k)o_long}"; do
+                if [[ ${key:0:1} == ${name} ]]; then
+                    # Found a long option starting with this character
+                    if [[ -z "$best_match" || ${#key} < ${#best_match} ]]; then
+                        # Either first match or shorter than previous best
+                        best_match=$key
+                        best_score=1
+                    fi
+                fi
+            done
+            
+            if [[ -n "$best_match" ]]; then
+                long_suggestion="--${best_match}"
+                (( has_value )) && long_suggestion+="=$value"
+                
+                # Fix color formatting - only colorize the option parts
+                suggestion="${p}${short_suggestion}${x} or ${p}${long_suggestion}${x}"
+            else
+                # Only provide short option suggestion
+                suggestion="${p}${short_suggestion}${x}"
+            fi
+            ;;
+            
+        unknown_short)
+            # Try to find similar short option
+            for key val in "${(@kv)o_short}"; do
+                if [[ $key == ${name[1]} ]]; then
+                    suggestion="-$key"
+                    (( has_value )) && suggestion+="=$value"
+                    suggestion="${p}${suggestion}${x}"
+                    break
+                fi
+            done
+            ;;
+            
+        unknown_long)
+            # Try to find similar long option using prefix matching
+            local best_match="" best_score=0 namelen=${#name}
+            
+            for key in "${(@k)o_long}"; do
+                # Simple similarity method - common prefix
+                local common_prefix="${name:0:1}"
+                for ((j=1; j<$namelen && j<${#key}; j++)); do
+                    [[ "${name:0:$j+1}" == "${key:0:$j+1}" ]] && common_prefix="${name:0:$j+1}"
+                done
+                
+                local score=${#common_prefix}
+                (( score > best_score )) && { best_match=$key; best_score=$score; }
+            done
+            
+            if [[ -n "$best_match" && $best_score -ge 2 ]]; then
+                suggestion="--${best_match}"
+                (( has_value )) && suggestion+="=$value"
+                suggestion="${p}${suggestion}${x}"
+            fi
+            ;;
+            
+        empty_with_equals)
+            # Empty name with equals sign (-=value or --=value)
+            if (( dashes == 1 )); then
+                # For short option format
+                suggestion="Use -o=value format for short options with values"
+            else
+                # For long option format
+                suggestion="Use --option=value format for long options with values"
+            fi
+            ;;
+    esac
+    
+    # Set the formatted "Did you mean" message in the parent scope's dym variable
+    if [[ -n "$suggestion" ]]; then
+        # If suggestion is already formatted with colors
+        if [[ "$suggestion" == *"$p"* ]]; then
+            dym="Did you mean $suggestion?"
+        else
+            dym="Did you mean '$suggestion'?"
+        fi
+        return 0  # Success - we have a suggestion
+    else
+        dym=""
+        return 1  # No suggestion found
+    fi
+}
+
 # Parse a single option
 function fn_parse_option() {
-    # Get number of leading dashes
-    local dashes=${#arg%%[![-]*}
-    # Get the option name (before the equal sign, without leading dashes)
-    local name="${arg//-}" && name="${name%%=*}"
-    # Get number of equal signs
-    local equals=${#arg//[^=]/}
-    # Get the length of the option name
-    local namelen=${#name}
-    # Get the option value (after the equal sign)
-    local value=${arg##*=}
-    # Get the length of the option value
-    local valuelen=${#value}
-    # Get a suggested value on error (for 'Did you mean ...?' messages)
-    local dym=$(fn_option_suggestion "$name" "$value")
-
-    # Variables for messages
-    local argc="'$p$arg$x'"
-    local argnamec="'$p$name$x'"
-    local dymc="'$p$dym$x'"
-    local namec="'$p$name$x'"
+    local arg="$1" i="$2" oi="$3"
     local oic="$y$oi$x"
+    local dym=""  # Will hold "Did you mean" suggestion
     
-    # Check that there are no more than 2 leading dashes
-    if (( dashes > 2 )); then
-        e_msg[o$i]="Option $oic has too many leading dashes in $argc"
-        if (( namelen == 1 )); then
-            e_hint[o$i]="Short option name must be preceded by one dash."
-        else
-            e_hint[o$i]="Full option name must be preceded by two dashes."
-        fi
-        e_dym[o$i]="Did you mean $dymc?"
-        return
-    fi
-
-    # Check if option name is not empty
+    # Extract option components
+    local dashes=${#arg%%[^-]*}
+    local has_value=0
+    [[ $arg == *=* ]] && has_value=1
+    local name="${arg#${(l:$dashes::-:)}}"; name="${name%%=*}"
+    local namelen=${#name}
+    local value=""
+    (( has_value )) && value="${arg#*=}"
+    
+    # For error messages
+    local argnamec="'$p$name$x'"
+    local argc="'$p$arg$x'"
+    
+    # Basic format validation - check for common errors
     if (( namelen == 0 )); then
-        e_msg[o$i]="Option $oic has empty name in $argc"
+        # Empty option name
+        if (( has_value )); then
+            # Empty name with equals sign (-=value or --=value)
+            e_msg[o$i]="Option $oic has empty name with equals sign in $argc"
+            e_hint[o$i]="Options must have a name before the equals sign."
+            fn_option_suggestion "empty_with_equals" && e_dym[o$i]="$dym"
+        else
+            # Just empty name (- or --)
+            e_msg[o$i]="Option $oic has empty name in $argc"
+            e_hint[o$i]="Options must have a name after the dash(es)."
+        fi
         return
-    fi
-
-    # Check if there are two leading dashes but a one-letter option name
-    if (( dashes == 2 && namelen == 1 )); then
-        e_msg[o$i]="Option $oic name must be longer than 1 character in $argc"
-        e_hint[o$i]="Two dashes must be followed by full option name. "
-        e_dym[o$i]="Did you mean $dymc?"
+    elif (( dashes > 2 )); then
+        # Too many dashes - distinguish between short and long option intent
+        if (( namelen == 1 )); then
+            # Single character suggests short option intent
+            e_msg[o$i]="Option $oic has too many leading dashes in $argc"
+            e_hint[o$i]="Option with short name should start with one dash (-)."
+            fn_option_suggestion "too_many_dashes_short" && e_dym[o$i]="$dym"
+        else
+            # Multiple characters suggests long option intent
+            e_msg[o$i]="Option $oic has too many leading dashes in $argc"
+            e_hint[o$i]="Option with long name should start with two dashes (--)."
+            fn_option_suggestion "too_many_dashes_long" && e_dym[o$i]="$dym"
+        fi
         return
-    fi
-
-    # Check if there is exactly one leading dash but the option name is longer than 1 character
-    if (( dashes == 1 && namelen > 1 )); then
+    elif [[ $arg == *=*=* ]]; then
+        # Multiple equal signs
+        e_msg[o$i]="Option $oic has multiple equal signs in $argc"
+        e_hint[o$i]="Option values must be specified using a single equal sign."
+        fn_option_suggestion "multiple_equals" && e_dym[o$i]="$dym"
+        return
+    elif (( dashes == 1 && namelen > 1 )); then
+        # Long name with single dash
         e_msg[o$i]="Option $oic name is too long in $argc"
-        e_hint[o$i]="Short names must be exactly 1 character long."
-        e_dym[o$i]="Did you mean $dymc?"
+        e_hint[o$i]="Short option names must be a single character."
+        fn_option_suggestion "long_short" && e_dym[o$i]="$dym"
+        return
+    elif (( dashes == 2 && namelen == 1 )); then
+        # Single character with double dash - ambiguous case
+        e_msg[o$i]="Option $oic name is too short in $argc"
+        e_hint[o$i]="This could be either a short option with an extra dash, or an abbreviated long option."
+        fn_option_suggestion "short_long" && e_dym[o$i]="$dym"
         return
     fi
-
-    # Check that there is no more than one equal sign
-    if (( equals > 1 )); then
-        e_msg[o$i]="Option $oic has too many equal signs in $argc"
-        e_hint[o$i]="Optional value must be preceded by a single equal sign."
-        e_dym[o$i]="Did you mean $dymc?"
-        return
-    fi
-
-    # Check if the option name is known (exists in the $o_short or $o arrays)
+    
+    # Find the canonical option name (long form)
+    local canonical_name=""
+    
+    # For short options, get the long name
     if (( dashes == 1 )); then
         if [[ -z "${o_short[$name]}" ]]; then
-            e_msg[o$i]="Option $oic short name $namec unknown in $argc"
+            # Unknown short option
+            e_msg[o$i]="Option $oic short name $argnamec unknown in $argc"
+            fn_option_suggestion "unknown_short" && e_dym[o$i]="$dym"
             return
         else
-            # Replace short option name with long one
-            name="${o_short[$name]}"
+            # Set canonical name to the long form
+            canonical_name="${o_short[$name]}"
         fi
-    elif [[ $dashes -eq 2 && -z "${o[$name]}" ]]; then
-        e_msg[o$i]="Option $oic full name $namec unknown in $argc"
+    # For long options, verify they exist
+    elif (( dashes == 2 )); then
+        if [[ ! " ${(k)o_long} " == *" $name "* ]]; then
+            # Unknown long option
+            e_msg[o$i]="Option $oic full name $argnamec unknown in $argc"
+            fn_option_suggestion "unknown_long" && e_dym[o$i]="$dym"
+            return
+        else
+            # Set canonical name to the current name (already long form)
+            canonical_name="$name"
+        fi
+    fi
+    
+    # Now check if this canonical option was already used
+    if [[ $used_opts == *" $canonical_name "* ]]; then
+        # Check if it was used with short or long name
+        local previous_usage="${used_opts_full[$canonical_name]}"
+        
+        # Create appropriate error message
+        e_msg[o$i]="Option $oic name $argnamec in $argc was already used as "
+        e_msg[o$i]+="'$p${previous_usage}$x'"
         return
     fi
-
-    # Check if the option is already used
-    if [[ $used_opts == *"$name"* ]]; then
-        e_msg[o$i]="Option $oic name $argnamec in $argc was previously used as "
-        e_msg[o$i]+="'$p${used_opts_full[$name]}$x'"
-        return
-    fi
-
-    # Set the option value to default if no value is provided
-    if (( equals == 0 )); then
-        value="${o_default[$name]}"
-    fi
-    o[$name]=$value
-    used_opts+="$name "
-    # Save the full argument for reference
-    used_opts_full[$name]="$arg"
+    
+    # Set value and update tracking variables
+    (( has_value == 0 )) && value="${o_default[$canonical_name]}"
+    o[$canonical_name]=$value
+    used_opts+=" $canonical_name "  # Add spaces to ensure exact matching
+    used_opts_full[$canonical_name]="$arg"
 }
 
 # Parse a single argument
@@ -496,20 +645,6 @@ function fn_parse_argument() {
     else
         a[$ai]="$arg"
     fi
-}
-
-# Return 'Did you mean ...?' suggestion for option errors
-function fn_option_suggestion() {
-    local name="$1" val="$2"
-    local suggestion=""
-
-    if [[ ${#name} == 1 ]]; then
-        suggestion="-${name}=$val?"
-    else
-        suggestion="--${name}=$val?"
-    fi
-
-    echo "$suggestion"
 }
 
 # Load base colors (ANSI escape codes)
@@ -590,13 +725,13 @@ function fn_parse_settings() {
         fi
         # Check if the optoion short name wasn't already used
         if [[ -n ${o_short[${settings[1]}]+_} ]]; then
-            echo "Error: Option short name '${settings[1]}' already used in '$key' ($value)"
-            f[return]=1 && return 1
+            e_msg[$key]="Option short name '${settings[1]}' already used in '$key' ($value)"
+            e_hint[$key]="Each option must have a unique short name and a unique full name."
         fi
         # Check if the short option name is exactly one letter
         if [[ ${#settings[1]} -ne 1 ]]; then
-            echo "Error: Short option name must be exactly one letter in '$key' ($value)"
-            f[return]=1 && return 1
+            e_msg[$key]="Short option name must be exactly one letter in '$key' ($value)"
+            e_hint[$key]="Correct '$key' by using a single letter for the short option name."
         fi 
         # Fill internal helper arrays
         o_default[$key]="${settings[2]}"

@@ -26,3 +26,11 @@ function test_print_arr() {
     print::arr "$(typeset -p pusta_asocjacyjna)"
 
 }
+
+function fn_template_bad() {
+    local -A a; local -A f; local -A o; local -A s
+    o[something]="s,0,some other option"
+    o[something2]="ss,0,some other option"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    echo "This is the output of the $s[name] function."
+}
