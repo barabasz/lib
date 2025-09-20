@@ -1,84 +1,23 @@
 #!/bin/zsh
-# The functions below are intended for exclusive use in the Zsh shell.
+# The functions below can only be used in the Zsh shell.
 #
 # fn_make() is a helper function for handling options and arguments.
 # It parses the options and arguments of parent function and checks for errors.
 # Additionally, it prints usage, help, and version information.
 #
 # fn_make() uses associative arrays passed via dynamic scoping:
-#  a[] - arguments
-#  f[] - function properties
-#  i[] - information (user, date, time, etc.)
-#  o[] - options
-#  s[] - strings
-#  t[] - array to be used by the parent function
+#  f[] - function properties (always required, it carries return code)
+#  a[] - arguments array (required when the function uses arguments)
+#  o[] - options array (optional, required to access options and their values)
+#  s[] - strings array (optional, used to store function strings)
+#  i[] - information array (optional, used to store environment info)
+#  t[] - this array (optional, used to store function-specific data)
 #
-# ver. 1.2 (2025-09-19) by gh/barabasz, MIT License
+# ver. 1.3 (2025-09-20) by gh/barabasz, MIT License
 
-##############################################
-# Function templates to be used with fn_make()
-##############################################
-
-# Full function template
-function fn_template_full() {
- ## Initialize required associative arrays
-    local -A a; local -A f; local -A o; local -A s; 
- ## Initialize optional associative arrays
-    # If you don't need these arrays, you can omit their initialization
-    # t[] array is optional and can be used by the parent function to store temporary values
-    local -A t
-    # i[] array is optional and stores information about the environment and execution context
-    local -A i
- ## Define function properties
-    f[info]="Template for functions." # info about the function
-    f[version]="1.05" # version of the function
-    f[date]="2025-05-20" # date of last update
-    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
- ## Define arguments
-    # Arguments are positional and must be provided in the specified sequence
-    # Format: a[<position>]="<name>,<required_flag>,<description>"
-    a[1]="argument1,r,description of the first argument"
-    a[2]="argument2,r,description of the second argument"
-    a[3]="argument3,o,description of the third argument"
-    a[4]="argument4,o,description of the fourth argument"
- ## Define extra options
-    # Default options are: [i]nfo, [h]elp, [v]ersion, [d]ebug, [V]erbose
-    # Format: o[<long_name>]="<short_name>,<default_value>,<description>,[allowed_values]"
-    # Examples:
-    o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
-    o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
-    o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
-    o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
-    o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
-    # Run fn_make() to parse arguments and options
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
- ## Main function goes here
-    # Setting a value in 'this' t[] array
-    t[test]="Abcd"
-    # Accessing arguments in a[] array:
-    echo "This is the 1st argument: ${a[argument1]}"
-    # Accessing options in o[] array:
-    echo "This is the value of the 'something' option: ${o[something]}"
-    # Accessing strings in s[] array:
-    echo "This is the name of the function: ${s[name]}"
-    # Accessing function properties in f[] array:
-    echo "This is the path to the function file: ${f[file_path]}"
-    # Accessing information in i[] array:
-    echo "This function was run by user: ${i[user]}"
-    # Debugging the t[] array
-    fn_debug t
-}
-
-# Short function template (without i[] and t[] arrays)
-function fn_template_short() {
-    local -A a; local -A f; local -A o; local -A s
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    echo "This is the output of the $s[name] function."
-}
-
-##############################################
+##########################################################
 # Main function
-##############################################
+##########################################################
 
 function fn_make() {
     # Load variables for colored output (ANSI colors)
@@ -104,12 +43,16 @@ function fn_make() {
     fn_set_properties
     # Gather basic environment information
     [[ "${(t)i}" == *"association"* ]] &&  fn_set_info
+    # Initialize o[] options associative array if not already
+    [[ "${(t)o}" != *association* ]] && local -A o
     # Add default options to the $o array
     fn_add_defaults
+    # Initialize a[] arguments associative array if not already
+    [[ "${(t)a}" != *association* ]] && local -A a
+    # Initialize s[] associative array if not already
+    [[ "${(t)s}" != *association* ]] && local -A s
     # Parse arguments and options settings arrays, exit on error
-    local timestamp=$(gdate +%s%3N 2>/dev/null)
     fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    fn_how_long_it_took "fn_parse_settings"
     # Parse function arguments
     fn_parse_arguments "$@"
     # Make function strings
@@ -124,9 +67,9 @@ function fn_make() {
     fn_handle_errors && [[ -n "${f[return]}" ]] && return "${f[return]}"
 }
 
-##############################################
-# Helper functions to be used by the make_fn()
-##############################################
+##########################################################
+# Helper functions to be used exclusively by the make_fn()
+##########################################################
 
 # Error handling
 function fn_handle_errors() {
@@ -729,7 +672,7 @@ function fn_parse_option() {
         # If value is not valid, create error message
         if [[ $valid -eq 0 ]]; then
             e_msg[o$i]="Option $oic has invalid value '$p$value$x' in $argc"
-            e_hint[o$i]="Allowed values for this option are: $allowed"
+            e_hint[o$i]="Allowed values for this option are: ${y}[$allowed]$x"
             return
         fi
     fi
@@ -834,7 +777,7 @@ function fn_parse_settings() {
     for key in ${(ok)o}; do
         local value="${o[$key]}"
         
-        # Check minimum number of commas using native Zsh operations
+        # Check minimum number of commas
         local comma_count=${value//[^,]/}
         if [[ ${#comma_count} -lt 2 ]]; then
             e_msg[$key]="Invalid settings for option '$y$key$x' in '$y$value$x'"
@@ -842,36 +785,42 @@ function fn_parse_settings() {
             continue
         fi
         
-        # Extract validation part (if exists) using native Zsh operations
-        local validation=""
-        if [[ "$value" == *,\[*\] ]]; then
-            # Find the last occurrence of ,[
-            local last_open=${value##*,\[}
-            local val_start=$((${#value} - ${#last_open} - 1))
-            validation=${value:$val_start}
-            
-            # Remove validation from the original value
-            value=${value:0:$val_start}
-        fi
-        
-        # Split into parts preserving empty fields
+        # Get first two parts - short name and default value
         local parts=("${(@s:,:)value}")
-        
-        # Get the first two fields
         local short_name="${parts[1]:-}"
         local default_value="${parts[2]:-}"
         
-        # Combine description from remaining parts
+        # Extract the validation part and clean description
+        local orig_value="$value"
+        local validation=""
         local description=""
         
-        # Zsh-specific syntax for numerical loop
-        integer i
-        for (( i=3; i<=${#parts}; i++ )); do
-            if [[ $i -gt 3 ]]; then
-                description+=","
-            fi
-            description+="${parts[i]:-}"
-        done
+        # Check if there's a validation pattern at the end
+        if [[ "$orig_value" =~ ',\[[^]]*\]$' ]]; then
+            # Find where the validation starts
+            local validation_start=${orig_value%%,\[*}
+            validation_start=$((${#validation_start}))
+            
+            # Extract validation (including leading comma and brackets)
+            validation=${orig_value:$validation_start}
+            
+            # Remove validation from original value to get raw parts
+            orig_value=${orig_value:0:$validation_start}
+        fi
+        
+        # Get description (everything after the second comma)
+        if [[ ${#parts} -gt 2 ]]; then
+            # Extract only description part (removing validation part)
+            local desc_parts=("${(@s:,:)orig_value}")
+            # Join all elements from index 3 onwards with comma
+            description="${(j:,:)desc_parts[3,-1]}"
+        fi
+        
+        # Extract allowed values from validation if present
+        local allowed_values=""
+        if [[ -n "$validation" && "$validation" =~ ',\[(.*)\]' ]]; then
+            allowed_values="${match[1]}"
+        fi
         
         # Check if short_name is already used
         if [[ -n ${o_short[$short_name]+_} ]]; then
@@ -887,18 +836,15 @@ function fn_parse_settings() {
             continue
         fi 
         
-        # Fill internal helper arrays
+        # Fill arrays
         o_default[$key]="$default_value"
         o_short[$short_name]=$key
         o_long[$key]="$short_name"
         o_help[$key]="$description"
         
-        # Handle validation if present
-        if [[ -n "$validation" ]]; then
-            # Extract content inside brackets
-            local val_content=${validation#,\[}
-            val_content=${val_content%\]}
-            o_allowed[$key]="$val_content"
+        # Add validation if found
+        if [[ -n "$allowed_values" ]]; then
+            o_allowed[$key]="$allowed_values"
         fi
         
         # Unset original option value
@@ -917,6 +863,29 @@ function fn_parse_settings() {
     fi
 
 }
+
+# Gather basic ennvironment information
+function fn_set_info() {
+    if [[ "${(t)i}" == *"association"* ]]; then
+        i[arch]=$(uname -m)             # system architecture
+        i[brew]=$+commands[brew]        # is Homebrew installed
+        i[date]=$(date +"%Y-%m-%d")     # current date
+        i[dir]=$PWD                     # current directory
+        i[domain]=$(hostname -d)        # domain name
+        i[host]=$(hostname -s)          # host name
+        i[ip]=$(lanip)                  # local IP address
+        i[os]=$(uname -s)               # operating system
+        i[time]=$(date +"%H:%M:%S")     # current time
+        i[user]=$(whoami)               # current user
+        i[zsh]=$(echo $ZSH_VERSION)     # zsh version
+        i[git]=$+commands[git]          # is git installed
+        i[tty]=$(tty | sed 's|/dev/||') # terminal type
+    fi
+}
+
+##########################################################
+# Debugging functions
+##########################################################
 
 # Print debug information
 function fn_debug() {
@@ -946,7 +915,7 @@ function fn_debug() {
         )
         # If 'A' mode is set, enable all other modes except 'd'
         if [[ $debug =~ "A" ]]; then
-            debug="aDefIiostV"
+            debug="foaIsit"
         fi
         # If no valid mode is set, show help
         if [[ ! $debug =~ [aDdefhIiostV] ]]; then
@@ -1026,48 +995,49 @@ function fn_debug() {
     fi
 }
 
-# Gather basic ennvironment information
-function fn_set_info() {
-    if [[ "${(t)i}" == *"association"* ]]; then
-        i[arch]=$(uname -m)             # system architecture
-        i[brew]=$+commands[brew]        # is Homebrew installed
-        i[date]=$(date +"%Y-%m-%d")     # current date
-        i[dir]=$PWD                     # current directory
-        i[domain]=$(hostname -d)        # domain name
-        i[host]=$(hostname -s)          # host name
-        i[ip]=$(lanip)                  # local IP address
-        i[os]=$(uname -s)               # operating system
-        i[time]=$(date +"%H:%M:%S")     # current time
-        i[user]=$(whoami)               # current user
-        i[zsh]=$(echo $ZSH_VERSION)     # zsh version
-        i[git]=$+commands[git]          # is git installed
-        i[tty]=$(tty | sed 's|/dev/||') # terminal type
-    fi
-}
-
 # Function for listing associative array contents
 function fn_list_array() {
     local array_name=$1
     local display_name=$2
-    local count
+    local array_msg="${y}${display_name}${x} ${g}\$${array_name}[]$x"
+    local mvl=45 # max value length
+    local indent="    " # left indent
     
-    # Check array size using indirect variable reference
-    if (( ${(P)#array_name} == 0 )); then
-        count="is empty."
-    else
-        count="(${(P)#array_name}):"
+    # Check if array exists
+    if [[ ! ${(P)array_name+set} ]]; then
+        log::info "$array_msg was not initialized."
+        return 1
     fi
-    
-    log::info "${y}${display_name}${x} ${g}\$${array_name}[]$x $count"
-    
+
+    # Check if it is an associative array
+    if [[ "${(Pt)array_name}" != *association* ]]; then
+        log::info "$array_msg is not an associative array."
+        return 1
+    fi
+
+    # Check if array is empty
+    if [[ -z ${(P)array_name} ]]; then
+        log::info "$array_msg is empty."
+        return 0
+    fi
+
+    # Print array contents
+    log::info "$array_msg (${(P)#array_name}):"
     # Iterate through array elements
     local key value
     for key value in "${(@Pkv)array_name}"; do
-        echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
+        # Clean up value for display
+        value=${value//$'\n'/} && value=${value//$'\r'/}
+        value=${value//   / } && value=${value//  / }
+        value=${value//$'\e'(\[[0-9;]##[[:alpha:]])/}
+        (( ${#value} > mvl )) && value="${value[1,mvl]}$y...$x"
+        echo "$indent${(r:$max_key_length:)key} $arr $q$value$q"
     done | sort
+    return 0
 }
 
-# Aux function to print milliseconds from start
+# Auxiliary function to print milliseconds from $timestamp
+# timestamp=$(gdate +%s%3N 2>/dev/null)
 function fn_how_long_it_took() {
     local r=$(ansi bright red)
     local x=$(ansi reset)
@@ -1076,4 +1046,83 @@ function fn_how_long_it_took() {
     local now=$(gdate +%s%3N 2>/dev/null)
     local diff=$((now - start))
     print -- "${r}[${(l:4:: :)diff} ms]${x} $stage"
+}
+
+##########################################################
+# Function examples and templates
+##########################################################
+
+# Full function example with all features and detailed comments
+function fn_function_example() {
+ ## Initialize required f[] associative array (it carries function properties)
+    local -A f
+ ## Initialize optional associative arrays (you can omit their initialization)
+    # a[] array is used to store arguments, omit if not use arguments
+    local -A a
+    # o[] array is used to specify options and their values, omit if not use extra options
+    local -A o
+    # s[] array can be used to store string values
+    local -A s
+    # t[] array can be used to store this function's data
+    local -A t
+    # i[] array stores information about the environment and execution context
+    local -A i
+ ## Define function properties
+    f[info]="Template for functions." # info about the function
+    f[version]="1.1" # version of the function
+    f[date]="2025-05-20" # date of last update
+    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
+ ## Define arguments
+    # Arguments are positional and must be provided in the specified sequence
+    # Format: a[<position>]="<name>,<required_flag>,<description>"
+    a[1]="argument1,r,description of the first argument"
+    a[2]="argument2,r,description of the second argument"
+    a[3]="argument3,o,description of the third argument"
+    a[4]="argument4,o,description of the fourth argument"
+ ## Define extra options
+    # Default options are: [i]nfo, [h]elp, [v]ersion, [d]ebug, [V]erbose
+    # Format: o[<long_name>]="<short_name>,<default_value>,<description>,[allowed_values]"
+    # Options examples:
+    o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
+    o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
+    o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
+    o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
+    o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
+    # Run fn_make() to parse arguments and options
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+ ## Main function goes here
+    # Setting a value in 'this' t[] array
+    t[example]="This a function example."
+    # Accessing arguments in a[] array:
+    echo "This is the 1st argument: ${a[argument1]}"
+    # Accessing options in o[] array:
+    echo "This is the value of the 'something' option: ${o[something]}"
+    # Accessing strings in s[] array:
+    echo "This is the name of the function: ${s[name]}"
+    # Accessing function properties in f[] array:
+    echo "This is the path to the function file: ${f[file_path]}"
+    # Accessing information in i[] array:
+    echo "This function was run by user: ${i[user]}"
+    # Debugging the t[] array
+    fn_debug t
+}
+
+# Basic function template (one argument and no extra options)
+function fn_function_template() {
+    local -A a; local -A f
+    f[info]="Template for functions."
+    f[version]="1.05"
+    f[date]="2025-05-20"
+    a[1]="argument1,r,description of the first argument"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+ ## Main function goes here
+    # [...]
+}
+
+# Minimal function template (without arguments and extra options)
+function fn_function_template_short() {
+    local -A f
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+ ## Main function goes here
+    # [...]
 }

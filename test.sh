@@ -27,10 +27,20 @@ function test_print_arr() {
 
 }
 
-function fn_template_bad() {
-    local -A a; local -A f; local -A o; local -A s
-    o[something]="s,0,some other option"
-    o[something2]="ss,0,some other option"
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    echo "This is the output of the $s[name] function."
+function is_array_empty() {
+    local array_name=$1
+    if (( ${(P)#array_name} == 0 )); then
+        print "$array_name is empty."
+    else 
+        print "$array_name is not empty."
+    fi
+}
+
+function is_array_initialized() {
+    local array_name=$1
+    if [[ "${(Pt)array_name}" != *association* ]]; then
+        print "$array_name was not initialized."
+    else
+        print "$array_name was initialized."
+    fi
 }

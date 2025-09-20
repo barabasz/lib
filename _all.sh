@@ -695,37 +695,6 @@ function wheref() {
 # File: fn.sh
 #
 
-function fn_template_full() {
-    local -A a; local -A f; local -A o; local -A s; 
-    local -A t
-    local -A i
-    f[info]="Template for functions." # info about the function
-    f[version]="1.05" # version of the function
-    f[date]="2025-05-20" # date of last update
-    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    a[1]="argument1,r,description of the first argument"
-    a[2]="argument2,r,description of the second argument"
-    a[3]="argument3,o,description of the third argument"
-    a[4]="argument4,o,description of the fourth argument"
-    o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
-    o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
-    o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
-    o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
-    o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    t[test]="Abcd"
-    echo "This is the 1st argument: ${a[argument1]}"
-    echo "This is the value of the 'something' option: ${o[something]}"
-    echo "This is the name of the function: ${s[name]}"
-    echo "This is the path to the function file: ${f[file_path]}"
-    echo "This function was run by user: ${i[user]}"
-    fn_debug t
-}
-function fn_template_short() {
-    local -A a; local -A f; local -A o; local -A s
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    echo "This is the output of the $s[name] function."
-}
 function fn_make() {
     fn_load_colors
     if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
@@ -741,10 +710,11 @@ function fn_make() {
     local -A e_msg; local -A e_hint; local -A e_dym
     fn_set_properties
     [[ "${(t)i}" == *"association"* ]] &&  fn_set_info
+    [[ "${(t)o}" != *association* ]] && local -A o
     fn_add_defaults
-    local timestamp=$(gdate +%s%3N 2>/dev/null)
+    [[ "${(t)a}" != *association* ]] && local -A a
+    [[ "${(t)s}" != *association* ]] && local -A s
     fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    fn_how_long_it_took "fn_parse_settings"
     fn_parse_arguments "$@"
     fn_set_strings
     fn_set_time $time_start
@@ -1199,7 +1169,7 @@ function fn_parse_option() {
         fi
         if [[ $valid -eq 0 ]]; then
             e_msg[o$i]="Option $oic has invalid value '$p$value$x' in $argc"
-            e_hint[o$i]="Allowed values for this option are: $allowed"
+            e_hint[o$i]="Allowed values for this option are: ${y}[$allowed]$x"
             return
         fi
     fi
@@ -1275,24 +1245,26 @@ function fn_parse_settings() {
             e_hint[$key]="Missing comma or empty value in settings string (must have at least 3 values/2 commas)"
             continue
         fi
-        local validation=""
-        if [[ "$value" == *,\[*\] ]]; then
-            local last_open=${value##*,\[}
-            local val_start=$((${#value} - ${#last_open} - 1))
-            validation=${value:$val_start}
-            value=${value:0:$val_start}
-        fi
         local parts=("${(@s:,:)value}")
         local short_name="${parts[1]:-}"
         local default_value="${parts[2]:-}"
+        local orig_value="$value"
+        local validation=""
         local description=""
-        integer i
-        for (( i=3; i<=${#parts}; i++ )); do
-            if [[ $i -gt 3 ]]; then
-                description+=","
-            fi
-            description+="${parts[i]:-}"
-        done
+        if [[ "$orig_value" =~ ',\[[^]]*\]$' ]]; then
+            local validation_start=${orig_value%%,\[*}
+            validation_start=$((${#validation_start}))
+            validation=${orig_value:$validation_start}
+            orig_value=${orig_value:0:$validation_start}
+        fi
+        if [[ ${#parts} -gt 2 ]]; then
+            local desc_parts=("${(@s:,:)orig_value}")
+            description="${(j:,:)desc_parts[3,-1]}"
+        fi
+        local allowed_values=""
+        if [[ -n "$validation" && "$validation" =~ ',\[(.*)\]' ]]; then
+            allowed_values="${match[1]}"
+        fi
         if [[ -n ${o_short[$short_name]+_} ]]; then
             e_msg[$key]="Option short name '$short_name' already used in '$key' ($value)"
             e_hint[$key]="Each option must have a unique short name and a unique full name."
@@ -1307,10 +1279,8 @@ function fn_parse_settings() {
         o_short[$short_name]=$key
         o_long[$key]="$short_name"
         o_help[$key]="$description"
-        if [[ -n "$validation" ]]; then
-            local val_content=${validation#,\[}
-            val_content=${val_content%\]}
-            o_allowed[$key]="$val_content"
+        if [[ -n "$allowed_values" ]]; then
+            o_allowed[$key]="$allowed_values"
         fi
         unset "o[$key]"
     done
@@ -1322,6 +1292,23 @@ function fn_parse_settings() {
             log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
         done
         f[return]=1 && return 1
+    fi
+}
+function fn_set_info() {
+    if [[ "${(t)i}" == *"association"* ]]; then
+        i[arch]=$(uname -m)             # system architecture
+        i[brew]=$+commands[brew]        # is Homebrew installed
+        i[date]=$(date +"%Y-%m-%d")     # current date
+        i[dir]=$PWD                     # current directory
+        i[domain]=$(hostname -d)        # domain name
+        i[host]=$(hostname -s)          # host name
+        i[ip]=$(lanip)                  # local IP address
+        i[os]=$(uname -s)               # operating system
+        i[time]=$(date +"%H:%M:%S")     # current time
+        i[user]=$(whoami)               # current user
+        i[zsh]=$(echo $ZSH_VERSION)     # zsh version
+        i[git]=$+commands[git]          # is git installed
+        i[tty]=$(tty | sed 's|/dev/||') # terminal type
     fi
 }
 function fn_debug() {
@@ -1348,7 +1335,7 @@ function fn_debug() {
             [V]="Validation settings for options (allowed values)"
         )
         if [[ $debug =~ "A" ]]; then
-            debug="aDefIiostV"
+            debug="foaIsit"
         fi
         if [[ ! $debug =~ [aDdefhIiostV] ]]; then
             log::info "No valid debug mode set, falling back to help mode."
@@ -1407,37 +1394,34 @@ function fn_debug() {
         [[ $debug =~ "e" ]] && f[return]=0 && return 0
     fi
 }
-function fn_set_info() {
-    if [[ "${(t)i}" == *"association"* ]]; then
-        i[arch]=$(uname -m)             # system architecture
-        i[brew]=$+commands[brew]        # is Homebrew installed
-        i[date]=$(date +"%Y-%m-%d")     # current date
-        i[dir]=$PWD                     # current directory
-        i[domain]=$(hostname -d)        # domain name
-        i[host]=$(hostname -s)          # host name
-        i[ip]=$(lanip)                  # local IP address
-        i[os]=$(uname -s)               # operating system
-        i[time]=$(date +"%H:%M:%S")     # current time
-        i[user]=$(whoami)               # current user
-        i[zsh]=$(echo $ZSH_VERSION)     # zsh version
-        i[git]=$+commands[git]          # is git installed
-        i[tty]=$(tty | sed 's|/dev/||') # terminal type
-    fi
-}
 function fn_list_array() {
     local array_name=$1
     local display_name=$2
-    local count
-    if (( ${(P)#array_name} == 0 )); then
-        count="is empty."
-    else
-        count="(${(P)#array_name}):"
+    local array_msg="${y}${display_name}${x} ${g}\$${array_name}[]$x"
+    local mvl=45 # max value length
+    local indent="    " # left indent
+    if [[ ! ${(P)array_name+set} ]]; then
+        log::info "$array_msg was not initialized."
+        return 1
     fi
-    log::info "${y}${display_name}${x} ${g}\$${array_name}[]$x $count"
+    if [[ "${(Pt)array_name}" != *association* ]]; then
+        log::info "$array_msg is not an associative array."
+        return 1
+    fi
+    if [[ -z ${(P)array_name} ]]; then
+        log::info "$array_msg is empty."
+        return 0
+    fi
+    log::info "$array_msg (${(P)#array_name}):"
     local key value
     for key value in "${(@Pkv)array_name}"; do
-        echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
+        value=${value//$'\n'/} && value=${value//$'\r'/}
+        value=${value//   / } && value=${value//  / }
+        value=${value//$'\e'(\[[0-9;]##[[:alpha:]])/}
+        (( ${#value} > mvl )) && value="${value[1,mvl]}$y...$x"
+        echo "$indent${(r:$max_key_length:)key} $arr $q$value$q"
     done | sort
+    return 0
 }
 function fn_how_long_it_took() {
     local r=$(ansi bright red)
@@ -1447,6 +1431,47 @@ function fn_how_long_it_took() {
     local now=$(gdate +%s%3N 2>/dev/null)
     local diff=$((now - start))
     print -- "${r}[${(l:4:: :)diff} ms]${x} $stage"
+}
+function fn_function_example() {
+    local -A f
+    local -A a
+    local -A o
+    local -A s
+    local -A t
+    local -A i
+    f[info]="Template for functions." # info about the function
+    f[version]="1.05" # version of the function
+    f[date]="2025-05-20" # date of last update
+    f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
+    a[1]="argument1,r,description of the first argument"
+    a[2]="argument2,r,description of the second argument"
+    a[3]="argument3,o,description of the third argument"
+    a[4]="argument4,o,description of the fourth argument"
+    o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
+    o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
+    o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
+    o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
+    o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    t[example]="This a function example."
+    echo "This is the 1st argument: ${a[argument1]}"
+    echo "This is the value of the 'something' option: ${o[something]}"
+    echo "This is the name of the function: ${s[name]}"
+    echo "This is the path to the function file: ${f[file_path]}"
+    echo "This function was run by user: ${i[user]}"
+    fn_debug t
+}
+function fn_function_template() {
+    local -A a; local -A f
+    f[info]="Template for functions."
+    f[version]="1.05"
+    f[date]="2025-05-20"
+    a[1]="argument1,r,description of the first argument"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+}
+function fn_function_template_short() {
+    local -A f
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
 }
 
 #
@@ -2609,12 +2634,21 @@ function test_print_arr() {
     log::info "\nPusta tablica asocjacyjna:"
     print::arr "$(typeset -p pusta_asocjacyjna)"
 }
-function fn_template_bad() {
-    local -A a; local -A f; local -A o; local -A s
-    o[something]="s,0,some other option"
-    o[something2]="ss,0,some other option"
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
-    echo "This is the output of the $s[name] function."
+function is_array_empty() {
+    local array_name=$1
+    if (( ${(P)#array_name} == 0 )); then
+        print "$array_name is empty."
+    else 
+        print "$array_name is not empty."
+    fi
+}
+function is_array_initialized() {
+    local array_name=$1
+    if [[ "${(Pt)array_name}" != *association* ]]; then
+        print "$array_name was not initialized."
+    else
+        print "$array_name was initialized."
+    fi
 }
 
 #
