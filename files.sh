@@ -348,46 +348,60 @@ function lnsconfdir() {
     fi
 }
 
-# Universal better type command for bash and zsh
-# returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'
-function utype() {
-    local -A f; local -A o; local -A a; local -A s; local -A t
-    f[info]="Universal better type command for bash and zsh."
-    f[help]="Returns: 'file', 'alias', 'function', 'keyword', 'builtin' or 'not found'"
-    f[args_required]="command"
-    f[opts]="debug help info version"
-    f[version]="0.2"; f[date]="2025-05-06"
-    fn_make2 "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[opts_count]"
-### main function
-    local output
-    if [[ $(shellname) == 'bash' ]]; then
-        output=$(type -t $1)
-        if [[ -z $output ]]; then
-            echo "not found"
+# utype: universal ultra-fast type detector for bash and zsh
+# Returns (stdout + exit 0): one of: file | alias | function | keyword | builtin
+# Returns (stdout + exit 1): notfound (command does not exist)
+# Returns (no stdout, exit 1): usage / internal error
+utype() {
+    # Argument validation (exactly one argument)
+    [[ $# -eq 1 ]] || return 1
+    local cmd="$1"
+
+    # Use shell-specific methods for faster detection
+    if [[ -n "$BASH_VERSION" ]]; then
+        # In bash, use type -t which returns a single word
+        local type_result=$(type -t -- "$cmd" 2>/dev/null)
+        if [[ -n "$type_result" ]]; then
+            printf '%s\n' "$type_result"
+            return 0
+        else
+            printf '%s\n' "notfound"
             return 1
         fi
-    elif [[ $(shellname) == 'zsh' ]]; then
-        tp=$(type $1)
-        if [[ $(echo $tp | \grep -o 'not found') ]]; then
-            echo "not found"
-            return 1
-        elif [[ $(echo $tp | \grep -o 'is /') ]]; then
-            output='file'
-        elif [[ $(echo $tp | \grep -o 'alias') ]]; then
-            output='alias'
-        elif [[ $(echo $tp | \grep -o 'shell function') ]]; then
-            output='function'
-        elif [[ $(echo $tp | \grep -o 'reserved') ]]; then
-            output='keyword'
-        elif [[ $(echo $tp | \grep -o 'builtin') ]]; then
-            output='builtin'
-        fi
-    else
-        echo "utype: unsupported shell"
-        return 1
+    elif [[ -n "$ZSH_VERSION" ]]; then
+        # In zsh, use whence -w for precise results
+        case $(whence -w -- "$cmd" 2>/dev/null) in
+            (*: alias*) printf 'alias\n'; return 0 ;;
+            (*: function*) printf 'function\n'; return 0 ;;
+            (*: builtin*) printf 'builtin\n'; return 0 ;;
+            (*: command*) printf 'file\n'; return 0 ;;
+            (*: reserved*) printf 'keyword\n'; return 0 ;;
+            (*: none*) printf 'notfound\n'; return 1 ;;
+            (*: file*) printf 'file\n'; return 0 ;;
+            (*) printf 'notfound\n'; return 1 ;;
+        esac
     fi
-    echo $output
+
+    # Fallback to POSIX-compliant method using command -V
+    local command_result
+    if ! command_result=$(LC_ALL=C command -V -- "$cmd" 2>/dev/null); then
+        printf '%s\n' "notfound"
+        return 1
+    else
+        case $command_result in
+            (*"is an alias"*) printf 'alias\n'; return 0 ;;
+            (*"is a function"* | *"function $cmd "*) printf 'function\n'; return 0 ;;
+            (*"is a shell keyword"* | *"reserved word"*) printf 'keyword\n'; return 0 ;;
+            (*"is a shell builtin"* | *"shell builtin"*) printf 'builtin\n'; return 0 ;;
+            (*"not found"*) printf 'notfound\n'; return 1 ;;
+            (*"is"* | *"file"*) printf 'file\n'; return 0 ;;
+            (*alias*) printf 'alias\n'; return 0 ;;
+            (*function*) printf 'function\n'; return 0 ;;
+            (*word*) printf 'keyword\n'; return 0 ;;
+            (*builtin*) printf 'builtin\n'; return 0 ;;
+            (*) printf 'notfound\n'; return 1 ;;
+        esac
+    fi
 }
 
 # Finds the file where a function is defined
