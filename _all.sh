@@ -746,7 +746,7 @@ function fn_add_defaults() {
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
     [[ -z ${o[version]} ]] && o[version]="v,1,show version,[0|1]"
-    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|E|f|h|I|i|o|s|t|V]"
+    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|E|f|h|I|i|o|O|s|t]"
     [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
     f[opts_max]="${#o}" # maximum number of options
 }
@@ -1111,7 +1111,12 @@ function fn_parse_argument() {
     fi
 }
 function fn_usage() {
-    local i=1 usage="\n" max_len=0 a_pad o_pad v_pad indent="    "
+    local i=1
+    local usage="\n"
+    local max_len=0
+    local indent="    "
+    local arr="$b→$x"
+    local a_pad o_pad
     if [[ ${#a} -ne 0 ]]; then
         for arg in ${(ok)a}; do
             (( ${#arg} > max_len )) && max_len=${#arg}
@@ -1124,7 +1129,6 @@ function fn_usage() {
     fi
     (( a_pad = max_len + 6 ))
     (( o_pad = max_len + 2 ))
-    (( v_pad = max_len + 16 ))
     usage+="${y}Usage details:$x\n$indent$s[name] ${p}[options]${x} "
     if [[ $f[args_min] -eq 1 ]]; then
         usage+="${c}<${a_name[1]}>${x} "
@@ -1138,9 +1142,10 @@ function fn_usage() {
     fi
     if [[ $f[args_min] -ne 0 ]]; then
         usage+="\n\n${y}Required arguments:$x\n$indent"
-        for arg in ${(ok)a}; do
+        for arg_pos in ${(ok)a_name}; do
+            local arg="${a_name[$arg_pos]}"
             if [[ $a_req[$arg] == "required" ]]; then
-                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
+                usage+="$i: $c${(r:$a_pad:: :)arg}$arr $a_help[$arg]\n$indent";
                 ((i++))
             fi
         done
@@ -1148,9 +1153,10 @@ function fn_usage() {
     fi
     if [[ $f[args_opt] -ne 0 ]]; then
         usage+="\n${y}Optional arguments:$x\n$indent"
-        for arg in ${(ok)a}; do
+        for arg_pos in ${(ok)a_name}; do
+            local arg="${a_name[$arg_pos]}"
             if [[ $a_req[$arg] == "optional" ]]; then
-                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
+                usage+="$i: $c${(r:$a_pad:: :)arg}$arr $a_help[$arg]\n$indent";
                 ((i++))
             fi
         done
@@ -1159,11 +1165,18 @@ function fn_usage() {
     (( ${#a} == 0 )) && usage+="\n"
     usage+="\n${y}Options:$x\n$indent"
     for opt in ${(ok)o_long}; do
-        usage+="-$p$o_long[$opt]$x"
-        usage+=" or "
-        usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]"
-        if [[ -n "${o_allowed[$opt]}" && "${o_allowed[$opt]}" != "" ]]; then
-            usage+="\n${(l:$v_pad:: :)""}${y}${o_allowed[$opt]//|/, }$x"
+        usage+="-$p$o_long[$opt]$x or --${p}${(r:$o_pad:: :)opt}$arr $o_help[$opt]"
+        if [[ -n "${o_allowed[$opt]}" && ! "debug info version verbose help" == *"$opt"* ]]; then
+            usage+=": "
+            local allowed="${o_allowed[$opt]}"
+            if [[ -n "${o_default[$opt]}" && "${o_default[$opt]}" != "" ]]; then
+                local default="${o_default[$opt]}"
+                local default_c="$y${o_default[$opt]}$x"
+                allowed="${allowed//$default/$default_c}"
+            fi
+            local replace="$x,$p "
+            allowed="$p${allowed//|/$replace}$x"
+            usage+="$allowed"
         fi
         usage+="\n$indent"
     done
@@ -1178,7 +1191,7 @@ function fn_usage() {
     if [[ $f[opts_max] -gt 0 ]]; then
         usage+="\n${p}Options$x may be submitted in any place and in any order."
         usage+="\nTo pass a value to a supported options, use the syntax ${p}--option=value$x."
-        usage+="\nOptions without a value take the default value from the settings."
+        usage+="\n${p}Options$x without a value take the ${y}default$x value from the settings."
         usage+="\nTo list option default values, use the ${p}--debug=D$x option."
     fi
     s[usage]="$usage\n"
@@ -1198,6 +1211,7 @@ function fn_hint() {
         log::info "Run $s[name] ${p}-h$x for help."
     else
         log::info "Check source code for usage information."
+        fn_source
         log::comment $s[source]
     fi
 }
@@ -1328,25 +1342,22 @@ function fn_debug() {
         local q="$y'$x"
         local arr="$b→$x"
         local -A modes=(
-            [A]="All possible arrays"
+            [A]="Internal $y\$a_*[]$x argument arrays"
             [a]="Arguments from $y\$a[]$x array"
             [D]="Default values for options"
             [d]="Disable debugging inside ${g}fn_make$x"
             [e]="Exit after debugging"
-            [E]="Internal error arrays"
+            [E]="Internal $y\$e_*[]$x error arrays"
             [f]="Function properties from $y\$f[]$x array"
             [h]="Help $y(default)$x"
-            [I]="Internal ${g}fn_make$x arrays"
+            [I]="All internal arrays"
             [i]="Information from $y\$i[]$x array"
+            [O]="Internal $y\$o_*[]$x option arrays"
             [o]="Options from $y\$o[]$x array"
             [s]="Strings from $y\$s[]$x array"
             [t]="This function from $y\$t[]$x array"
-            [V]="Validation settings for options (allowed values)"
         )
-        if [[ $debug =~ "A" ]]; then
-            debug="foaIsit"
-        fi
-        if [[ ! $debug =~ [aDdeEfhIiostV] ]]; then
+        if [[ ! $debug =~ [AaDdeEfhIiOost] ]]; then
             log::info "No valid debug mode set, falling back to help mode."
             debug="h"
         fi
@@ -1380,22 +1391,23 @@ function fn_debug() {
         if [[ $debug =~ "D" ]]; then
             fn_list_array "o_default" "Option default values"
         fi
-        if [[ $debug =~ "I" ]]; then
+        if [[ $debug =~ "A" ]]; then
             fn_list_array "a_name" "Argument names"
             fn_list_array "a_req" "Required arguments"
             fn_list_array "a_help" "Argument help strings"
-            fn_list_array "o_default" "Option default values"
+        fi
+        if [[ $debug =~ "O" ]]; then
+            fn_list_array "o_long" "Option long names"
             fn_list_array "o_short" "Option short names"
-            fn_list_array "o_long" "Option full names"
             fn_list_array "o_help" "Option help strings"
             fn_list_array "o_allowed" "Option allowed values"
+            fn_list_array "o_default" "Option default values"
         fi
         if [[ $debug =~ "E" ]]; then
             fn_list_array "e_msg" "Error messages"
             fn_list_array "e_hint" "Error hints"
             fn_list_array "e_dym" "Error suggestions"
         fi
-        [[ $debug =~ "V" ]] && fn_list_array "o_allowed" "Option allowed values"
         [[ $debug =~ "a" ]] && fn_list_array "a" "Arguments"
         [[ $debug =~ "o" ]] && fn_list_array "o" "Options"
         [[ $debug =~ "f" ]] && fn_list_array "f" "Function properties"
@@ -1475,11 +1487,11 @@ function fn_function_example() {
     a[2]="arg_two,r,description of the second argument"
     a[3]="arg_three,o,description of the third argument"
     a[4]="arg_four,o,description of the fourth argument"
-    o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
-    o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
-    o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
-    o[name]="n,,custom name"                                  # Empty default value, accepts any user input (no validation)
-    o[path]="p,/tmp,file path,[]"                             # Has default value, but accepts any user input (empty brackets)
+    o[something]="s,0,some other option,[0|1|2]" # Restricts values to only 0, 1, or 2
+    o[level]="l,medium,difficulty level,[easy|medium|hard]" # Only specific predefined values allowed
+    o[format]="f,json,output format,[csv|json|xml|text|tsv]" # Only specific format values allowed
+    o[name]="n,,custom name" # Empty default value, accepts any user input (no validation)
+    o[path]="p,/tmp,file path,[]" # Has default value, but accepts any user input (empty brackets)
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
     t[example]="This a function example."
     echo "This is the 1st argument: ${a[argument1]}"
