@@ -13,10 +13,17 @@
 #   i[] - information array (optional, used to store environment info)
 #   t[] - this array (optional, used to store function-specific data)
 #
+# Public API:
+#   - fn_make()
+#   - fn_debug() - can only be called after fn_make()
+# All other functions are private and should not be called directly.
+# Internal fn.sh functions rely on dynamic scoping to access the above arrays.
+# See the examples at the end of this file for usage.
+#
 # TOC
-#   Main function
+#   Main public function
 #       fn_make() - main function
-#   Helper functions
+#   Helper private functions
 #       fn_set_properties() - prepare function properties
 #       fn_add_defaults() - add default options to the $o array
 #       fn_parse_settings() - parse arguments and options settings arrays
@@ -936,7 +943,7 @@ function fn_handle_errors() {
         fn_hint
         f[return]=1 && return 1
     else
-        f[return]=0 && return 0
+        f[return]="" && return 0
     fi
 }
 
@@ -1079,6 +1086,7 @@ function fn_load_colors() {
 
 # List associative array contents
 function fn_list_array() {
+    setopt localoptions extended_glob
     local array_name=$1
     local display_name=$2
     local array_msg="${y}${display_name}${x} ${g}\$${array_name}[]$x"
@@ -1136,6 +1144,184 @@ function fn_how_long_it_took() {
     local now=$(gdate +%s%3N 2>/dev/null)
     local diff=$((now - start))
     print -- "${r}[${(l:4:: :)diff} ms]${x} $stage"
+}
+
+##########################################################
+# Self-test function
+##########################################################
+
+function fn_self_test() {
+    setopt localoptions extended_glob
+    local quiet=0
+    [[ "$1" == "-q" ]] && quiet=1
+
+    local -i total=0 pass=0 fail=0
+    local -a failed_names
+
+    # Strip ANSI escape sequences (pattern aligned with fn_list_array)
+    _fst_strip_ansi() {
+        setopt localoptions extended_glob
+        local s="$1"
+        print -- "${s//$'\e'(\[[0-9;]##[[:alpha:]])/}"
+    }
+
+    # Generic test runner
+    # _fst_run "NAME" "command" "expected substring (optional)" expected_rc
+    _fst_run() {
+        local name="$1" command="$2" expect_sub="$3" expect_rc="$4"
+        local out rc clean ok=1
+        (( total++ ))
+        out=$(eval "$command" 2>&1)
+        rc=$?
+        clean=$(_fst_strip_ansi "$out")
+
+        if [[ -n "$expect_rc" ]]; then
+            if (( rc != expect_rc )); then
+                ok=0
+                (( quiet == 0 )) && echo "[FAIL][$name] Return code $rc (expected $expect_rc)"
+            fi
+        fi
+        if [[ -n "$expect_sub" ]]; then
+            if [[ "$clean" != *"$expect_sub"* ]]; then
+                ok=0
+                if (( quiet == 0 )); then
+                    echo "[FAIL][$name] Missing substring: $expect_sub"
+                    echo "---- OUTPUT (clean) ----"
+                    echo "$clean"
+                    echo "------------------------"
+                fi
+            fi
+        fi
+
+        if (( ok )); then
+            (( pass++ ))
+            (( quiet == 0 )) && echo "[OK  ][$name]"
+        else
+            (( fail++ ))
+            failed_names+=("$name")
+        fi
+    }
+
+    # Test function with arguments and options (does NOT preload defaults into o[])
+    # Prints both user-used and default states explicitly.
+    _fst_func_args() {
+        local -A f a o
+        f[info]="Self-test function (args+opts)."
+        f[version]="0.1"
+        f[date]="2025-09-21"
+        a[1]="first,r,first argument"
+        a[2]="second,r,second argument"
+        a[3]="third,o,third argument"
+        o[level]="l,medium,difficulty level,[easy|medium|hard]"
+        o[mode]="m,fast,execution mode,[fast|slow]"
+        fn_make "$@"
+        [[ -n "${f[return]}" ]] && return "${f[return]}"
+
+        # Report arguments actually captured
+        print -- "ARGS first='${a[first]}' second='${a[second]}' third='${a[third]}'"
+
+        # Report option state: SET if present in o[], else UNSET with default
+        for opt in level mode; do
+            if [[ -n ${o[$opt]+_} ]]; then
+                print -- "SET:${opt}=${o[$opt]}"
+            else
+                # If no default (empty), show empty
+                print -- "UNSET(${opt} default=${o_default[$opt]})"
+            fi
+        done
+        return 0
+    }
+
+    # Test function for options only
+    _fst_func_opts() {
+        local -A f o
+        f[info]="Self-test options only."
+        o[alpha]="a,1,alpha flag,[0|1]"
+        o[color]="c,red,color value,[red|green|blue]"
+        fn_make "$@"
+        [[ -n "${f[return]}" ]] && return "${f[return]}"
+
+        for opt in alpha color; do
+            if [[ -n ${o[$opt]+_} ]]; then
+                print -- "SET:${opt}=${o[$opt]}"
+            else
+                print -- "UNSET(${opt} default=${o_default[$opt]})"
+            fi
+        done
+        return 0
+    }
+
+    # No-args function
+    _fst_func_none() {
+        local -A f
+        f[info]="No-args function."
+        fn_make "$@"
+        [[ -n "${f[return]}" ]] && return "${f[return]}"
+        print -- "OK no-args"
+        return 0
+    }
+
+    # ANSI test function (info path should include f[info] inside header)
+    _fst_func_ansi() {
+        local -A f
+        f[info]=$'\e[31mRED_TEXT\e[0m'
+        fn_make "$@"
+        [[ -n "${f[return]}" ]] && return "${f[return]}"
+        return 0
+    }
+
+    # ---------------------------
+    # Test set (adapted to semantics: o[] only == user-passed)
+    # ---------------------------
+
+    _fst_run "NO_ARGS_OK"          "_fst_func_none"                                  "OK no-args" 0
+    _fst_run "ARGS_REQUIRED_OK"    "_fst_func_args one two"                          "ARGS first='one' second='two' third=''" 0
+    _fst_run "ARGS_WITH_OPTIONAL"  "_fst_func_args one two three"                    "third='three'" 0
+    _fst_run "ARGS_MISSING"        "_fst_func_args one"                              "Missing required argument" 1
+    _fst_run "ARGS_TOO_MANY"       "_fst_func_args one two three four"               "Too many arguments" 1
+
+    # Defaults: options NOT passed → UNSET(... default=<value>)
+    _fst_run "OPTS_DEFAULTS"       "_fst_func_args one two"                          "UNSET(level default=medium)" 0
+
+    # Overrides: user sets options → SET:level=hard
+    _fst_run "OPTS_OVERRIDE"       "_fst_func_args one two --level=hard --mode=slow" "SET:level=hard" 0
+
+    _fst_run "OPTS_INVALID_VALUE"  "_fst_func_args one two --level=impossible"       "invalid value" 1
+    _fst_run "OPTS_DUPLICATE"      "_fst_func_opts --color=red --color=green"        "already used" 1
+
+    # Defaults for second function
+    _fst_run "OPTS_DEFAULT_ALPHA"  "_fst_func_opts"                                  "UNSET(alpha default=1)" 0
+
+    # User sets both
+    _fst_run "OPTS_CHANGED"        "_fst_func_opts --alpha=0 --color=blue"           "SET:color=blue" 0
+    _fst_run "OPTS_COLOR_INVALID"  "_fst_func_opts --color=yellow"                   "invalid value" 1
+
+    # Debug mode: ensure Function properties appear
+    _fst_run "DEBUG_MODE_F"        "_fst_func_args one two -d=f"                     "Function properties" 0
+
+    # ANSI info: use -i so header with f[info] is printed
+    _fst_run "ANSI_INFO"           "_fst_func_ansi -i"                               "RED_TEXT" 0
+
+    # Local ANSI stripper verification
+    _fst_run "ANSI_STRIPPER_LOCAL" "_fst_strip_ansi \$'\e[32mGREEN\e[0m plain'"      "GREEN plain" 0
+
+    # ---------------------------
+    # Summary
+    # ---------------------------
+    local summary="SELF-TEST: total=$total pass=$pass fail=$fail"
+    if (( fail > 0 )); then
+        echo "$summary"
+        if (( quiet == 0 )); then
+            echo "Failed tests:"
+            for t in "${failed_names[@]}"; do
+                echo "  - $t"
+            done
+        fi
+        (( fail > 255 )) && return 255 || return $fail
+    else
+        echo "$summary (OK)"
+        return 0
+    fi
 }
 
 ##########################################################
