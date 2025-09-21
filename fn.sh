@@ -109,7 +109,7 @@ function fn_make() {
     # Make function strings
     fn_set_strings
     # Save total time
-    fn_set_time $time_start
+    fn_set_time
     # Print debug information
     fn_debug && [[ -n "${f[return]}" ]] && return "${f[return]}"
     # Options handling (show version, basic info/usage or help)
@@ -1127,9 +1127,10 @@ function fn_debug() {
         [[ $debug =~ "s" ]] && fn_list_array "s" "Strings"
         # list this function values $t[]
         [[ $debug =~ "t" ]] && fn_list_array "t" "This function"
-        # debug footer
+        # Debug footer
         print::footer "${r}Debug end$x"
-        # exit if debug mode is set to 'e'
+        # Exit if debug mode is set to 'e' and destroy a flag that fn_make() is running
+        unset "f[run]"
         [[ $debug =~ "e" ]] && f[return]=0 && return 0
     fi
 }
