@@ -1150,6 +1150,27 @@ function fn_how_long_it_took() {
 # Self-test function
 ##########################################################
 
+# -------------------------------------------------------
+# Self-test harness (internal) – public entry point: fn_self_test
+# Public contract of this library: user code should normally call only:
+#   - fn_make (mandatory inside user-defined wrapper function)
+#   - fn_debug (optional, after fn_make)
+# All other functions in this file are internal.
+#
+# Invocation:
+#   fn_self_test        # full verbose output
+#   fn_self_test -q     # quiet mode (only summary)
+#
+# Exit codes:
+#   0   – all tests passed
+#   >0  – number of failed tests (capped at 255)
+#
+# Design goals:
+#   - No external tools (perl/sed) beyond standard shell + your log functions.
+#   - Uses local miniature test functions that call fn_make like a user would.
+#   - Strips ANSI sequences before substring checks.
+#   - Does not mutate global state of production arrays outside its scope.
+# -------------------------------------------------------
 function fn_self_test() {
     setopt localoptions extended_glob
     local quiet=0
