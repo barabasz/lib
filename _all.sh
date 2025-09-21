@@ -725,35 +725,6 @@ function fn_make() {
     fn_handle_options && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_handle_errors && [[ -n "${f[return]}" ]] && return "${f[return]}"
 }
-function fn_handle_errors() {
-    if [[ ${#e_msg} != 0 ]]; then
-        [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
-        log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
-        for key in ${(ok)e_msg}; do
-            local value="${e_msg[$key]}"
-            log::error "$value"
-            [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]" 
-            [[ $e_dym[$key] ]] && log::info "$e_dym[$key]"
-        done
-        echo "$s[hint]"
-        f[return]=1 && return 1
-    fi
-}
-function fn_handle_options() {
-    if [[ "$o[version]" -eq "1" || "$o[info]" -eq "1" || "$o[help]" -eq "1" ]]; then
-        if [[ "$o[version]" -eq "1" ]]; then
-            echo $s[version]
-        elif [[ "$o[info]" -eq "1" ]]; then
-            [[ $f[info] ]] && echo $s[header]
-            echo $s[example]
-        elif [[ "$o[help]" -eq "1" ]]; then
-            [[ $f[info] ]] && echo "\n$s[header]"
-            [[ $f[help] ]] && echo $f[help]
-            echo "$s[example]\n$s[usage]\n\n$s[footer]\n$s[source]\n"
-        fi
-        f[return]=0 && return 0
-    fi
-}
 function fn_set_properties() {
     f[time_started]=$(date +"%Y-%m-%d %H:%M:%S")
     (( $+commands[gdate] )) && f[time_fnmake_start]=$(gdate +%s%3N) || f[time_fnmake_start]=$(date +%s)
@@ -771,161 +742,109 @@ function fn_set_properties() {
     f[opts_input]="" # string of options passed
     f[return]="" # return value
 }
-function fn_set_time() {
-    (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
-    local time_diff=$((time_end - f[time_fnmake_start]))
-    f[time_fnmake]=$time_diff
-    unset "f[time_fnmake_start]"
+function fn_add_defaults() {
+    [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
+    [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
+    [[ -z ${o[version]} ]] && o[version]="v,1,show version,[0|1]"
+    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|E|f|h|I|i|o|s|t|V]"
+    [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
+    f[opts_max]="${#o}" # maximum number of options
 }
-function fn_usage() {
-    local i=1 usage="\n" max_len=0 a_pad o_pad indent="    "
-    if [[ ${#a} -ne 0 ]]; then
-        for arg in ${(ok)a}; do
-            (( ${#arg} > max_len )) && max_len=${#arg}
+function fn_parse_settings() {
+    if (( ${#a} != 0 )); then
+        fn_parse_settings_args
+    fi
+    fn_parse_settings_opts
+    if [[ ${#e_msg} != 0 ]]; then
+        [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
+        log::debug "$r${#e_msg} fatal error$plr in function $g$f[name]$x ${r}settings:$x"
+        for key in ${(ok)e_msg}; do
+            local value="${e_msg[$key]}"
+            log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
         done
+        f[return]=1 && return 1
     fi
-    if [[ ${#o_help} -ne 0 ]]; then
-        for oh in ${(ok)o_help}; do
-            (( ${#oh} > max_len )) && max_len=${#oh}
-        done
-    fi
-    (( a_pad = max_len + 6 ))
-    (( o_pad = max_len + 1 ))
-    usage+="${y}Usage details:$x\n$indent$s[name] ${p}[options]${x} "
-    if [[ $f[args_min] -eq 1 ]]; then
-        usage+="${c}<${a_name[1]}>${x} "
-    elif [[ $f[args_min] -ne 0 ]]; then
-        usage+="${c}<arguments>${x} "
-    fi
-    if [[ $f[args_opt] -eq 1 ]]; then
-        usage+="${c}[${a_name[1]}]${x}"
-    elif [[ $f[args_opt] -ne 0 ]]; then
-        usage+="${c}[arguments]${x}"
-    fi
-    if [[ $f[args_min] -ne 0 ]]; then
-        usage+="\n\n${y}Required arguments:$x\n$indent"
-        for arg in ${(ok)a}; do
-            if [[ $a_req[$arg] == "required" ]]; then
-                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
-                ((i++))
-            fi
-        done
-        usage="${usage%\\n\\t}"
-    fi
-    if [[ $f[args_opt] -ne 0 ]]; then
-        usage+="\n${y}Optional arguments:$x\n$indent"
-        for arg in ${(ok)a}; do
-            if [[ $a_req[$arg] == "optional" ]]; then
-                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
-                ((i++))
-            fi
-        done
-        usage="${usage%\\n\\t}"
-    fi
-    (( ${#a} == 0 )) && usage+="\n"
-    usage+="\n${y}Options:$x\n$indent"
-    for opt in ${(ok)o_long}; do
-        usage+="-$p$o_long[$opt]$x"
-        usage+=" or "
-        usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]"
-        if [[ -n "${o_allowed[$opt]}" && "${o_allowed[$opt]}" != "" ]]; then
-            usage+=" ${y}[${o_allowed[$opt]}]$x"
+}
+function fn_parse_settings_args() {
+    for key in ${(ok)a}; do
+        local value="${a[$key]}"
+        local settings=(${(s:,:)value})
+        if [[ ${#settings} -ne 3 ]]; then
+            e_msg[$key]="Invalid argument $y$key$x format in '$y$value$x'"
+            e_hint[$key]="Missing comma or empty value in settings string (must have 3 values/2 commas)"
+            continue
         fi
-        usage+="\n$indent"
+        a_name[$key]="${settings[1]}"
+        if [[ -n ${a[${settings[1]}]+_} ]]; then
+            e_msg[$key]="Argument $y$key$x name '$y${settings[1]}$x' already used before"
+            e_hint[$key]="Correct '$y$value$x' by giving a unique name"
+            continue
+        fi
+        if [[ "ro" != *"${settings[2]}"* ]]; then
+            e_msg[$key]="Invalid argument $y$key$x type '$y${settings[2]}$x' in '$y$value$x'"
+            e_hint[$key]="Argument type must be '${y}r$x' (required) or '${y}o$x' (optional)"
+            continue
+        fi
+        if [[ ${settings[2]} == r ]]; then
+            a_req[${settings[1]}]=required
+            (( f[args_min]++ ))
+        else
+            a_req[${settings[1]}]=optional
+            (( f[args_opt]++ ))
+        fi
+        a_help[${settings[1]}]="${settings[3]}"
+        unset "a[$key]"
+        a[${settings[1]}]=""
     done
-    usage="${usage%\\n\\t}"
-    if [[ $f[args_max] -gt 1 ]]; then
-        usage+="\n${c}Arguments$x must be provided in the specified sequence."
-    fi
-    if [[ $f[args_opt] -gt 1 ]]; then
-        usage+="\nTo skip an argument, pass an empty value $c\"\"$x (only valid for optional arguments)."
-    fi
-    (( f[args_max] > 0 )) && usage+=$'\n'
-    if [[ $f[opts_max] -gt 0 ]]; then
-        usage+="\n${p}Options$x may be submitted in any place and in any order."
-        usage+="\nTo pass a value to a supported options, use the syntax ${p}--option=value$x."
-        usage+="\nOptions without a value take the default value from the settings."
-        usage+="\nTo list option default values, use the ${p}--debug=D$x option."
-    fi
-    printf "$usage\n"
 }
-function fn_version() {
-    printf "$s[name]"
-    [[ -n $f[version] ]] && printf " $y$f[version]$x" || printf " [version unknown]"
-    [[ -n $f[date] ]] && printf " ($f[date])"
-}
-function fn_hint() {
-    if [[ $f[info] && $f[help] ]]; then
-        log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
-    elif [[ $f[info] ]]; then
-        log::info "Run $s[name] ${p}-i$x for usage information."
-    elif [[ $f[help] ]]; then
-        log::info "Run $s[name] ${p}-h$x for help."
-    else
-        log::info "Check source code for usage information."
-        log::comment $s[source]
-    fi
-}
-function fn_source() {
-    local file="$f[file_path]"
-    local string="${f[name]}() {"
-    local line="$(grep -n "$string" "$file" | head -n 1 | cut -d: -f1)"
-    echo "This function is defined in $s[path] (line $c$line$x)"
-}
-function fn_footer() {
-    printf "$s[version] copyright © "
-    [[ -n $f[date] ]] && printf "$s[year] "
-    printf "by $s[author]\n"
-    printf "MIT License : https://opensource.org/licenses/MIT"
-}
-function fn_example() {
-    local indent="    "
-    [[ $o[help] == 1 ]] && printf "\n"
-    printf "${y}Usage example:$x" 
-    [[ $o[help] == 1 ]] && printf "\n$indent" || printf " "
-    printf "$s[name] "
-    if [[ ${#a} -ne 0 ]]; then
-        for arg in ${(ok)a}; do
-            if [[ $a_req[$arg] == "required" ]]; then
-                printf "${c}<${arg}>${x} "
-            else
-                printf "${c}[$arg]${x} "
-            fi
-        done | sort | tr -d '\n'
-    fi
-    [[ $o[info] == 1 ]] && printf "\nRun '$s[name] ${p}-h$x' for more help."
-}
-function fn_set_strings() {
-    s[name]="${g}$f[name]$x"
-    s[path]="${c}$f[file_path]$x"
-    s[author]="${y}$f[author]$x"
-    s[year]="${y}${f[date]:0:4}$x"
-    s[header]="$s[name]: $f[info]"
-    s[version]="$(fn_version)"
-    s[footer]="$(fn_footer)"
-    s[example]="$(fn_example)"
-    s[source]="$(fn_source)"
-    s[usage]="$(fn_usage)"
-    s[hint]="$(fn_hint)"
-}
-function fn_check_args() {
-    (( f[args_min] <= f[args_count] && f[args_count] <= f[args_max] )) && return
-    local expected="expected $y$f[args_min]$x"
-    local given="given $y$f[args_count]$x"
-    (( f[args_max] == 0 && f[args_count] > 0 )) && {
-        echo "No arguments expected ($given)"
-        return
-    }
-    (( f[args_count] < f[args_min] )) && {
-        local msg="Missing required argument"
-        (( f[args_min] - f[args_count] > 1 )) && msg+="s"
-        echo "$msg ($expected, $given)"
-        return
-    }
-    (( f[args_count] > f[args_max] )) && {
-        echo "Too many arguments ($expected to $y$f[args_max]$x, $given)"
-        return
-    }
+function fn_parse_settings_opts() {
+    for key in ${(ok)o}; do
+        local value="${o[$key]}"
+        local comma_count=${value//[^,]/}
+        if [[ ${#comma_count} -lt 2 ]]; then
+            e_msg[$key]="Invalid settings for option '$y$key$x' in '$y$value$x'"
+            e_hint[$key]="Missing comma or empty value in settings string (must have at least 3 values/2 commas)"
+            continue
+        fi
+        local parts=("${(@s:,:)value}")
+        local short_name="${parts[1]:-}"
+        local default_value="${parts[2]:-}"
+        local orig_value="$value"
+        local validation=""
+        local description=""
+        if [[ "$orig_value" =~ ',\[[^]]*\]$' ]]; then
+            local validation_start=${orig_value%%,\[*}
+            validation_start=$((${#validation_start}))
+            validation=${orig_value:$validation_start}
+            orig_value=${orig_value:0:$validation_start}
+        fi
+        if [[ ${#parts} -gt 2 ]]; then
+            local desc_parts=("${(@s:,:)orig_value}")
+            description="${(j:,:)desc_parts[3,-1]}"
+        fi
+        local allowed_values=""
+        if [[ -n "$validation" && "$validation" =~ ',\[(.*)\]' ]]; then
+            allowed_values="${match[1]}"
+        fi
+        if [[ -n ${o_short[$short_name]+_} ]]; then
+            e_msg[$key]="Option short name '$short_name' already used in '$key' ($value)"
+            e_hint[$key]="Each option must have a unique short name and a unique full name."
+            continue
+        fi
+        if [[ ${#short_name} -ne 1 ]]; then
+            e_msg[$key]="Short option name must be exactly one letter in '$key' ($value)"
+            e_hint[$key]="Correct '$key' by using a single letter for the short option name."
+            continue
+        fi 
+        o_default[$key]="$default_value"
+        o_short[$short_name]=$key
+        o_long[$key]="$short_name"
+        o_help[$key]="$description"
+        if [[ -n "$allowed_values" ]]; then
+            o_allowed[$key]="$allowed_values"
+        fi
+        unset "o[$key]"
+    done
 }
 function fn_parse_arguments() {
     local used_opts=""
@@ -947,9 +866,114 @@ function fn_parse_arguments() {
     f[args_count]=$ai
     f[opts_input]="${f[opts_input]%" "}"
     f[args_input]="${f[args_input]%" "}"
-    if [[ f[args_count] -lt $f[args_min] || $f[args_count] -gt $f[args_max] ]]; then
-        e_msg[0]=$(fn_check_args)
+    if (( f[args_count] < f[args_min] || f[args_count] > f[args_max] )); then
+        fn_check_args
     fi
+}
+function fn_parse_option() {
+    local arg="$1" i="$2" oi="$3"
+    local oic="$y$oi$x"
+    local dym=""  # Will hold "Did you mean" suggestion
+    local dashes=${#arg%%[^-]*}
+    local has_value=0
+    [[ $arg == *=* ]] && has_value=1
+    local name="${arg#${(l:$dashes::-:)}}"; name="${name%%=*}"
+    local namelen=${#name}
+    local value=""
+    (( has_value )) && value="${arg#*=}"
+    local argnamec="'$p$name$x'"
+    local argc="'$p$arg$x'"
+    if (( namelen == 0 )); then
+        if (( has_value )); then
+            e_msg[o$i]="Option $oic has empty name with equals sign in $argc"
+            e_hint[o$i]="Options must have a name before the equals sign."
+            fn_option_suggestion "empty_with_equals" && e_dym[o$i]="$dym"
+        else
+            e_msg[o$i]="Option $oic has empty name in $argc"
+            e_hint[o$i]="Options must have a name after the dash(es)."
+        fi
+        return
+    elif (( dashes > 2 )); then
+        if (( namelen == 1 )); then
+            e_msg[o$i]="Option $oic has too many leading dashes in $argc"
+            e_hint[o$i]="Option with short name should start with one dash (-)."
+            fn_option_suggestion "too_many_dashes_short" && e_dym[o$i]="$dym"
+        else
+            e_msg[o$i]="Option $oic has too many leading dashes in $argc"
+            e_hint[o$i]="Option with long name should start with two dashes (--)."
+            fn_option_suggestion "too_many_dashes_long" && e_dym[o$i]="$dym"
+        fi
+        return
+    elif [[ $arg == *=*=* ]]; then
+        e_msg[o$i]="Option $oic has multiple equal signs in $argc"
+        e_hint[o$i]="Option values must be specified using a single equal sign."
+        fn_option_suggestion "multiple_equals" && e_dym[o$i]="$dym"
+        return
+    elif (( dashes == 1 && namelen > 1 )); then
+        e_msg[o$i]="Option $oic name is too long in $argc"
+        e_hint[o$i]="Short option names must be a single character."
+        fn_option_suggestion "long_short" && e_dym[o$i]="$dym"
+        return
+    elif (( dashes == 2 && namelen == 1 )); then
+        e_msg[o$i]="Option $oic name is too short in $argc"
+        e_hint[o$i]="This could be either a short option with an extra dash, or an abbreviated long option."
+        fn_option_suggestion "short_long" && e_dym[o$i]="$dym"
+        return
+    fi
+    local canonical_name=""
+    if (( dashes == 1 )); then
+        if [[ -z "${o_short[$name]}" ]]; then
+            e_msg[o$i]="Option $oic short name $argnamec unknown in $argc"
+            fn_option_suggestion "unknown_short" && e_dym[o$i]="$dym"
+            return
+        else
+            canonical_name="${o_short[$name]}"
+        fi
+    elif (( dashes == 2 )); then
+        if [[ ! " ${(k)o_long} " == *" $name "* ]]; then
+            e_msg[o$i]="Option $oic full name $argnamec unknown in $argc"
+            fn_option_suggestion "unknown_long" && e_dym[o$i]="$dym"
+            return
+        else
+            canonical_name="$name"
+        fi
+    fi
+    if [[ $used_opts == *" $canonical_name "* ]]; then
+        local previous_usage="${used_opts_full[$canonical_name]}"
+        e_msg[o$i]="Option $oic name $argnamec in $argc was already used as "
+        e_msg[o$i]+="'$p${previous_usage}$x'"
+        return
+    fi
+    (( has_value == 0 )) && value="${o_default[$canonical_name]}"
+    if [[ -n "${o_allowed[$canonical_name]}" && "${o_allowed[$canonical_name]}" != "" && $has_value -eq 1 ]]; then
+        local allowed="${o_allowed[$canonical_name]}"
+        local valid=0
+        if [[ "$canonical_name" == "debug" ]]; then
+            valid=1
+            for char in ${(s::)value}; do
+                if [[ "$allowed" != *"$char"* ]]; then
+                    valid=0
+                    break
+                fi
+            done
+        else
+            local -a allowed_values=(${(s:|:)allowed})
+            for allowed_val in "${allowed_values[@]}"; do
+                if [[ "$value" == "$allowed_val" ]]; then
+                    valid=1
+                    break
+                fi
+            done
+        fi
+        if [[ $valid -eq 0 ]]; then
+            e_msg[o$i]="Option $oic has invalid value '$p$value$x' in $argc"
+            e_hint[o$i]="Allowed values for this option are: ${y}[$allowed]$x"
+            return
+        fi
+    fi
+    o[$canonical_name]=$value
+    used_opts+=" $canonical_name "  # Add spaces to ensure exact matching
+    used_opts_full[$canonical_name]="$arg"
 }
 function fn_option_suggestion() {
     local error_type="$1"
@@ -1075,111 +1099,6 @@ function fn_option_suggestion() {
         return 1  # No suggestion found
     fi
 }
-function fn_parse_option() {
-    local arg="$1" i="$2" oi="$3"
-    local oic="$y$oi$x"
-    local dym=""  # Will hold "Did you mean" suggestion
-    local dashes=${#arg%%[^-]*}
-    local has_value=0
-    [[ $arg == *=* ]] && has_value=1
-    local name="${arg#${(l:$dashes::-:)}}"; name="${name%%=*}"
-    local namelen=${#name}
-    local value=""
-    (( has_value )) && value="${arg#*=}"
-    local argnamec="'$p$name$x'"
-    local argc="'$p$arg$x'"
-    if (( namelen == 0 )); then
-        if (( has_value )); then
-            e_msg[o$i]="Option $oic has empty name with equals sign in $argc"
-            e_hint[o$i]="Options must have a name before the equals sign."
-            fn_option_suggestion "empty_with_equals" && e_dym[o$i]="$dym"
-        else
-            e_msg[o$i]="Option $oic has empty name in $argc"
-            e_hint[o$i]="Options must have a name after the dash(es)."
-        fi
-        return
-    elif (( dashes > 2 )); then
-        if (( namelen == 1 )); then
-            e_msg[o$i]="Option $oic has too many leading dashes in $argc"
-            e_hint[o$i]="Option with short name should start with one dash (-)."
-            fn_option_suggestion "too_many_dashes_short" && e_dym[o$i]="$dym"
-        else
-            e_msg[o$i]="Option $oic has too many leading dashes in $argc"
-            e_hint[o$i]="Option with long name should start with two dashes (--)."
-            fn_option_suggestion "too_many_dashes_long" && e_dym[o$i]="$dym"
-        fi
-        return
-    elif [[ $arg == *=*=* ]]; then
-        e_msg[o$i]="Option $oic has multiple equal signs in $argc"
-        e_hint[o$i]="Option values must be specified using a single equal sign."
-        fn_option_suggestion "multiple_equals" && e_dym[o$i]="$dym"
-        return
-    elif (( dashes == 1 && namelen > 1 )); then
-        e_msg[o$i]="Option $oic name is too long in $argc"
-        e_hint[o$i]="Short option names must be a single character."
-        fn_option_suggestion "long_short" && e_dym[o$i]="$dym"
-        return
-    elif (( dashes == 2 && namelen == 1 )); then
-        e_msg[o$i]="Option $oic name is too short in $argc"
-        e_hint[o$i]="This could be either a short option with an extra dash, or an abbreviated long option."
-        fn_option_suggestion "short_long" && e_dym[o$i]="$dym"
-        return
-    fi
-    local canonical_name=""
-    if (( dashes == 1 )); then
-        if [[ -z "${o_short[$name]}" ]]; then
-            e_msg[o$i]="Option $oic short name $argnamec unknown in $argc"
-            fn_option_suggestion "unknown_short" && e_dym[o$i]="$dym"
-            return
-        else
-            canonical_name="${o_short[$name]}"
-        fi
-    elif (( dashes == 2 )); then
-        if [[ ! " ${(k)o_long} " == *" $name "* ]]; then
-            e_msg[o$i]="Option $oic full name $argnamec unknown in $argc"
-            fn_option_suggestion "unknown_long" && e_dym[o$i]="$dym"
-            return
-        else
-            canonical_name="$name"
-        fi
-    fi
-    if [[ $used_opts == *" $canonical_name "* ]]; then
-        local previous_usage="${used_opts_full[$canonical_name]}"
-        e_msg[o$i]="Option $oic name $argnamec in $argc was already used as "
-        e_msg[o$i]+="'$p${previous_usage}$x'"
-        return
-    fi
-    (( has_value == 0 )) && value="${o_default[$canonical_name]}"
-    if [[ -n "${o_allowed[$canonical_name]}" && "${o_allowed[$canonical_name]}" != "" && $has_value -eq 1 ]]; then
-        local allowed="${o_allowed[$canonical_name]}"
-        local valid=0
-        if [[ "$canonical_name" == "debug" ]]; then
-            valid=1
-            for char in ${(s::)value}; do
-                if [[ "$allowed" != *"$char"* ]]; then
-                    valid=0
-                    break
-                fi
-            done
-        else
-            local -a allowed_values=(${(s:|:)allowed})
-            for allowed_val in "${allowed_values[@]}"; do
-                if [[ "$value" == "$allowed_val" ]]; then
-                    valid=1
-                    break
-                fi
-            done
-        fi
-        if [[ $valid -eq 0 ]]; then
-            e_msg[o$i]="Option $oic has invalid value '$p$value$x' in $argc"
-            e_hint[o$i]="Allowed values for this option are: ${y}[$allowed]$x"
-            return
-        fi
-    fi
-    o[$canonical_name]=$value
-    used_opts+=" $canonical_name "  # Add spaces to ensure exact matching
-    used_opts_full[$canonical_name]="$arg"
-}
 function fn_parse_argument() {
     local aic="$y$ai$x"
     if [[ $a_req[$a_name[$ai]] == "required" && -z $arg ]]; then
@@ -1191,111 +1110,166 @@ function fn_parse_argument() {
         a[$ai]="$arg"
     fi
 }
-function fn_load_colors() {
-    b=$(ansi blue)          # arrows
-    c=$(ansi cyan)          # arguments, url, file path
-    g=$(ansi green)         # function name
-    p=$(ansi bright purple) # options
-    r=$(ansi red)           # errors
-    w=$(ansi white)         # plain text
-    y=$(ansi yellow)        # highlight
-    x=$(ansi reset)         # reset
-}
-function fn_add_defaults() {
-    [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
-    [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
-    [[ -z ${o[version]} ]] && o[version]="v,1,show version,[0|1]"
-    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|f|h|I|i|o|s|t|V]"
-    [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
-    f[opts_max]="${#o}" # maximum number of options
-}
-function fn_parse_settings() {
-    for key in ${(ok)a}; do
-        local value="${a[$key]}"
-        local settings=(${(s:,:)value})
-        if [[ ${#settings} -ne 3 ]]; then
-            e_msg[$key]="Invalid argument $y$key$x format in '$y$value$x'"
-            e_hint[$key]="Missing comma or empty value in settings string (must have 3 values/2 commas)"
-            continue
-        fi
-        a_name[$key]="${settings[1]}"
-        if [[ -n ${a[${settings[1]}]+_} ]]; then
-            e_msg[$key]="Argument $y$key$x name '$y${settings[1]}$x' already used before"
-            e_hint[$key]="Correct '$y$value$x' by giving a unique name"
-            continue
-        fi
-        if [[ "ro" != *"${settings[2]}"* ]]; then
-            e_msg[$key]="Invalid argument $y$key$x type '$y${settings[2]}$x' in '$y$value$x'"
-            e_hint[$key]="Argument type must be '${y}r$x' (required) or '${y}o$x' (optional)"
-            continue
-        fi
-        if [[ ${settings[2]} == r ]]; then
-            a_req[${settings[1]}]=required
-            (( f[args_min]++ ))
-        else
-            a_req[${settings[1]}]=optional
-            (( f[args_opt]++ ))
-        fi
-        a_help[${settings[1]}]="${settings[3]}"
-        unset "a[$key]"
-        a[${settings[1]}]=""
-    done
-    for key in ${(ok)o}; do
-        local value="${o[$key]}"
-        local comma_count=${value//[^,]/}
-        if [[ ${#comma_count} -lt 2 ]]; then
-            e_msg[$key]="Invalid settings for option '$y$key$x' in '$y$value$x'"
-            e_hint[$key]="Missing comma or empty value in settings string (must have at least 3 values/2 commas)"
-            continue
-        fi
-        local parts=("${(@s:,:)value}")
-        local short_name="${parts[1]:-}"
-        local default_value="${parts[2]:-}"
-        local orig_value="$value"
-        local validation=""
-        local description=""
-        if [[ "$orig_value" =~ ',\[[^]]*\]$' ]]; then
-            local validation_start=${orig_value%%,\[*}
-            validation_start=$((${#validation_start}))
-            validation=${orig_value:$validation_start}
-            orig_value=${orig_value:0:$validation_start}
-        fi
-        if [[ ${#parts} -gt 2 ]]; then
-            local desc_parts=("${(@s:,:)orig_value}")
-            description="${(j:,:)desc_parts[3,-1]}"
-        fi
-        local allowed_values=""
-        if [[ -n "$validation" && "$validation" =~ ',\[(.*)\]' ]]; then
-            allowed_values="${match[1]}"
-        fi
-        if [[ -n ${o_short[$short_name]+_} ]]; then
-            e_msg[$key]="Option short name '$short_name' already used in '$key' ($value)"
-            e_hint[$key]="Each option must have a unique short name and a unique full name."
-            continue
-        fi
-        if [[ ${#short_name} -ne 1 ]]; then
-            e_msg[$key]="Short option name must be exactly one letter in '$key' ($value)"
-            e_hint[$key]="Correct '$key' by using a single letter for the short option name."
-            continue
-        fi 
-        o_default[$key]="$default_value"
-        o_short[$short_name]=$key
-        o_long[$key]="$short_name"
-        o_help[$key]="$description"
-        if [[ -n "$allowed_values" ]]; then
-            o_allowed[$key]="$allowed_values"
-        fi
-        unset "o[$key]"
-    done
-    if [[ ${#e_msg} != 0 ]]; then
-        [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
-        log::debug "$r${#e_msg} fatal error$plr in function $g$f[name]$x ${r}settings:$x"
-        for key in ${(ok)e_msg}; do
-            local value="${e_msg[$key]}"
-            log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
+function fn_usage() {
+    local i=1 usage="\n" max_len=0 a_pad o_pad v_pad indent="    "
+    if [[ ${#a} -ne 0 ]]; then
+        for arg in ${(ok)a}; do
+            (( ${#arg} > max_len )) && max_len=${#arg}
         done
-        f[return]=1 && return 1
     fi
+    if [[ ${#o_help} -ne 0 ]]; then
+        for oh in ${(ok)o_help}; do
+            (( ${#oh} > max_len )) && max_len=${#oh}
+        done
+    fi
+    (( a_pad = max_len + 6 ))
+    (( o_pad = max_len + 2 ))
+    (( v_pad = max_len + 16 ))
+    usage+="${y}Usage details:$x\n$indent$s[name] ${p}[options]${x} "
+    if [[ $f[args_min] -eq 1 ]]; then
+        usage+="${c}<${a_name[1]}>${x} "
+    elif [[ $f[args_min] -ne 0 ]]; then
+        usage+="${c}<arguments>${x} "
+    fi
+    if [[ $f[args_opt] -eq 1 ]]; then
+        usage+="${c}[${a_name[1]}]${x}"
+    elif [[ $f[args_opt] -ne 0 ]]; then
+        usage+="${c}[arguments]${x}"
+    fi
+    if [[ $f[args_min] -ne 0 ]]; then
+        usage+="\n\n${y}Required arguments:$x\n$indent"
+        for arg in ${(ok)a}; do
+            if [[ $a_req[$arg] == "required" ]]; then
+                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
+                ((i++))
+            fi
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    if [[ $f[args_opt] -ne 0 ]]; then
+        usage+="\n${y}Optional arguments:$x\n$indent"
+        for arg in ${(ok)a}; do
+            if [[ $a_req[$arg] == "optional" ]]; then
+                usage+="$i: $c${(r:$a_pad:: :)arg}$b→$x $a_help[$arg]\n$indent";
+                ((i++))
+            fi
+        done
+        usage="${usage%\\n\\t}"
+    fi
+    (( ${#a} == 0 )) && usage+="\n"
+    usage+="\n${y}Options:$x\n$indent"
+    for opt in ${(ok)o_long}; do
+        usage+="-$p$o_long[$opt]$x"
+        usage+=" or "
+        usage+="--${p}${(r:$o_pad:: :)opt}$b→$x $o_help[$opt]"
+        if [[ -n "${o_allowed[$opt]}" && "${o_allowed[$opt]}" != "" ]]; then
+            usage+="\n${(l:$v_pad:: :)""}${y}${o_allowed[$opt]//|/, }$x"
+        fi
+        usage+="\n$indent"
+    done
+    usage="${usage%\\n\\t}"
+    if [[ $f[args_max] -gt 1 ]]; then
+        usage+="\n${c}Arguments$x must be provided in the specified sequence."
+    fi
+    if [[ $f[args_opt] -gt 1 ]]; then
+        usage+="\nTo skip an argument, pass an empty value $c\"\"$x (only valid for optional arguments)."
+    fi
+    (( f[args_max] > 0 )) && usage+=$'\n'
+    if [[ $f[opts_max] -gt 0 ]]; then
+        usage+="\n${p}Options$x may be submitted in any place and in any order."
+        usage+="\nTo pass a value to a supported options, use the syntax ${p}--option=value$x."
+        usage+="\nOptions without a value take the default value from the settings."
+        usage+="\nTo list option default values, use the ${p}--debug=D$x option."
+    fi
+    s[usage]="$usage\n"
+}
+function fn_version() {
+    local version="$s[name]"
+    [[ -n $f[version] ]] && version+=" $y$f[version]$x" || version+=" [version unknown]"
+    [[ -n $f[date] ]] && version+=" ($f[date])"
+    s[version]="$version"
+}
+function fn_hint() {
+    if [[ $f[info] && $f[help] ]]; then
+        log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
+    elif [[ $f[info] ]]; then
+        log::info "Run $s[name] ${p}-i$x for usage information."
+    elif [[ $f[help] ]]; then
+        log::info "Run $s[name] ${p}-h$x for help."
+    else
+        log::info "Check source code for usage information."
+        log::comment $s[source]
+    fi
+}
+function fn_source() {
+    local file="$f[file_path]"
+    local string="${f[name]}() {"
+    local line="$(grep -n "$string" "$file" | head -n 1 | cut -d: -f1)"
+    s[source]="This function is defined in $s[path] (line $c$line$x)"
+}
+function fn_footer() {
+    local footer=""
+    footer+="$s[version] copyright © "
+    [[ -n $f[date] ]] && footer+="$s[year] "
+    footer+="by $s[author]\n"
+    footer+="MIT License : https://opensource.org/licenses/MIT"
+    s[footer]="$footer"
+}
+function fn_example() {
+    local indent="    " arg_pos arg_name example=""
+    [[ $o[help] == 1 ]] && example+="\n"
+    example+="${y}Usage example:$x" 
+    [[ $o[help] == 1 ]] && example+="\n$indent" || example+=" "
+    example+="$s[name] "
+    if [[ ${#a} -ne 0 ]]; then
+        for arg_pos in ${(ok)a_name}; do
+            arg_name="${a_name[$arg_pos]}"
+            if [[ $a_req[$arg_name] == "required" ]]; then
+                example+="${c}<${arg_name}>${x} "
+            else
+                example+="${c}[$arg_name]${x} "
+            fi
+        done # | sort | tr -d '\n'
+    fi
+    [[ $o[info] == 1 ]] && example+="\nRun '$s[name] ${p}-h$x' for more help."
+    s[example]="$example"
+}
+function fn_set_strings() {
+    s[name]="${g}$f[name]$x"
+    s[path]="${c}$f[file_path]$x"
+    s[author]="${y}$f[author]$x"
+    s[year]="${y}${f[date]:0:4}$x"
+    s[header]="$s[name]: $f[info]"
+    if (( o[version] == 1 )); then
+        fn_version
+    fi    
+    if (( o[help] == 1 || o[info] == 1 )); then
+        fn_example
+    fi
+    if (( o[help] == 1 )); then
+        fn_version
+        fn_usage
+        fn_footer
+        fn_source
+    fi
+}
+function fn_check_args() {
+    local expected="expected $y$f[args_min]$x"
+    local given="given $y$f[args_count]$x"
+    (( f[args_max] == 0 && f[args_count] > 0 )) && {
+        e_msg[0]="No arguments expected ($given)"
+        return 1
+    }
+    (( f[args_count] < f[args_min] )) && {
+        local msg="Missing required argument"
+        (( f[args_min] - f[args_count] > 1 )) && msg+="s"
+        e_msg[0]="$msg ($expected, $given)"
+        return 1
+    }
+    (( f[args_count] > f[args_max] )) && {
+        e_msg[0]="Too many arguments ($expected to $y$f[args_max]$x, $given)"
+        return 1
+    }
 }
 function fn_set_info() {
     if [[ "${(t)i}" == *"association"* ]]; then
@@ -1314,6 +1288,37 @@ function fn_set_info() {
         i[tty]=$(tty | sed 's|/dev/||') # terminal type
     fi
 }
+function fn_handle_options() {
+    if [[ "$o[version]" -eq "1" || "$o[info]" -eq "1" || "$o[help]" -eq "1" ]]; then
+        if [[ "$o[version]" -eq "1" ]]; then
+            echo $s[version]
+        elif [[ "$o[info]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo $s[header]
+            echo $s[example]
+        elif [[ "$o[help]" -eq "1" ]]; then
+            [[ $f[info] ]] && echo "\n$s[header]"
+            [[ $f[help] ]] && echo $f[help]
+            echo "$s[example]\n$s[usage]\n$s[footer]\n$s[source]\n"
+        fi
+        f[return]=0 && return 0
+    fi
+}
+function fn_handle_errors() {
+    if [[ ${#e_msg} != 0 ]]; then
+        [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
+        log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
+        for key in ${(ok)e_msg}; do
+            local value="${e_msg[$key]}"
+            log::error "$value"
+            [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]" 
+            [[ $e_dym[$key] ]] && log::info "$e_dym[$key]"
+        done
+        fn_hint
+        f[return]=1 && return 1
+    else
+        f[return]=0 && return 0
+    fi
+}
 function fn_debug() {
     local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
@@ -1328,6 +1333,7 @@ function fn_debug() {
             [D]="Default values for options"
             [d]="Disable debugging inside ${g}fn_make$x"
             [e]="Exit after debugging"
+            [E]="Internal error arrays"
             [f]="Function properties from $y\$f[]$x array"
             [h]="Help $y(default)$x"
             [I]="Internal ${g}fn_make$x arrays"
@@ -1340,7 +1346,7 @@ function fn_debug() {
         if [[ $debug =~ "A" ]]; then
             debug="foaIsit"
         fi
-        if [[ ! $debug =~ [aDdefhIiostV] ]]; then
+        if [[ ! $debug =~ [aDdeEfhIiostV] ]]; then
             log::info "No valid debug mode set, falling back to help mode."
             debug="h"
         fi
@@ -1384,9 +1390,12 @@ function fn_debug() {
             fn_list_array "o_help" "Option help strings"
             fn_list_array "o_allowed" "Option allowed values"
         fi
-        if [[ $debug =~ "V" ]]; then
-            fn_list_array "o_allowed" "Option allowed values"
+        if [[ $debug =~ "E" ]]; then
+            fn_list_array "e_msg" "Error messages"
+            fn_list_array "e_hint" "Error hints"
+            fn_list_array "e_dym" "Error suggestions"
         fi
+        [[ $debug =~ "V" ]] && fn_list_array "o_allowed" "Option allowed values"
         [[ $debug =~ "a" ]] && fn_list_array "a" "Arguments"
         [[ $debug =~ "o" ]] && fn_list_array "o" "Options"
         [[ $debug =~ "f" ]] && fn_list_array "f" "Function properties"
@@ -1396,6 +1405,16 @@ function fn_debug() {
         print::footer "${r}Debug end$x"
         [[ $debug =~ "e" ]] && f[return]=0 && return 0
     fi
+}
+function fn_load_colors() {
+    b=$(ansi blue)          # arrows
+    c=$(ansi cyan)          # arguments, url, file path
+    g=$(ansi green)         # function name
+    p=$(ansi bright purple) # options
+    r=$(ansi red)           # errors
+    w=$(ansi white)         # plain text
+    y=$(ansi yellow)        # highlight
+    x=$(ansi reset)         # reset
 }
 function fn_list_array() {
     local array_name=$1
@@ -1426,6 +1445,12 @@ function fn_list_array() {
     done | sort
     return 0
 }
+function fn_set_time() {
+    (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
+    local time_diff=$((time_end - f[time_fnmake_start]))
+    f[time_fnmake]=$time_diff
+    unset "f[time_fnmake_start]"
+}
 function fn_how_long_it_took() {
     local r=$(ansi bright red)
     local x=$(ansi reset)
@@ -1446,10 +1471,10 @@ function fn_function_example() {
     f[version]="1.1" # version of the function
     f[date]="2025-05-20" # date of last update
     f[help]="It is just a help stub..." # content of help, i.e.: f[help]=$(<help.txt)
-    a[1]="argument1,r,description of the first argument"
-    a[2]="argument2,r,description of the second argument"
-    a[3]="argument3,o,description of the third argument"
-    a[4]="argument4,o,description of the fourth argument"
+    a[1]="arg_one,r,description of the first argument"
+    a[2]="arg_two,r,description of the second argument"
+    a[3]="arg_three,o,description of the third argument"
+    a[4]="arg_four,o,description of the fourth argument"
     o[something]="s,0,some other option,[0|1|2]"              # Restricts values to only 0, 1, or 2
     o[level]="l,medium,difficulty level,[easy|medium|hard]"   # Only specific predefined values allowed
     o[format]="f,json,output format,[json|xml|csv|text]"      # Only specific format values allowed
@@ -2743,8 +2768,7 @@ function minimize-login-info() {
 function ssh-install() {
     local -A a; local -A f
     f[info]="Install SSH certificate on remote server."
-    f[version]="1.00"
-    f[date]="2025-05-20"
+    f[version]="1.00"; f[date]="2025-05-20"
     a[1]="user_at_host,r,destination user and host 'user@host'"
     a[2]="path_to_public_key,r,path to public key file"
     fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
