@@ -43,13 +43,13 @@
 #       fn_check_args() - check arguments count and return error message if needed
 #       fn_set_info() - gather basic environment information
 #       fn_handle_options() - options handling (show version, info, help, etc.)
+#       fn_set_time() - save total time
 #       fn_handle_errors() - print error messages if any
 #   Debugging functions
 #       fn_debug() - print debug information
 #   Auxiliary functions
 #       fn_load_colors() - load variables for colored output (ANSI colors)
 #       fn_list_arrays() - list all associative arrays used by fn_make()
-#       fn_set_time() - save total time
 #       fn_how_long_it_took() - print milliseconds from $timestamp
 #   Function examples and templates
 #       fn_example_basic() - basic example function
@@ -65,16 +65,24 @@
 function fn_make() {
     # Load variables for colored output (ANSI colors)
     fn_load_colors
-    # Check if the function is called from a parent function
-    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
-        log::error "${c}fn_make$x function cannot be called directly"
-        return 1
-    fi
     # Check if the function is running in Zsh
     if [[ -z $ZSH_VERSION ]]; then
         log::error "${c}fn_make$x function can only be used in Zsh shell"
         return 1
     fi
+    # Check if the function is called from a parent function
+    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
+        log::error "${c}fn_make$x function cannot be called directly"
+        return 1
+    fi
+    # Check if $f[] array is provided
+    if [[ "${(t)f}" != *association* ]]; then
+        log::error "${c}fn_make$x function requires an initialized f[] array"
+        return 1
+    fi
+    # Create a flag that fn_make() is running
+    f[run]=1
+
     # Arguments arrays (name, required flag, help string)
     local -A a_name; local -A a_req; local -A a_help
     # Options arrays (default values, short names, full names, help string, allowed values)
@@ -116,6 +124,8 @@ function fn_make() {
 
 # Prepare function properties
 function fn_set_properties() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     f[time_started]=$(date +"%Y-%m-%d %H:%M:%S")
     # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
     (( $+commands[gdate] )) && f[time_fnmake_start]=$(gdate +%s%3N) || f[time_fnmake_start]=$(date +%s)
@@ -140,6 +150,8 @@ function fn_set_properties() {
 
 # Add default options to the $o array
 function fn_add_defaults() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # Add default options to the list
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
@@ -151,15 +163,14 @@ function fn_add_defaults() {
 
 # Parse arguments and options settings arrays
 function fn_parse_settings() {
-
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # Parse $a arguments array if is not empty
     if (( ${#a} != 0 )); then
         fn_parse_settings_args
     fi
-
     # Parse $o options array (it is always non-empty due to built-in options)
     fn_parse_settings_opts
-
     # Print error messages if any and exit
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
@@ -170,11 +181,13 @@ function fn_parse_settings() {
         done
         f[return]=1 && return 1
     fi
-
 }
 
 # Parse arguments settings array
 function fn_parse_settings_args() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Iterate over all arguments in the $a array
     for key in ${(ok)a}; do
         local value="${a[$key]}"
         
@@ -225,6 +238,9 @@ function fn_parse_settings_args() {
 
 # Parse options settings array
 function fn_parse_settings_opts() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Iterate over all options in the $o array
     for key in ${(ok)o}; do
         local value="${o[$key]}"
         
@@ -305,6 +321,8 @@ function fn_parse_settings_opts() {
 
 # Main parsing loop to iterate over all arguments
 function fn_parse_arguments() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # List of used options (only long names)
     local used_opts=""
     # List of used options (full arguments)
@@ -342,6 +360,8 @@ function fn_parse_arguments() {
 
 # Parse a single option
 function fn_parse_option() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local arg="$1" i="$2" oi="$3"
     local oic="$y$oi$x"
     local dym=""  # Will hold "Did you mean" suggestion
@@ -491,6 +511,8 @@ function fn_parse_option() {
 
 # Generate option suggestion based on error type
 function fn_option_suggestion() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local error_type="$1"
     local suggestion=""
     
@@ -664,6 +686,8 @@ function fn_option_suggestion() {
 
 # Parse a single argument
 function fn_parse_argument() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local aic="$y$ai$x"
     
     # Check if the argument is required and not empty
@@ -681,6 +705,8 @@ function fn_parse_argument() {
 
 # Prepare the full usage information
 function fn_usage() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local i=1
     local usage="\n"
     local max_len=0
@@ -785,6 +811,8 @@ function fn_usage() {
 
 # Prepare the version string
 function fn_version() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local version="$s[name]"
     [[ -n $f[version] ]] && version+=" $y$f[version]$x" || version+=" [version unknown]"
     [[ -n $f[date] ]] && version+=" ($f[date])"
@@ -793,6 +821,8 @@ function fn_version() {
 
 # Prepare the hint string
 function fn_hint() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     if [[ $f[info] && $f[help] ]]; then
         log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
     elif [[ $f[info] ]]; then
@@ -808,6 +838,8 @@ function fn_hint() {
 
 # Prepare source code location string
 function fn_source() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local file="$f[file_path]"
     local string="${f[name]}() {"
     local line="$(grep -n "$string" "$file" | head -n 1 | cut -d: -f1)"
@@ -816,6 +848,8 @@ function fn_source() {
 
 # Prepare the footer string
 function fn_footer() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local footer=""
     footer+="$s[version] copyright © "
     [[ -n $f[date] ]] && footer+="$s[year] "
@@ -826,6 +860,8 @@ function fn_footer() {
 
 # Prepare the example string
 function fn_example() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local indent="    " arg_pos arg_name example=""
     [[ $o[help] == 1 ]] && example+="\n"
     example+="${y}Usage example:$x" 
@@ -839,7 +875,7 @@ function fn_example() {
             else
                 example+="${c}[$arg_name]${x} "
             fi
-        done # | sort | tr -d '\n'
+        done
     fi
     [[ $o[info] == 1 ]] && example+="\nRun '$s[name] ${p}-h$x' for more help."
     s[example]="$example"
@@ -847,6 +883,8 @@ function fn_example() {
 
 # Warpper function to set all strings
 function fn_set_strings() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     s[name]="${g}$f[name]$x"
     s[path]="${c}$f[file_path]$x"
     s[author]="${y}$f[author]$x"
@@ -871,6 +909,8 @@ function fn_set_strings() {
 
 # Check if the number of arguments is correct
 function fn_check_args() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local expected="expected $y$f[args_min]$x"
     local given="given $y$f[args_count]$x"
 
@@ -895,6 +935,8 @@ function fn_check_args() {
 
 # Gather basic ennvironment information
 function fn_set_info() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     if [[ "${(t)i}" == *"association"* ]]; then
         i[arch]=$(uname -m)             # system architecture
         i[brew]=$+commands[brew]        # is Homebrew installed
@@ -914,6 +956,8 @@ function fn_set_info() {
 
 # Options handling (show version, basic info/usage or help)
 function fn_handle_options() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     if [[ "$o[version]" -eq "1" || "$o[info]" -eq "1" || "$o[help]" -eq "1" ]]; then
         if [[ "$o[version]" -eq "1" ]]; then
             echo $s[version]
@@ -929,8 +973,21 @@ function fn_handle_options() {
     fi
 }
 
+# Set time difference
+function fn_set_time() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
+    (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
+    local time_diff=$((time_end - f[time_fnmake_start]))
+    f[time_fnmake]=$time_diff
+    unset "f[time_fnmake_start]"
+}
+
 # Error handling
 function fn_handle_errors() {
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
         log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
@@ -953,7 +1010,8 @@ function fn_handle_errors() {
 
 # Print debug information
 function fn_debug() {
-    #local debug=$o[debug]
+    # Check if fn_main() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
         local max_key_length=15
@@ -1126,15 +1184,6 @@ function fn_list_array() {
     return 0
 }
 
-# Set time difference
-function fn_set_time() {
-    # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
-    (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
-    local time_diff=$((time_end - f[time_fnmake_start]))
-    f[time_fnmake]=$time_diff
-    unset "f[time_fnmake_start]"
-}
-
 # Print milliseconds from timestamp=$(gdate +%s%3N 2>/dev/null)
 function fn_how_long_it_took() {
     local r=$(ansi bright red)
@@ -1150,36 +1199,17 @@ function fn_how_long_it_took() {
 # Self-test function
 ##########################################################
 
-# -------------------------------------------------------
-# Self-test harness (internal) – public entry point: fn_self_test
-# Public contract of this library: user code should normally call only:
-#   - fn_make (mandatory inside user-defined wrapper function)
-#   - fn_debug (optional, after fn_make)
-# All other functions in this file are internal.
-#
-# Invocation:
-#   fn_self_test        # full verbose output
-#   fn_self_test -q     # quiet mode (only summary)
-#
-# Exit codes:
-#   0   – all tests passed
-#   >0  – number of failed tests (capped at 255)
-#
-# Design goals:
-#   - No external tools (perl/sed) beyond standard shell + your log functions.
-#   - Uses local miniature test functions that call fn_make like a user would.
-#   - Strips ANSI sequences before substring checks.
-#   - Does not mutate global state of production arrays outside its scope.
-# -------------------------------------------------------
+# Self-test harness (internal) – public entry point: fn_self_test()
 function fn_self_test() {
     setopt localoptions extended_glob
+    fn_load_colors
     local quiet=0
     [[ "$1" == "-q" ]] && quiet=1
 
     local -i total=0 pass=0 fail=0
     local -a failed_names
 
-    # Strip ANSI escape sequences (pattern aligned with fn_list_array)
+    # Strip ANSI escape sequences
     _fst_strip_ansi() {
         setopt localoptions extended_glob
         local s="$1"
@@ -1187,7 +1217,7 @@ function fn_self_test() {
     }
 
     # Generic test runner
-    # _fst_run "NAME" "command" "expected substring (optional)" expected_rc
+    # _fst_run "NAME" "command" "expected substring" expected_rc
     _fst_run() {
         local name="$1" command="$2" expect_sub="$3" expect_rc="$4"
         local out rc clean ok=1
@@ -1196,37 +1226,35 @@ function fn_self_test() {
         rc=$?
         clean=$(_fst_strip_ansi "$out")
 
-        if [[ -n "$expect_rc" ]]; then
-            if (( rc != expect_rc )); then
-                ok=0
-                (( quiet == 0 )) && echo "[FAIL][$name] Return code $rc (expected $expect_rc)"
+        if [[ -n "$expect_rc" && $rc -ne $expect_rc ]]; then
+            ok=0
+            (( quiet == 0 )) && echo "[${r}FAIL$x] [$name] Return code $rc (expected $expect_rc)"
+        fi
+        if [[ -n "$expect_sub" && "$clean" != *"$expect_sub"* ]]; then
+            ok=0
+            if (( quiet == 0 )); then
+                echo "[${r}FAIL$x] [$name] Missing substring: $expect_sub"
+                echo "---- OUTPUT (clean) ----"
+                echo "$clean"
+                echo "------------------------"
             fi
         fi
-        if [[ -n "$expect_sub" ]]; then
-            if [[ "$clean" != *"$expect_sub"* ]]; then
-                ok=0
-                if (( quiet == 0 )); then
-                    echo "[FAIL][$name] Missing substring: $expect_sub"
-                    echo "---- OUTPUT (clean) ----"
-                    echo "$clean"
-                    echo "------------------------"
-                fi
-            fi
-        fi
-
         if (( ok )); then
             (( pass++ ))
-            (( quiet == 0 )) && echo "[OK  ][$name]"
+            (( quiet == 0 )) && echo "[${g}OK  $x] [$name]"
         else
             (( fail++ ))
             failed_names+=("$name")
         fi
     }
 
-    # Test function with arguments and options (does NOT preload defaults into o[])
-    # Prints both user-used and default states explicitly.
+    #####################################################
+    # Local test functions
+    #####################################################
+
+    # Arguments + validated options
     _fst_func_args() {
-        local -A f a o
+        local -A f a o _def_opts
         f[info]="Self-test function (args+opts)."
         f[version]="0.1"
         f[date]="2025-09-21"
@@ -1235,40 +1263,120 @@ function fn_self_test() {
         a[3]="third,o,third argument"
         o[level]="l,medium,difficulty level,[easy|medium|hard]"
         o[mode]="m,fast,execution mode,[fast|slow]"
-        fn_make "$@"
-        [[ -n "${f[return]}" ]] && return "${f[return]}"
-
-        # Report arguments actually captured
+        local _k _spec _parts
+        for _k in level mode; do
+            _spec="${o[$_k]}"
+            _parts=("${(@s:,:)_spec}")
+            _def_opts[$_k]="${_parts[2]}"
+        done
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
         print -- "ARGS first='${a[first]}' second='${a[second]}' third='${a[third]}'"
-
-        # Report option state: SET if present in o[], else UNSET with default
         for opt in level mode; do
             if [[ -n ${o[$opt]+_} ]]; then
                 print -- "SET:${opt}=${o[$opt]}"
             else
-                # If no default (empty), show empty
-                print -- "UNSET(${opt} default=${o_default[$opt]})"
+                print -- "UNSET(${opt} default=${_def_opts[$opt]})"
             fi
         done
         return 0
     }
 
-    # Test function for options only
+    # Only options (validated)
     _fst_func_opts() {
-        local -A f o
+        local -A f o _def_opts
         f[info]="Self-test options only."
         o[alpha]="a,1,alpha flag,[0|1]"
         o[color]="c,red,color value,[red|green|blue]"
-        fn_make "$@"
-        [[ -n "${f[return]}" ]] && return "${f[return]}"
-
+        local _k _spec _parts
+        for _k in alpha color; do
+            _spec="${o[$_k]}"
+            _parts=("${(@s:,:)_spec}")
+            _def_opts[$_k]="${_parts[2]}"
+        done
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
         for opt in alpha color; do
             if [[ -n ${o[$opt]+_} ]]; then
                 print -- "SET:${opt}=${o[$opt]}"
             else
-                print -- "UNSET(${opt} default=${o_default[$opt]})"
+                print -- "UNSET(${opt} default=${_def_opts[$opt]})"
             fi
         done
+        return 0
+    }
+
+    # Extended option patterns
+    _fst_func_opts_extra() {
+        local -A f o _def_opts
+        f[info]="Self-test extended options."
+        o[name]="n,,custom name"
+        o[path]="p,/tmp,file path,[]"
+        o[free]="f,42,free value"
+        o[strict]="s,one,strict option,[one|two]"
+        local _k _spec _parts
+        for _k in name path free strict; do
+            _spec="${o[$_k]}"
+            _parts=("${(@s:,:)_spec}")
+            _def_opts[$_k]="${_parts[2]}"
+        done
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        for opt in name path free strict; do
+            if [[ -n ${o[$opt]+_} ]]; then
+                print -- "SET:${opt}=${o[$opt]}"
+            else
+                print -- "UNSET(${opt} default=${_def_opts[$opt]})"
+            fi
+        done
+        return 0
+    }
+
+    # Function to test suggestion logic
+    _fst_func_suggest() {
+        local -A f a o _def_opts
+        f[info]="Suggestion test."
+        a[1]="arg1,r,first"
+        a[2]="arg2,r,second"
+        o[level]="l,medium,difficulty level,[easy|medium|hard]"
+        o[mode]="m,fast,execution mode,[fast|slow]"
+        local _k _spec _parts
+        for _k in level mode; do
+            _spec="${o[$_k]}"
+            _parts=("${(@s:,:)_spec}")
+            _def_opts[$_k]="${_parts[2]}"
+        done
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        return 0
+    }
+
+    # Function with environment info (i[])
+    _fst_func_args_info() {
+        local -A f a o i _def_opts
+        f[info]="Args+opts+info."
+        a[1]="first,r,first argument"
+        a[2]="second,r,second argument"
+        o[level]="l,medium,difficulty level,[easy|medium|hard]"
+        local _k _spec _parts
+        for _k in level; do
+            _spec="${o[$_k]}"
+            _parts=("${(@s:,:)_spec}")
+            _def_opts[$_k]="${_parts[2]}"
+        done
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        print -- "INFO_TEST_OK"
+        return 0
+    }
+
+    # Function to test duplicate short+long usage
+    _fst_func_opts_dup() {
+        local -A f o _def_opts
+        f[info]="Duplicate option test."
+        o[color]="c,red,color value,[red|green|blue]"
+        local _k _spec _parts
+        for _k in color; do
+            _spec="${o[$_k]}"
+            _parts=("${(@s:,:)_spec}")
+            _def_opts[$_k]="${_parts[2]}"
+        done
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
         return 0
     }
 
@@ -1276,59 +1384,87 @@ function fn_self_test() {
     _fst_func_none() {
         local -A f
         f[info]="No-args function."
-        fn_make "$@"
-        [[ -n "${f[return]}" ]] && return "${f[return]}"
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
         print -- "OK no-args"
         return 0
     }
 
-    # ANSI test function (info path should include f[info] inside header)
+    # ANSI test
     _fst_func_ansi() {
         local -A f
         f[info]=$'\e[31mRED_TEXT\e[0m'
-        fn_make "$@"
-        [[ -n "${f[return]}" ]] && return "${f[return]}"
+        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
         return 0
     }
 
-    # ---------------------------
-    # Test set (adapted to semantics: o[] only == user-passed)
-    # ---------------------------
+    #####################################################
+    # Test set
+    #####################################################
 
-    _fst_run "NO_ARGS_OK"          "_fst_func_none"                                  "OK no-args" 0
-    _fst_run "ARGS_REQUIRED_OK"    "_fst_func_args one two"                          "ARGS first='one' second='two' third=''" 0
-    _fst_run "ARGS_WITH_OPTIONAL"  "_fst_func_args one two three"                    "third='three'" 0
-    _fst_run "ARGS_MISSING"        "_fst_func_args one"                              "Missing required argument" 1
-    _fst_run "ARGS_TOO_MANY"       "_fst_func_args one two three four"               "Too many arguments" 1
+    # Basic args
+    _fst_run "NO_ARGS_OK"              "_fst_func_none"                                           "OK no-args" 0
+    _fst_run "ARGS_REQUIRED_OK"        "_fst_func_args one two"                                   "ARGS first='one' second='two' third=''" 0
+    _fst_run "ARGS_WITH_OPTIONAL"      "_fst_func_args one two three"                             "third='three'" 0
+    _fst_run "ARGS_MISSING"            "_fst_func_args one"                                       "Missing required argument" 1
+    _fst_run "ARGS_TOO_MANY"           "_fst_func_args one two three four"                        "Too many arguments" 1
 
-    # Defaults: options NOT passed → UNSET(... default=<value>)
-    _fst_run "OPTS_DEFAULTS"       "_fst_func_args one two"                          "UNSET(level default=medium)" 0
+    # Options defaults / overrides / validation
+    _fst_run "OPTS_DEFAULTS"           "_fst_func_args one two"                                   "UNSET(level default=medium)" 0
+    _fst_run "OPTS_OVERRIDE"           "_fst_func_args one two --level=hard --mode=slow"          "SET:level=hard" 0
+    _fst_run "OPTS_INVALID_VALUE"      "_fst_func_args one two --level=impossible"                "invalid value" 1
+    _fst_run "OPTS_DUPLICATE"          "_fst_func_opts --color=red --color=green"                 "already used" 1
+    _fst_run "OPTS_DEFAULT_ALPHA"      "_fst_func_opts"                                           "UNSET(alpha default=1)" 0
+    _fst_run "OPTS_CHANGED"            "_fst_func_opts --alpha=0 --color=blue"                    "SET:color=blue" 0
+    _fst_run "OPTS_COLOR_INVALID"      "_fst_func_opts --color=yellow"                            "invalid value" 1
 
-    # Overrides: user sets options → SET:level=hard
-    _fst_run "OPTS_OVERRIDE"       "_fst_func_args one two --level=hard --mode=slow" "SET:level=hard" 0
+    # Extended option patterns
+    _fst_run "OPTS_NODEFAULT_UNSET"    "_fst_func_opts_extra"                                     "UNSET(name default=)" 0
+    _fst_run "OPTS_NODEFAULT_SET"      "_fst_func_opts_extra --name=Alice"                       "SET:name=Alice" 0
+    _fst_run "OPTS_EMPTY_ALLOWED_UNSET" "_fst_func_opts_extra"                                    "UNSET(path default=/tmp)" 0
+    _fst_run "OPTS_EMPTY_ALLOWED_SET"  "_fst_func_opts_extra --path=/var/tmp"                     "SET:path=/var/tmp" 0
+    _fst_run "OPTS_NO_VALIDATION_SET"  "_fst_func_opts_extra --free=100"                         "SET:free=100" 0
+    _fst_run "OPTS_STRICT_DEFAULT"     "_fst_func_opts_extra"                                     "UNSET(strict default=one)" 0
+    _fst_run "OPTS_STRICT_SET_VALID"   "_fst_func_opts_extra --strict=two"                        "SET:strict=two" 0
+    _fst_run "OPTS_STRICT_SET_INVALID" "_fst_func_opts_extra --strict=three"                      "invalid value" 1
 
-    _fst_run "OPTS_INVALID_VALUE"  "_fst_func_args one two --level=impossible"       "invalid value" 1
-    _fst_run "OPTS_DUPLICATE"      "_fst_func_opts --color=red --color=green"        "already used" 1
+    # Suggestion
+    _fst_run "OPTS_SUGGESTION"         "_fst_func_suggest one two --levl=hard"                    "Did you mean" 1
 
-    # Defaults for second function
-    _fst_run "OPTS_DEFAULT_ALPHA"  "_fst_func_opts"                                  "UNSET(alpha default=1)" 0
+    # NEW: Duplicate with short + long
+    _fst_run "DUPLICATE_SHORT_LONG"    "_fst_func_opts_dup -c=red --color=green"                  "already used" 1
 
-    # User sets both
-    _fst_run "OPTS_CHANGED"        "_fst_func_opts --alpha=0 --color=blue"           "SET:color=blue" 0
-    _fst_run "OPTS_COLOR_INVALID"  "_fst_func_opts --color=yellow"                   "invalid value" 1
+    # NEW: Multi-error (unknown option + too many arguments) – run twice to assert both substrings
+    _fst_run "MULTI_ERRORS_UNKNOWN"    "_fst_func_args one two three four --badopt=1"            "unknown in" 1
+    _fst_run "MULTI_ERRORS_TOOMANY"    "_fst_func_args one two three four --badopt=1"            "Too many arguments" 1
 
-    # Debug mode: ensure Function properties appear
-    _fst_run "DEBUG_MODE_F"        "_fst_func_args one two -d=f"                     "Function properties" 0
+    # NEW: Optional argument explicitly empty
+    _fst_run "ARGS_OPTIONAL_EMPTY"     "_fst_func_args one two \"\""                              "third=''" 0
 
-    # ANSI info: use -i so header with f[info] is printed
-    _fst_run "ANSI_INFO"           "_fst_func_ansi -i"                               "RED_TEXT" 0
+    # NEW: Required argument empty
+    _fst_run "ARGS_REQUIRED_EMPTY"     "_fst_func_args one \"\""                                  "cannot be empty" 1
 
-    # Local ANSI stripper verification
-    _fst_run "ANSI_STRIPPER_LOCAL" "_fst_strip_ansi \$'\e[32mGREEN\e[0m plain'"      "GREEN plain" 0
+    # NEW: Strict option implicit default via presence only
+    _fst_run "OPTS_STRICT_IMPLICIT"    "_fst_func_opts_extra --strict"                            "SET:strict=one" 0
 
-    # ---------------------------
+    # NEW: Combined debug modes (a f i O)
+    _fst_run "DEBUG_COMBINED"          "_fst_func_args one two -d=afiO"                           "Option long names" 0
+
+    # Debug mode (original)
+    _fst_run "DEBUG_MODE_F"            "_fst_func_args one two -d=f"                              "Function properties" 0
+
+    # NEW: Debug environment info (-d=i)
+    _fst_run "DEBUG_MODE_I"            "_fst_func_args_info one two -d=i"                         "Environment information" 0
+
+    # NEW: Time measurement present (in -d=f output)
+    _fst_run "TIME_MEASURE"            "_fst_func_args one two -d=f"                              "time_fnmake" 0
+
+    # ANSI header + stripping
+    _fst_run "ANSI_INFO"               "_fst_func_ansi -i"                                        "RED_TEXT" 0
+    _fst_run "ANSI_STRIPPER_LOCAL"     "_fst_strip_ansi \$'\e[32mGREEN\e[0m plain'"               "GREEN plain" 0
+
+    #####################################################
     # Summary
-    # ---------------------------
+    #####################################################
     local summary="SELF-TEST: total=$total pass=$pass fail=$fail"
     if (( fail > 0 )); then
         echo "$summary"
@@ -1392,7 +1528,7 @@ function fn_function_example() {
     o[name]="n,,custom name" # Empty default value, accepts any user input (no validation)
     o[path]="p,/tmp,file path,[]" # Has default value, but accepts any user input (empty brackets)
     # Run fn_make() to parse arguments and options
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
  ## Main function goes here
     # Setting a value in 'this' t[] array
     t[example]="This a function example."
@@ -1406,8 +1542,8 @@ function fn_function_example() {
     echo "This is the path to the function file: ${f[file_path]}"
     # Accessing information in i[] array:
     echo "This function was run by user: ${i[user]}"
-    # Debugging the t[] array
-    fn_debug t
+    # Debug the t[] array and exit
+    # fn_debug te
 }
 
 # Basic function template (one argument and no extra options)
@@ -1417,15 +1553,15 @@ function fn_function_template() {
     f[version]="1.05"
     f[date]="2025-05-20"
     a[1]="argument1,r,description of the first argument"
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
  ## Main function goes here
-    # [...]
+    print "Main function goes here."
 }
 
 # Minimal function template (without arguments and extra options)
 function fn_function_template_short() {
     local -A f
-    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
  ## Main function goes here
-    # [...]
+    print "This function doesn't take any arguments."
 }
