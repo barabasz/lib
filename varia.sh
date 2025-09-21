@@ -83,3 +83,26 @@ function minimize-login-info() {
     fi
     touch "$HOME/.hushlogin"
 }
+
+# Install SSH certificate on remote server
+function ssh-install() {
+    local -A a; local -A f
+    f[info]="Install SSH certificate on remote server."
+    f[version]="1.00"; f[date]="2025-05-20"
+    a[1]="user_at_host,r,destination user and host 'user@host'"
+    a[2]="path_to_public_key,r,path to public key file"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+ ## Main function goes here
+    if [[ ! -f $a[path_to_public_key] ]]; then
+        log::error "Public key file not found: $c$a[path_to_public_key]$x"
+        return 1
+    fi
+    ssh-copy-id -i "$a[path_to_public_key]" "$a[user_at_host]"
+    if [[ $? -ne 0 ]]; then
+        log::error "Failed to copy SSH key to $a[user_at_host]"
+        return 1
+    else
+        log::info "SSH key successfully copied to $a[user_at_host]"
+        return 0
+    fi
+}

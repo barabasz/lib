@@ -85,11 +85,7 @@ function logininfo() {
     local ttyc="$tty_icon $g$tty$r"
     local remote=$(who | grep $tty | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)' | tr -d '()')
     [[ -n $remote ]] && local remotec="from $c$remote$r"
-    if [[ $(isinstalled ifconfig) -eq 1 ]]; then
-        local ip=$g$(ifconfig | awk '/inet / && !/127.0.0.1/ {print $2}')$r
-    else
-        local ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d'/' -f1)
-    fi
+    local ip="$(lanip)"
     local ipc=$g$ip$r
     printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }

@@ -353,6 +353,7 @@ function lnsconfdir() {
 # Returns (stdout + exit 1): notfound (command does not exist)
 # Returns (no stdout, exit 1): usage / internal error
 utype() {
+    # echo "called by: ${funcstack[2]}"
     # Argument validation (exactly one argument)
     [[ $# -eq 1 ]] || return 1
     local cmd="$1"
@@ -389,16 +390,13 @@ utype() {
         return 1
     else
         case $command_result in
-            (*"is an alias"*) printf 'alias\n'; return 0 ;;
-            (*"is a function"* | *"function $cmd "*) printf 'function\n'; return 0 ;;
-            (*"is a shell keyword"* | *"reserved word"*) printf 'keyword\n'; return 0 ;;
-            (*"is a shell builtin"* | *"shell builtin"*) printf 'builtin\n'; return 0 ;;
-            (*"not found"*) printf 'notfound\n'; return 1 ;;
-            (*"is"* | *"file"*) printf 'file\n'; return 0 ;;
             (*alias*) printf 'alias\n'; return 0 ;;
             (*function*) printf 'function\n'; return 0 ;;
+            (*keyword*) printf 'keyword\n'; return 0 ;;
             (*word*) printf 'keyword\n'; return 0 ;;
             (*builtin*) printf 'builtin\n'; return 0 ;;
+            (*"not found"*) printf 'notfound\n'; return 1 ;;
+            (*"is"* | *"file"*) printf 'file\n'; return 0 ;;
             (*) printf 'notfound\n'; return 1 ;;
         esac
     fi

@@ -655,20 +655,16 @@ utype() {
         return 1
     else
         case $command_result in
-            (*"is an alias"*) printf 'alias\n'; return 0 ;;
-            (*"is a function"* | *"function $cmd "*) printf 'function\n'; return 0 ;;
-            (*"is a shell keyword"* | *"reserved word"*) printf 'keyword\n'; return 0 ;;
-            (*"is a shell builtin"* | *"shell builtin"*) printf 'builtin\n'; return 0 ;;
-            (*"not found"*) printf 'notfound\n'; return 1 ;;
-            (*"is"* | *"file"*) printf 'file\n'; return 0 ;;
             (*alias*) printf 'alias\n'; return 0 ;;
             (*function*) printf 'function\n'; return 0 ;;
+            (*keyword*) printf 'keyword\n'; return 0 ;;
             (*word*) printf 'keyword\n'; return 0 ;;
             (*builtin*) printf 'builtin\n'; return 0 ;;
+            (*"not found"*) printf 'notfound\n'; return 1 ;;
+            (*"is"* | *"file"*) printf 'file\n'; return 0 ;;
             (*) printf 'notfound\n'; return 1 ;;
         esac
     fi
-    return 1
 }
 function wheref() {
     local f_name="wheref"
@@ -1761,11 +1757,7 @@ function logininfo() {
     local ttyc="$tty_icon $g$tty$r"
     local remote=$(who | grep $tty | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)' | tr -d '()')
     [[ -n $remote ]] && local remotec="from $c$remote$r"
-    if [[ $(isinstalled ifconfig) -eq 1 ]]; then
-        local ip=$g$(ifconfig | awk '/inet / && !/127.0.0.1/ {print $2}')$r
-    else
-        local ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d'/' -f1)
-    fi
+    local ip="$(lanip)"
     local ipc=$g$ip$r
     printf "Logged in as $userc@$hostc ($ipc) on $ttyc $remotec\n"
 }
@@ -2747,5 +2739,26 @@ function minimize-login-info() {
         sudo ln -sf ~/GitHub/config/motd/05-header /etc/update-motd.d
     fi
     touch "$HOME/.hushlogin"
+}
+function ssh-install() {
+    local -A a; local -A f
+    f[info]="Install SSH certificate on remote server."
+    f[version]="1.00"
+    f[date]="2025-05-20"
+    a[1]="user_at_host,r,destination user and host 'user@host'"
+    a[2]="path_to_public_key,r,path to public key file"
+    fn_make "$@"; [[ -n "${f[return]}" ]] && return "${f[return]}"
+    if [[ ! -f $a[path_to_public_key] ]]; then
+        log::error "Public key file not found: $c$a[path_to_public_key]$x"
+        return 1
+    fi
+    ssh-copy-id -i "$a[path_to_public_key]" "$a[user_at_host]"
+    if [[ $? -ne 0 ]]; then
+        log::error "Failed to copy SSH key to $a[user_at_host]"
+        return 1
+    else
+        log::info "SSH key successfully copied to $a[user_at_host]"
+        return 0
+    fi
 }
 
