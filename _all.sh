@@ -729,6 +729,7 @@ function fn_make() {
     fn_debug && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_handle_options && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_handle_errors && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    unset "f[run]"
 }
 function fn_set_properties() {
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
@@ -770,6 +771,7 @@ function fn_parse_settings() {
             local value="${e_msg[$key]}"
             log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
         done
+        unset "f[run]"
         f[return]=1 && return 1
     fi
 }
@@ -1249,7 +1251,6 @@ function fn_footer() {
     s[footer]="$footer"
 }
 function fn_example() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local indent="    " arg_pos arg_name example=""
     [[ $o[help] == 1 ]] && example+="\n"
     example+="${y}Usage example:$x" 
@@ -1327,17 +1328,18 @@ function fn_set_info() {
 }
 function fn_handle_options() {
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
-    if [[ "$o[version]" -eq "1" || "$o[info]" -eq "1" || "$o[help]" -eq "1" ]]; then
-        if [[ "$o[version]" -eq "1" ]]; then
+    if (( o[version] == 1 || o[info] == 1 || o[help] == 1 )); then
+        if (( o[version] == 1 )); then
             echo $s[version]
-        elif [[ "$o[info]" -eq "1" ]]; then
+        elif (( o[info] == 1 )); then
             [[ $f[info] ]] && echo $s[header]
             echo $s[example]
-        elif [[ "$o[help]" -eq "1" ]]; then
+        elif (( o[help] == 1 )); then
             [[ $f[info] ]] && echo "\n$s[header]"
             [[ $f[help] ]] && echo $f[help]
             echo "$s[example]\n$s[usage]\n$s[footer]\n$s[source]\n"
         fi
+        unset "f[run]"
         f[return]=0 && return 0
     fi
 }
@@ -1360,6 +1362,7 @@ function fn_handle_errors() {
             [[ $e_dym[$key] ]] && log::info "$e_dym[$key]"
         done
         fn_hint
+        unset "f[run]"
         f[return]=1 && return 1
     else
         f[return]="" && return 0
@@ -1556,7 +1559,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         print -- "ARGS first='${a[first]}' second='${a[second]}' third='${a[third]}'"
         for opt in level mode; do
             if [[ -n ${o[$opt]+_} ]]; then
@@ -1578,7 +1581,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         for opt in alpha color; do
             if [[ -n ${o[$opt]+_} ]]; then
                 print -- "SET:${opt}=${o[$opt]}"
@@ -1601,7 +1604,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         for opt in name path free strict; do
             if [[ -n ${o[$opt]+_} ]]; then
                 print -- "SET:${opt}=${o[$opt]}"
@@ -1624,7 +1627,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         return 0
     }
     _fst_func_args_info() {
@@ -1639,7 +1642,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         print -- "INFO_TEST_OK"
         return 0
     }
@@ -1653,20 +1656,20 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         return 0
     }
     _fst_func_none() {
         local -A f
         f[info]="No-args function."
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         print -- "OK no-args"
         return 0
     }
     _fst_func_ansi() {
         local -A f
         f[info]=$'\e[31mRED_TEXT\e[0m'
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         return 0
     }
     _fst_run "NO_ARGS_OK"              "_fst_func_none"                                           "OK no-args" 0
@@ -1737,8 +1740,9 @@ function fn_function_example() {
     o[format]="f,json,output format,[csv|json|xml|text|tsv]" # Only specific format values allowed
     o[name]="n,,custom name" # Empty default value, accepts any user input (no validation)
     o[path]="p,/tmp,file path,[]" # Has default value, but accepts any user input (empty brackets)
-    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
     t[example]="This a function example."
+    print "Return code from fn_make(): ${f[return]}"
     echo "This is the 1st argument: ${a[argument1]}"
     echo "This is the value of the 'something' option: ${o[something]}"
     echo "This is the name of the function: ${s[name]}"
@@ -1751,12 +1755,12 @@ function fn_function_template() {
     f[version]="1.05"
     f[date]="2025-05-20"
     a[1]="argument1,r,description of the first argument"
-    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
     print "Main function goes here."
 }
 function fn_function_template_short() {
     local -A f
-    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
     print "This function doesn't take any arguments."
 }
 

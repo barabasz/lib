@@ -56,7 +56,7 @@
 #       fn_example_args() - example function with arguments
 #       fn_example_opts() - example function with options
 #
-# fn_make ver. 1.35 (2025-09-21) by gh/barabasz, MIT License
+# fn_make ver. 1.39 (2025-09-22) by gh/barabasz, MIT License
 
 ##########################################################
 # Main function
@@ -116,6 +116,8 @@ function fn_make() {
     fn_handle_options && [[ -n "${f[return]}" ]] && return "${f[return]}"
     # Error handling
     fn_handle_errors && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    # Destroy a flag that fn_make() is running
+    unset "f[run]"
 }
 
 ##########################################################
@@ -124,7 +126,7 @@ function fn_make() {
 
 # Prepare function properties
 function fn_set_properties() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     f[time_started]=$(date +"%Y-%m-%d %H:%M:%S")
     # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
@@ -150,7 +152,7 @@ function fn_set_properties() {
 
 # Add default options to the $o array
 function fn_add_defaults() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # Add default options to the list
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
@@ -163,7 +165,7 @@ function fn_add_defaults() {
 
 # Parse arguments and options settings arrays
 function fn_parse_settings() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # Parse $a arguments array if is not empty
     if (( ${#a} != 0 )); then
@@ -179,13 +181,15 @@ function fn_parse_settings() {
             local value="${e_msg[$key]}"
             log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
         done
+        # Destroy a flag that fn_make() is running
+        unset "f[run]"
         f[return]=1 && return 1
     fi
 }
 
 # Parse arguments settings array
 function fn_parse_settings_args() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # Iterate over all arguments in the $a array
     for key in ${(ok)a}; do
@@ -238,7 +242,7 @@ function fn_parse_settings_args() {
 
 # Parse options settings array
 function fn_parse_settings_opts() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # Iterate over all options in the $o array
     for key in ${(ok)o}; do
@@ -321,7 +325,7 @@ function fn_parse_settings_opts() {
 
 # Main parsing loop to iterate over all arguments
 function fn_parse_arguments() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # List of used options (only long names)
     local used_opts=""
@@ -360,7 +364,7 @@ function fn_parse_arguments() {
 
 # Parse a single option
 function fn_parse_option() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local arg="$1" i="$2" oi="$3"
     local oic="$y$oi$x"
@@ -511,7 +515,7 @@ function fn_parse_option() {
 
 # Generate option suggestion based on error type
 function fn_option_suggestion() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local error_type="$1"
     local suggestion=""
@@ -686,7 +690,7 @@ function fn_option_suggestion() {
 
 # Parse a single argument
 function fn_parse_argument() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local aic="$y$ai$x"
     
@@ -705,7 +709,7 @@ function fn_parse_argument() {
 
 # Prepare the full usage information
 function fn_usage() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local i=1
     local usage="\n"
@@ -811,7 +815,7 @@ function fn_usage() {
 
 # Prepare the version string
 function fn_version() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local version="$s[name]"
     [[ -n $f[version] ]] && version+=" $y$f[version]$x" || version+=" [version unknown]"
@@ -821,7 +825,7 @@ function fn_version() {
 
 # Prepare the hint string
 function fn_hint() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     if [[ $f[info] && $f[help] ]]; then
         log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
@@ -838,7 +842,7 @@ function fn_hint() {
 
 # Prepare source code location string
 function fn_source() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local file="$f[file_path]"
     local string="${f[name]}() {"
@@ -848,7 +852,7 @@ function fn_source() {
 
 # Prepare the footer string
 function fn_footer() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local footer=""
     footer+="$s[version] copyright © "
@@ -860,7 +864,7 @@ function fn_footer() {
 
 # Prepare the example string
 function fn_example() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local indent="    " arg_pos arg_name example=""
     [[ $o[help] == 1 ]] && example+="\n"
@@ -883,7 +887,7 @@ function fn_example() {
 
 # Warpper function to set all strings
 function fn_set_strings() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     s[name]="${g}$f[name]$x"
     s[path]="${c}$f[file_path]$x"
@@ -909,7 +913,7 @@ function fn_set_strings() {
 
 # Check if the number of arguments is correct
 function fn_check_args() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local expected="expected $y$f[args_min]$x"
     local given="given $y$f[args_count]$x"
@@ -935,7 +939,7 @@ function fn_check_args() {
 
 # Gather basic ennvironment information
 function fn_set_info() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     if [[ "${(t)i}" == *"association"* ]]; then
         i[arch]=$(uname -m)             # system architecture
@@ -956,26 +960,28 @@ function fn_set_info() {
 
 # Options handling (show version, basic info/usage or help)
 function fn_handle_options() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
-    if [[ "$o[version]" -eq "1" || "$o[info]" -eq "1" || "$o[help]" -eq "1" ]]; then
-        if [[ "$o[version]" -eq "1" ]]; then
+    if (( o[version] == 1 || o[info] == 1 || o[help] == 1 )); then
+        if (( o[version] == 1 )); then
             echo $s[version]
-        elif [[ "$o[info]" -eq "1" ]]; then
+        elif (( o[info] == 1 )); then
             [[ $f[info] ]] && echo $s[header]
             echo $s[example]
-        elif [[ "$o[help]" -eq "1" ]]; then
+        elif (( o[help] == 1 )); then
             [[ $f[info] ]] && echo "\n$s[header]"
             [[ $f[help] ]] && echo $f[help]
             echo "$s[example]\n$s[usage]\n$s[footer]\n$s[source]\n"
         fi
+        # Destroy a flag that fn_make() is running
+        unset "f[run]"
         f[return]=0 && return 0
     fi
 }
 
 # Set time difference
 function fn_set_time() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
     (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
@@ -986,7 +992,7 @@ function fn_set_time() {
 
 # Error handling
 function fn_handle_errors() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
@@ -998,6 +1004,8 @@ function fn_handle_errors() {
             [[ $e_dym[$key] ]] && log::info "$e_dym[$key]"
         done
         fn_hint
+        # Destroy a flag that fn_make() is running
+        unset "f[run]"
         f[return]=1 && return 1
     else
         f[return]="" && return 0
@@ -1010,7 +1018,7 @@ function fn_handle_errors() {
 
 # Print debug information
 function fn_debug() {
-    # Check if fn_main() was called before
+    # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
@@ -1269,7 +1277,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         print -- "ARGS first='${a[first]}' second='${a[second]}' third='${a[third]}'"
         for opt in level mode; do
             if [[ -n ${o[$opt]+_} ]]; then
@@ -1293,7 +1301,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         for opt in alpha color; do
             if [[ -n ${o[$opt]+_} ]]; then
                 print -- "SET:${opt}=${o[$opt]}"
@@ -1318,7 +1326,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         for opt in name path free strict; do
             if [[ -n ${o[$opt]+_} ]]; then
                 print -- "SET:${opt}=${o[$opt]}"
@@ -1343,7 +1351,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         return 0
     }
 
@@ -1360,7 +1368,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         print -- "INFO_TEST_OK"
         return 0
     }
@@ -1376,7 +1384,7 @@ function fn_self_test() {
             _parts=("${(@s:,:)_spec}")
             _def_opts[$_k]="${_parts[2]}"
         done
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         return 0
     }
 
@@ -1384,7 +1392,7 @@ function fn_self_test() {
     _fst_func_none() {
         local -A f
         f[info]="No-args function."
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         print -- "OK no-args"
         return 0
     }
@@ -1393,7 +1401,7 @@ function fn_self_test() {
     _fst_func_ansi() {
         local -A f
         f[info]=$'\e[31mRED_TEXT\e[0m'
-        fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+        fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
         return 0
     }
 
@@ -1528,10 +1536,12 @@ function fn_function_example() {
     o[name]="n,,custom name" # Empty default value, accepts any user input (no validation)
     o[path]="p,/tmp,file path,[]" # Has default value, but accepts any user input (empty brackets)
     # Run fn_make() to parse arguments and options
-    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
  ## Main function goes here
     # Setting a value in 'this' t[] array
     t[example]="This a function example."
+    # This is return code from fn_make()
+    print "Return code from fn_make(): ${f[return]}"
     # Accessing arguments in a[] array:
     echo "This is the 1st argument: ${a[argument1]}"
     # Accessing options in o[] array:
@@ -1553,7 +1563,7 @@ function fn_function_template() {
     f[version]="1.05"
     f[date]="2025-05-20"
     a[1]="argument1,r,description of the first argument"
-    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
  ## Main function goes here
     print "Main function goes here."
 }
@@ -1561,7 +1571,7 @@ function fn_function_template() {
 # Minimal function template (without arguments and extra options)
 function fn_function_template_short() {
     local -A f
-    fn_make "$@"; (( "${f[return]}" )) && return "${f[return]}"
+    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
  ## Main function goes here
     print "This function doesn't take any arguments."
 }
