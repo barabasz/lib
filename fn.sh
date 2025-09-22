@@ -21,7 +21,7 @@
 # All other functions are private and should not be called directly.
 # Internal fn.sh functions rely on dynamic scoping to access the above arrays.
 #
-# fn_make ver. 1.45 (2025-09-22) by gh/barabasz, MIT License
+# fn_make ver. 1.49 (2025-09-22) by gh/barabasz, MIT License
 
 ##########################################################
 # Main functions
@@ -60,7 +60,7 @@ function fn_make() {
  ## Main function logic
 
     # Save start time
-    time_started[fn_make]=$(gdate +%s%3N 2>/dev/null)
+    time_started[fn_make]=$EPOCHREALTIME
 
     # Create a flag that fn_make() is running
     f[run]=1
@@ -93,12 +93,11 @@ function fn_make() {
     (( f[return] != 0 )) && _fn_handle_errors
         
     # Calculate the time taken by functions
-    time_finished[fn_make]=$(gdate +%s%3N 2>/dev/null)
-    _fn_time_took
+    time_finished[fn_make]=$EPOCHREALTIME
     
     # Print debug information
     fn_debug
-    
+
     # Destroy a flag that fn_make() is running
     unset "f[run]"
 }
@@ -108,6 +107,7 @@ function fn_debug() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
+        _fn_time_took
         local max_key_length=15
         local max_value_length=40
         local count
@@ -268,7 +268,7 @@ function _fn_guard() {
 function _fn_load_colors() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     # Save start time
-    time_started[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_load_colors]=$EPOCHREALTIME
     # Load colors
     b="\e[0;34m" # arrows
     c="\e[0;36m" # arguments, url, file path
@@ -279,7 +279,7 @@ function _fn_load_colors() {
     y="\e[0;33m" # highlight
     x="\e[0m"    # reset
     # Save end time
-    time_finished[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_load_colors]=$EPOCHREALTIME
 }
 
 # Prepare function properties
@@ -290,7 +290,7 @@ function _fn_set_properties() {
     local is_error=0
     
     # Save start time
-    time_started[_fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_properties]=$EPOCHREALTIME
     
     # Get calling function name
     f[name]="${funcstack[3]}"
@@ -318,7 +318,7 @@ function _fn_set_properties() {
     f[return]="" # return value
     
     # Save end time
-    time_finished[_fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_properties]=$EPOCHREALTIME
     
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
@@ -330,7 +330,7 @@ function _fn_add_defaults() {
     # Initialize error flag
     local is_error=0
     # Save start time
-    time_started[_fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_add_defaults]=$EPOCHREALTIME
     # Add default options to the list
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
@@ -339,7 +339,7 @@ function _fn_add_defaults() {
     [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
     f[opts_max]="${#o}" # maximum number of options
     # Save end time
-    time_finished[_fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_add_defaults]=$EPOCHREALTIME
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
 }
@@ -350,7 +350,7 @@ function _fn_parse_settings() {
     # Initialize error flag
     local is_error=0
     # Save start time
-    time_started[_fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_parse_settings]=$EPOCHREALTIME
     # Parse $a arguments array if is not empty
     if (( ${#a} != 0 )); then
         _fn_parse_settings_args
@@ -368,7 +368,7 @@ function _fn_parse_settings() {
         is_error=1
     fi
     # Save end time
-    time_finished[_fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_parse_settings]=$EPOCHREALTIME
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
 }
@@ -513,7 +513,7 @@ function _fn_parse_arguments() {
     # Initialize error flag
     local is_error=0
     # Save start time
-    time_started[_fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_parse_arguments]=$EPOCHREALTIME
     # List of used options (only long names)
     local used_opts=""
     # List of used options (full arguments)
@@ -551,7 +551,7 @@ function _fn_parse_arguments() {
         (( $? != 0 )) && is_error=1
     fi
     # Save end time
-    time_finished[_fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_parse_arguments]=$EPOCHREALTIME
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
 }
@@ -1077,7 +1077,7 @@ function _fn_example() {
 function _fn_set_strings() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     # Save start time
-    time_started[_fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_strings]=$EPOCHREALTIME
     # Prepare all strings
     s[name]="${g}$f[name]$x"
     s[path]="${c}$f[file_path]$x"
@@ -1100,7 +1100,7 @@ function _fn_set_strings() {
         fn_source
     fi
     # Set end time
-    time_finished[_fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_strings]=$EPOCHREALTIME
 }
 
 # Check if the number of arguments is correct
@@ -1129,11 +1129,11 @@ function _fn_check_args() {
 
 }
 
-# Gather basic ennvironment information
+# Gather basic environment information
 function _fn_set_info() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     # Save start time
-    time_started[_fn_set_info]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_info]=$EPOCHREALTIME
     # Only populate if $i[] is initialized (to avoid unnecessary commands)
     if [[ "${(t)i}" == *"association"* ]]; then
         i[arch]=$(uname -m)             # system architecture
@@ -1151,7 +1151,7 @@ function _fn_set_info() {
         i[tty]=$(tty | sed 's|/dev/||') # terminal type
     fi
     # Save end time
-    time_finished[_fn_set_info]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_info]=$EPOCHREALTIME
 }
 
 # Options handling (show version, basic info/usage or help)
@@ -1161,7 +1161,7 @@ function _fn_handle_options() {
     # Initialize match flag
     local is_match=0
     # Save start time
-    time_started[_fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_handle_options]=$EPOCHREALTIME
     # Handle special options: version, info, help
     if (( o[version] == 1 || o[info] == 1 || o[help] == 1 )); then
         if (( o[version] == 1 )); then
@@ -1177,7 +1177,7 @@ function _fn_handle_options() {
         is_match=1
     fi
     # Save end time
-    time_finished[_fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_handle_options]=$EPOCHREALTIME
     # Set return code if there was an error
     (( is_match )) && f[return]=0
 }
@@ -1190,7 +1190,7 @@ function _fn_handle_errors() {
     local is_error=0
     
     # Save start time
-    time_started[_fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_handle_errors]=$EPOCHREALTIME
     
     # Iterate over error messages and display them
     if [[ ${#e_msg} != 0 ]]; then
@@ -1207,7 +1207,7 @@ function _fn_handle_errors() {
     fi
     
     # Save end time
-    time_finished[_fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_handle_errors]=$EPOCHREALTIME
     
     # Set return code if there was an error
     (( is_error )) && f[return]=1
@@ -1222,7 +1222,8 @@ function _fn_time_took() {
         local started=${time_started[$fn_name]}
         local finished=${time_finished[$fn_name]}
         if [[ -n $started && -n $finished ]]; then
-            time_took[$fn_name]=$(( finished - started ))
+            float diff_ms=$(( (finished - started) * 1000 ))
+            time_took[$fn_name]=$(LC_NUMERIC=C printf "%.3f" "$diff_ms")
         else
             time_took[$fn_name]="N/A"
         fi
@@ -1241,12 +1242,18 @@ function _fn_time_took() {
 
     local total=${time_took[fn_make]}
     if [[ -n $total && $total != "N/A" ]]; then
-        local overhead=$(( total - sum ))
+        float overhead=$(( total - sum ))
+        # Secure -0.000 due to binary errors
         (( overhead < 0 )) && overhead=0
-        f[time_profile_sum]=$sum
-        f[time_profile_overhead]=$overhead
-        (( total > 0 )) && f[time_profile_overhead_pct]=$(( overhead * 100 / total )) || f[time_profile_overhead_pct]=0
-        f[time_profile_overhead_pct]+="%"
+        # Save with 3 decimal places
+        f[time_profile_sum]=$(printf "%.3f" "$sum")
+        f[time_profile_overhead]=$(LC_NUMERIC=C printf "%.3f" "$overhead")
+        if (( total > 0 )); then
+            float pct=$(( (overhead * 100) / total ))
+            f[time_profile_overhead_pct]=$(LC_NUMERIC=C printf "%.1f%%" "$pct")
+        else
+            f[time_profile_overhead_pct]="0.0%"
+        fi
     else
         f[time_profile_sum]="N/A"
         f[time_profile_overhead]="N/A"
@@ -1256,7 +1263,6 @@ function _fn_time_took() {
     # Clean up timing variables
     unset time_started time_finished
 }
-
 
 # List associative array contents
 function _fn_list_array() {
@@ -1307,7 +1313,7 @@ function _fn_list_array() {
 
 # Self-test harness (internal) – public entry point: fn_self_test()
 function fn_self_test() {
-    local self_test_started=$(gdate +%s%3N 2>/dev/null)
+    local self_test_started=$EPOCHREALTIME
     setopt localoptions extended_glob
     local quiet=0
     [[ "$1" == "-q" ]] && quiet=1
@@ -1633,7 +1639,7 @@ function fn_self_test() {
     # Summary
     #####################################################
     local summary="SELF-TEST: total=$total pass=$pass fail=$fail"
-    local now=$(gdate +%s%3N 2>/dev/null)
+    local now=$EPOCHREALTIME
     local diff=$((now - self_test_started))
     if (( fail > 0 )); then
         echo "$summary"

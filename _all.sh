@@ -714,7 +714,7 @@ function fn_make() {
     [[ "${(t)o}" != *association* ]] && local -A o
     [[ "${(t)a}" != *association* ]] && local -A a
     [[ "${(t)s}" != *association* ]] && local -A s
-    time_started[fn_make]=$(gdate +%s%3N 2>/dev/null)
+    time_started[fn_make]=$EPOCHREALTIME
     f[run]=1
     _fn_load_colors
     [[ "${(t)i}" == *"association"* ]] &&  _fn_set_info
@@ -725,8 +725,7 @@ function fn_make() {
     _fn_set_strings
     _fn_handle_options
     (( f[return] != 0 )) && _fn_handle_errors
-    time_finished[fn_make]=$(gdate +%s%3N 2>/dev/null)
-    _fn_time_took
+    time_finished[fn_make]=$EPOCHREALTIME
     fn_debug
     unset "f[run]"
 }
@@ -734,6 +733,7 @@ function fn_debug() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
+        _fn_time_took
         local max_key_length=15
         local max_value_length=40
         local count
@@ -849,22 +849,21 @@ function _fn_guard() {
 }
 function _fn_load_colors() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
-    local is_error=0
-    time_started[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
-    b="\e[0;34m"            # arrows
-    c="\e[0;36m"            # arguments, url, file path
-    g="\e[0;32m"            # function name
-    p="\e[0;95m"            # options
-    r="\e[0;31m"            # errors
-    w="\e[0;37m"            # plain text
-    y="\e[0;33m"            # highlight
-    x="\e[0m"               # reset
-    time_finished[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_load_colors]=$EPOCHREALTIME
+    b="\e[0;34m" # arrows
+    c="\e[0;36m" # arguments, url, file path
+    g="\e[0;32m" # function name
+    p="\e[0;95m" # options
+    r="\e[0;31m" # errors
+    w="\e[0;37m" # plain text
+    y="\e[0;33m" # highlight
+    x="\e[0m"    # reset
+    time_finished[_fn_load_colors]=$EPOCHREALTIME
 }
 function _fn_set_properties() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
-    time_started[_fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_properties]=$EPOCHREALTIME
     f[name]="${funcstack[3]}"
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
@@ -878,26 +877,26 @@ function _fn_set_properties() {
     f[opts_count]=0 # number of options passed
     f[opts_input]="" # string of options passed
     f[return]="" # return value
-    time_finished[_fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_properties]=$EPOCHREALTIME
     (( is_error )) && f[return]=1 && return 1
 }
 function _fn_add_defaults() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
-    time_started[_fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_add_defaults]=$EPOCHREALTIME
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
     [[ -z ${o[version]} ]] && o[version]="v,1,show version,[0|1]"
     [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|E|f|h|I|i|o|O|S|s|T|t]"
     [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
     f[opts_max]="${#o}" # maximum number of options
-    time_finished[_fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_add_defaults]=$EPOCHREALTIME
     (( is_error )) && f[return]=1 && return 1
 }
 function _fn_parse_settings() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
-    time_started[_fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_parse_settings]=$EPOCHREALTIME
     if (( ${#a} != 0 )); then
         _fn_parse_settings_args
     fi
@@ -911,7 +910,7 @@ function _fn_parse_settings() {
         done
         is_error=1
     fi
-    time_finished[_fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_parse_settings]=$EPOCHREALTIME
     (( is_error )) && f[return]=1 && return 1
 }
 function _fn_parse_settings_args() {
@@ -1000,7 +999,7 @@ function _fn_parse_settings_opts() {
 function _fn_parse_arguments() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
-    time_started[_fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_parse_arguments]=$EPOCHREALTIME
     local used_opts=""
     local -A used_opts_full
     local i=0 ai=0 oi=0
@@ -1026,7 +1025,7 @@ function _fn_parse_arguments() {
         _fn_check_args
         (( $? != 0 )) && is_error=1
     fi
-    time_finished[_fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_parse_arguments]=$EPOCHREALTIME
     (( is_error )) && f[return]=1 && return 1
 }
 function _fn_parse_option() {
@@ -1421,7 +1420,7 @@ function _fn_example() {
 }
 function _fn_set_strings() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
-    time_started[_fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_strings]=$EPOCHREALTIME
     s[name]="${g}$f[name]$x"
     s[path]="${c}$f[file_path]$x"
     s[author]="${y}$f[author]$x"
@@ -1439,7 +1438,7 @@ function _fn_set_strings() {
         _fn_footer
         fn_source
     fi
-    time_finished[_fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_strings]=$EPOCHREALTIME
 }
 function _fn_check_args() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
@@ -1462,7 +1461,7 @@ function _fn_check_args() {
 }
 function _fn_set_info() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
-    time_started[_fn_set_info]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_info]=$EPOCHREALTIME
     if [[ "${(t)i}" == *"association"* ]]; then
         i[arch]=$(uname -m)             # system architecture
         i[brew]=$+commands[brew]        # is Homebrew installed
@@ -1478,12 +1477,12 @@ function _fn_set_info() {
         i[git]=$+commands[git]          # is git installed
         i[tty]=$(tty | sed 's|/dev/||') # terminal type
     fi
-    time_finished[_fn_set_info]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_info]=$EPOCHREALTIME
 }
 function _fn_handle_options() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local is_match=0
-    time_started[_fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_handle_options]=$EPOCHREALTIME
     if (( o[version] == 1 || o[info] == 1 || o[help] == 1 )); then
         if (( o[version] == 1 )); then
             echo $s[version]
@@ -1497,13 +1496,13 @@ function _fn_handle_options() {
         fi
         is_match=1
     fi
-    time_finished[_fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_handle_options]=$EPOCHREALTIME
     (( is_match )) && f[return]=0
 }
 function _fn_handle_errors() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
-    time_started[_fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_handle_errors]=$EPOCHREALTIME
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
         log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
@@ -1516,7 +1515,7 @@ function _fn_handle_errors() {
         fn_hint
         is_error=1
     fi
-    time_finished[_fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_handle_errors]=$EPOCHREALTIME
     (( is_error )) && f[return]=1
 }
 function _fn_time_took() {
@@ -1525,7 +1524,8 @@ function _fn_time_took() {
         local started=${time_started[$fn_name]}
         local finished=${time_finished[$fn_name]}
         if [[ -n $started && -n $finished ]]; then
-            time_took[$fn_name]=$(( finished - started ))
+            float diff_ms=$(( (finished - started) * 1000 ))
+            time_took[$fn_name]=$(LC_NUMERIC=C printf "%.3f" "$diff_ms")
         else
             time_took[$fn_name]="N/A"
         fi
@@ -1539,12 +1539,16 @@ function _fn_time_took() {
     done
     local total=${time_took[fn_make]}
     if [[ -n $total && $total != "N/A" ]]; then
-        local overhead=$(( total - sum ))
+        float overhead=$(( total - sum ))
         (( overhead < 0 )) && overhead=0
-        f[time_profile_sum]=$sum
-        f[time_profile_overhead]=$overhead
-        (( total > 0 )) && f[time_profile_overhead_pct]=$(( overhead * 100 / total )) || f[time_profile_overhead_pct]=0
-        f[time_profile_overhead_pct]+="%"
+        f[time_profile_sum]=$(printf "%.3f" "$sum")
+        f[time_profile_overhead]=$(LC_NUMERIC=C printf "%.3f" "$overhead")
+        if (( total > 0 )); then
+            float pct=$(( (overhead * 100) / total ))
+            f[time_profile_overhead_pct]=$(LC_NUMERIC=C printf "%.1f%%" "$pct")
+        else
+            f[time_profile_overhead_pct]="0.0%"
+        fi
     else
         f[time_profile_sum]="N/A"
         f[time_profile_overhead]="N/A"
@@ -1584,7 +1588,7 @@ function _fn_list_array() {
     return 0
 }
 function fn_self_test() {
-    local self_test_started=$(gdate +%s%3N 2>/dev/null)
+    local self_test_started=$EPOCHREALTIME
     setopt localoptions extended_glob
     local quiet=0
     [[ "$1" == "-q" ]] && quiet=1
@@ -1844,7 +1848,7 @@ function fn_self_test() {
     _fst_run "ANSI_INFO"               "_fst_func_ansi -i"                                        "RED_TEXT" 0
     _fst_run "ANSI_STRIPPER_LOCAL"     "_fst_strip_ansi \$'\e[32mGREEN\e[0m plain'"               "GREEN plain" 0
     local summary="SELF-TEST: total=$total pass=$pass fail=$fail"
-    local now=$(gdate +%s%3N 2>/dev/null)
+    local now=$EPOCHREALTIME
     local diff=$((now - self_test_started))
     if (( fail > 0 )); then
         echo "$summary"
