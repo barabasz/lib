@@ -94,7 +94,7 @@ function fn_make() {
         
     # Calculate the time taken by functions
     time_finished[fn_make]=$EPOCHREALTIME
-    
+
     # Print debug information
     fn_debug
 
@@ -106,8 +106,12 @@ function fn_make() {
 function fn_debug() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local debug="${1:-${o[debug]}}"
+
+    # Calculate timing information if debug mode is enabled
+    if [[ "$debug" ]] && _fn_calculate_time
+
+    
     if [[ "$debug" && ! $debug =~ "d" ]]; then
-        _fn_time_took
         local max_key_length=15
         local max_value_length=40
         local count
@@ -1213,44 +1217,47 @@ function _fn_handle_errors() {
     (( is_error )) && f[return]=1
 }
 
-# Set time difference
-function _fn_time_took() {
+# Calculate timing information
+function _fn_calculate_time() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
-    
-    # Calculate time took for each function
+
+    # Force '.' as decimal separator regardless of user locale
+    local LC_NUMERIC=C
+
+    # Compute per-phase timings (milliseconds with 3 decimal places)
+    local fn_name
     for fn_name in ${(k)time_started}; do
         local started=${time_started[$fn_name]}
         local finished=${time_finished[$fn_name]}
         if [[ -n $started && -n $finished ]]; then
             float diff_ms=$(( (finished - started) * 1000 ))
-            time_took[$fn_name]=$(LC_NUMERIC=C printf "%.3f" "$diff_ms")
+            time_took[$fn_name]=$(printf "%.3f" "$diff_ms")
         else
             time_took[$fn_name]="N/A"
         fi
     done
 
-    # Copy total time to main key f[]
+    # Store total execution time in f[]
     f[time_took]="${time_took[fn_make]}"
 
-    # Sum up individual function times (excluding total)
-    local sum=0 k v
+    # Sum only internal implementation phases (_fn_*)
+    float sum=0
+    local k v
     for k v in "${(@kv)time_took}"; do
         [[ $k == _fn_* ]] || continue
-        [[ "$v" == "N/A" ]] && continue
-        (( sum += v ))
+        [[ $v == "N/A" ]] && continue
+        sum=$(( sum + v ))
     done
 
     local total=${time_took[fn_make]}
     if [[ -n $total && $total != "N/A" ]]; then
         float overhead=$(( total - sum ))
-        # Secure -0.000 due to binary errors
-        (( overhead < 0 )) && overhead=0
-        # Save with 3 decimal places
+        (( overhead < 0 )) && overhead=0  # Guard against negative zero due to FP errors
         f[time_profile_sum]=$(printf "%.3f" "$sum")
-        f[time_profile_overhead]=$(LC_NUMERIC=C printf "%.3f" "$overhead")
+        f[time_profile_overhead]=$(printf "%.3f" "$overhead")
         if (( total > 0 )); then
             float pct=$(( (overhead * 100) / total ))
-            f[time_profile_overhead_pct]=$(LC_NUMERIC=C printf "%.1f%%" "$pct")
+            f[time_profile_overhead_pct]=$(printf "%.1f%%" "$pct")
         else
             f[time_profile_overhead_pct]="0.0%"
         fi
@@ -1260,7 +1267,7 @@ function _fn_time_took() {
         f[time_profile_overhead_pct]="N/A"
     fi
 
-    # Clean up timing variables
+    # Cleanup raw timing maps (no longer needed after aggregation)
     unset time_started time_finished
 }
 
