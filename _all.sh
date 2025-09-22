@@ -1737,6 +1737,11 @@ function fn_self_test() {
     _fst_run "OPT_MULTIPLE_EQUALS"       "_fst_func_args one two --level=hard=extra"              "multiple equal signs" 1
     _fst_run "OPT_EMPTY_NAME_EQUALS_SHORT" "_fst_func_args one two -=x"                           "empty name with equals sign" 1
     _fst_run "OPT_EMPTY_NAME_EQUALS_LONG"  "_fst_func_args one two --=x"                          "empty name with equals sign" 1
+    _fst_run "OPT_EMPTY_NAME_SINGLE_DASH" "_fst_func_args one two -"                              "empty name in" 1
+    _fst_run "OPT_EMPTY_NAME_DOUBLE_DASH" "_fst_func_args one two --"                             "empty name in" 1
+    _fst_run "OPT_EMPTY_VALIDATED_VALUE" "_fst_func_args one two --level="                        "invalid value" 1
+    _fst_run "OPT_EMPTY_FREE_VALUE" "_fst_func_opts_extra --name="                                "SET:name=" 0
+    _fst_run_absent "DEBUG_SUPPRESSED" "_fst_func_args one two -d=dfi"                            "Debug mode" 0
     _fst_run "DUPLICATE_SHORT_LONG"    "_fst_func_opts_dup -c=red --color=green"                  "already used" 1
     _fst_run "MULTI_ERRORS_UNKNOWN"    "_fst_func_args one two three four --badopt=1"            "unknown in" 1
     _fst_run "MULTI_ERRORS_TOOMANY"    "_fst_func_args one two three four --badopt=1"            "Too many arguments" 1
