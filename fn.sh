@@ -45,77 +45,96 @@
 #       fn_handle_options() - options handling (show version, info, help, etc.)
 #       fn_set_time() - save total time
 #       fn_handle_errors() - print error messages if any
-#   Debugging functions
+#       fn_time_took() - calculate the time taken by functions
 #       fn_debug() - print debug information
 #   Auxiliary functions
+#       fn_guard() - check if the function is called from fn_make()
 #       fn_load_colors() - load variables for colored output (ANSI colors)
 #       fn_list_arrays() - list all associative arrays used by fn_make()
-#       fn_how_long_it_took() - print milliseconds from $timestamp
 #   Function examples and templates
 #       fn_example_basic() - basic example function
 #       fn_example_args() - example function with arguments
 #       fn_example_opts() - example function with options
 #
-# fn_make ver. 1.39 (2025-09-22) by gh/barabasz, MIT License
+# fn_make ver. 1.4 (2025-09-22) by gh/barabasz, MIT License
 
 ##########################################################
 # Main function
 ##########################################################
 
 function fn_make() {
-    # Load variables for colored output (ANSI colors)
-    fn_load_colors
-    # Check if the function is running in Zsh
-    if [[ -z $ZSH_VERSION ]]; then
-        log::error "${c}fn_make$x function can only be used in Zsh shell"
-        return 1
-    fi
+
+ ## Check critical conditions
+
     # Check if the function is called from a parent function
     if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
-        log::error "${c}fn_make$x function cannot be called directly"
-        return 1
+        log::error "${c}fn_make()$x cannot be called directly."
+        return 1 # Cannot set f[return] as f[] is not initialized
     fi
     # Check if $f[] array is provided
     if [[ "${(t)f}" != *association* ]]; then
-        log::error "${c}fn_make$x function requires an initialized f[] array"
-        return 1
+        log::error "${c}fn_make()$x requires an initialized f[] array."
+        return 1 # Cannot set f[return] as f[] is not initialized
     fi
-    # Create a flag that fn_make() is running
-    f[run]=1
 
+ 
+ ## Variable initialization
+
+    # Local arrays for timing measurements
+    local -A time_started; local -A time_finished; local -A time_took
     # Arguments arrays (name, required flag, help string)
     local -A a_name; local -A a_req; local -A a_help
-    # Options arrays (default values, short names, full names, help string, allowed values)
+    # Options arrays (default values, short and full names, help string, allowed values)
     local -A o_default; local -A o_short; local -A o_long; local -A o_help; local -A o_allowed
     # Error messages, hints and suggestions arrays
     local -A e_msg; local -A e_hint; local -A e_dym
+    # Initialize arrays if not aleready initialized
+    [[ "${(t)o}" != *association* ]] && local -A o
+    [[ "${(t)a}" != *association* ]] && local -A a
+    [[ "${(t)s}" != *association* ]] && local -A s
+
+ ## Main function logic
+
+    # Save start time
+    time_started[fn_make]=$(gdate +%s%3N 2>/dev/null)
+
+    # Create a flag that fn_make() is running
+    f[run]=1
+
+    # Load variables for colored output (ANSI colors)
+    fn_load_colors
+
+    # Gather basic environment information if i[] array is initialized    
+    [[ "${(t)i}" == *"association"* ]] &&  fn_set_info
 
     # Prepare function properties
-    fn_set_properties
-    # Gather basic environment information if i[] array is initialized
-    [[ "${(t)i}" == *"association"* ]] &&  fn_set_info
-    # Initialize o[] options associative array if not already
-    [[ "${(t)o}" != *association* ]] && local -A o
+    [[ -z "${f[return]}" ]] && fn_set_properties
+    
     # Add default options to the $o array
-    fn_add_defaults
-    # Initialize a[] arguments associative array if not already
-    [[ "${(t)a}" != *association* ]] && local -A a
-    # Initialize s[] associative array if not already
-    [[ "${(t)s}" != *association* ]] && local -A s
+    [[ -z "${f[return]}" ]] && fn_add_defaults
+    
     # Parse arguments and options settings arrays, exit on error
-    fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    [[ -z "${f[return]}" ]] && fn_parse_settings
+    
     # Parse function arguments
-    fn_parse_arguments "$@"
+    [[ -z "${f[return]}" ]] && fn_parse_arguments "$@"
+    
     # Make function strings
     fn_set_strings
-    # Save total time
-    fn_set_time
-    # Print debug information
-    fn_debug && [[ -n "${f[return]}" ]] && return "${f[return]}"
+
     # Options handling (show version, basic info/usage or help)
-    fn_handle_options && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    fn_handle_options
+    
     # Error handling
-    fn_handle_errors && [[ -n "${f[return]}" ]] && return "${f[return]}"
+    (( f[return] != 0 )) && fn_handle_errors
+        
+    # Calculate the time taken by functions
+    time_finished[fn_make]=$(gdate +%s%3N 2>/dev/null)
+    fn_time_took
+    
+    # Print debug information
+    fn_debug
+    
     # Destroy a flag that fn_make() is running
     unset "f[run]"
 }
@@ -128,45 +147,74 @@ function fn_make() {
 function fn_set_properties() {
     # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
-    f[time_started]=$(date +"%Y-%m-%d %H:%M:%S")
-    # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
-    (( $+commands[gdate] )) && f[time_fnmake_start]=$(gdate +%s%3N) || f[time_fnmake_start]=$(date +%s)
+    
+    # Initialize error flag
+    local is_error=0
+    
+    # Save start time
+    time_started[fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    
+    # Get calling function name
     f[name]="${funcstack[3]}"
+    
+    # Set default author if not set
     [[ -z $f[author] ]] && f[author]="gh/barabasz"
+    
     # File with parent function
     f[file_path]="$(whence -v $f[name] | awk '{print $NF}')"
     f[file_dir]="${f[file_path]%/*}"
     f[file_name]="${f[file_path]##*/}"
+    
     # Arguments
     f[args_min]="0" # number of required arguments
     f[args_opt]="0" # number of optional arguments
     f[args_max]="${#a}" # maximum number of arguments
     f[args_count]=0 # number of arguments passed
     f[args_input]="" # string of arguments passed
+    
     # Options
     f[opts_count]=0 # number of options passed
     f[opts_input]="" # string of options passed
+    
     # Return code on error
     f[return]="" # return value
+    
+    # Save end time
+    time_finished[fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    
+    # Set return code if there was an error
+    (( is_error )) && f[return]=1 && return 1
 }
 
 # Add default options to the $o array
 function fn_add_defaults() {
     # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Initialize error flag
+    local is_error=0
+    # Save start time
+    time_started[fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
     # Add default options to the list
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
     [[ -z ${o[version]} ]] && o[version]="v,1,show version,[0|1]"
-    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|E|f|h|I|i|o|O|s|t]"
+    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|E|f|h|I|i|o|O|S|s|T|t]"
     [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
     f[opts_max]="${#o}" # maximum number of options
+    # Save end time
+    time_finished[fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
+    # Set return code if there was an error
+    (( is_error )) && f[return]=1 && return 1
 }
 
 # Parse arguments and options settings arrays
 function fn_parse_settings() {
     # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Initialize error flag
+    local is_error=0
+    # Save start time
+    time_started[fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
     # Parse $a arguments array if is not empty
     if (( ${#a} != 0 )); then
         fn_parse_settings_args
@@ -181,10 +229,12 @@ function fn_parse_settings() {
             local value="${e_msg[$key]}"
             log::error "$value" && [[ $e_hint[$key] ]] && log::normal "$e_hint[$key]"
         done
-        # Destroy a flag that fn_make() is running
-        unset "f[run]"
-        f[return]=1 && return 1
+        is_error=1
     fi
+    # Save end time
+    time_finished[fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
+    # Set return code if there was an error
+    (( is_error )) && f[return]=1 && return 1
 }
 
 # Parse arguments settings array
@@ -327,6 +377,10 @@ function fn_parse_settings_opts() {
 function fn_parse_arguments() {
     # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Initialize error flag
+    local is_error=0
+    # Save start time
+    time_started[fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
     # List of used options (only long names)
     local used_opts=""
     # List of used options (full arguments)
@@ -359,7 +413,12 @@ function fn_parse_arguments() {
     # Get arguments count information
     if (( f[args_count] < f[args_min] || f[args_count] > f[args_max] )); then
         fn_check_args
+        (( $? != 0 )) && is_error=1
     fi
+    # Save end time
+    time_finished[fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
+    # Set return code if there was an error
+    (( is_error )) && f[return]=1 && return 1
 }
 
 # Parse a single option
@@ -864,8 +923,8 @@ function fn_footer() {
 
 # Prepare the example string
 function fn_example() {
-    # Check if fn_make() was called before
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
+    
     local indent="    " arg_pos arg_name example=""
     [[ $o[help] == 1 ]] && example+="\n"
     example+="${y}Usage example:$x" 
@@ -889,6 +948,9 @@ function fn_example() {
 function fn_set_strings() {
     # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Save start time
+    time_started[fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
+    # Prepare all strings
     s[name]="${g}$f[name]$x"
     s[path]="${c}$f[file_path]$x"
     s[author]="${y}$f[author]$x"
@@ -909,29 +971,31 @@ function fn_set_strings() {
         fn_footer
         fn_source
     fi
+    # Set end time
+    time_finished[fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
 }
 
 # Check if the number of arguments is correct
 function fn_check_args() {
-    # Check if fn_make() was called before
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
+
     local expected="expected $y$f[args_min]$x"
     local given="given $y$f[args_count]$x"
 
     (( f[args_max] == 0 && f[args_count] > 0 )) && {
-        e_msg[0]="No arguments expected ($given)"
+        e_msg[a]="No arguments expected ($given)"
         return 1
     }
     
     (( f[args_count] < f[args_min] )) && {
         local msg="Missing required argument"
         (( f[args_min] - f[args_count] > 1 )) && msg+="s"
-        e_msg[0]="$msg ($expected, $given)"
+        e_msg[a]="$msg ($expected, $given)"
         return 1
     }
     
     (( f[args_count] > f[args_max] )) && {
-        e_msg[0]="Too many arguments ($expected to $y$f[args_max]$x, $given)"
+        e_msg[a]="Too many arguments ($expected to $y$f[args_max]$x, $given)"
         return 1
     }
 
@@ -941,6 +1005,9 @@ function fn_check_args() {
 function fn_set_info() {
     # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Save start time
+    time_started[fn_set_info]=$(gdate +%s%3N 2>/dev/null)
+    # Only populate if $i[] is initialized (to avoid unnecessary commands)
     if [[ "${(t)i}" == *"association"* ]]; then
         i[arch]=$(uname -m)             # system architecture
         i[brew]=$+commands[brew]        # is Homebrew installed
@@ -956,12 +1023,19 @@ function fn_set_info() {
         i[git]=$+commands[git]          # is git installed
         i[tty]=$(tty | sed 's|/dev/||') # terminal type
     fi
+    # Save end time
+    time_finished[fn_set_info]=$(gdate +%s%3N 2>/dev/null)
 }
 
 # Options handling (show version, basic info/usage or help)
 function fn_handle_options() {
-    # Check if fn_make() was called before
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
+
+    # Initialize match flag
+    local is_match=0
+    # Save start time
+    time_started[fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    # Handle special options: version, info, help
     if (( o[version] == 1 || o[info] == 1 || o[help] == 1 )); then
         if (( o[version] == 1 )); then
             echo $s[version]
@@ -973,27 +1047,26 @@ function fn_handle_options() {
             [[ $f[help] ]] && echo $f[help]
             echo "$s[example]\n$s[usage]\n$s[footer]\n$s[source]\n"
         fi
-        # Destroy a flag that fn_make() is running
-        unset "f[run]"
-        f[return]=0 && return 0
+        is_match=1
     fi
-}
-
-# Set time difference
-function fn_set_time() {
-    # Check if fn_make() was called before
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
-    # Get timestamp from gdate (in milliseconds) or date (on macOS in seconds)
-    (( $+commands[gdate] )) && local time_end=$(gdate +%s%3N) || local time_end=$(date +%s)
-    local time_diff=$((time_end - f[time_fnmake_start]))
-    f[time_fnmake]=$time_diff
-    unset "f[time_fnmake_start]"
+    # Save end time
+    time_finished[fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    # Set return code if there was an error
+    (( is_match )) && f[return]=0
 }
 
 # Error handling
 function fn_handle_errors() {
     # Check if fn_make() was called before
     (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    
+    # Initialize error flag
+    local is_error=0
+    
+    # Save start time
+    time_started[fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    
+    # Iterate over error messages and display them
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
         log::debug "$r${#e_msg} error$plr in $s[name] ${r}arguments:$x"
@@ -1004,17 +1077,32 @@ function fn_handle_errors() {
             [[ $e_dym[$key] ]] && log::info "$e_dym[$key]"
         done
         fn_hint
-        # Destroy a flag that fn_make() is running
-        unset "f[run]"
-        f[return]=1 && return 1
-    else
-        f[return]="" && return 0
+        is_error=1
     fi
+    
+    # Save end time
+    time_finished[fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    
+    # Set return code if there was an error
+    (( is_error )) && f[return]=1
 }
 
-##########################################################
-# Debugging function
-##########################################################
+# Set time difference
+function fn_time_took() {
+    # Check if fn_make() was called before
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    # Iterate over all started times and calculate the difference
+    for fn_name in ${(k)time_started}; do
+        local started="time_started[$fn_name]"
+        local finished="time_finished[$fn_name]"
+        if (( started && finished )); then
+            time_took[$fn_name]=$(( finished - started ))
+        else
+            time_took[$started]="N/A"
+        fi
+    done
+    f[time_took]="${time_took[fn_make]}"
+}
 
 # Print debug information
 function fn_debug() {
@@ -1041,12 +1129,14 @@ function fn_debug() {
             [i]="Information from $y\$i[]$x array"
             [O]="Internal $y\$o_*[]$x option arrays"
             [o]="Options from $y\$o[]$x array"
+            [S]="Simple summary"
             [s]="Strings from $y\$s[]$x array"
+            [T]="Timings from $y\$time_took[]$x array"
             [t]="This function from $y\$t[]$x array"
         )
 
         # If no valid mode is set, show help
-        if [[ ! $debug =~ [AaDdeEfhIiOost] ]]; then
+        if [[ ! $debug =~ [AaDdeEfhIiOoSsTt] ]]; then
             log::info "No valid debug mode set, falling back to help mode."
             debug="h"
         fi
@@ -1058,6 +1148,11 @@ function fn_debug() {
             fi
         done
         for key in "${(@k)t}"; do
+            if [[ ${#key} -gt $max_key_length ]]; then
+                max_key_length=${#key}
+            fi
+        done
+        for key in "${(@k)time_took}"; do
             if [[ ${#key} -gt $max_key_length ]]; then
                 max_key_length=${#key}
             fi
@@ -1085,6 +1180,8 @@ function fn_debug() {
             done | sort
             echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
             echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
+            # Exit if debug mode is set to 'h'
+            debug="e"
         fi
 
         # List internal $o_default[] array (options default values)
@@ -1125,18 +1222,36 @@ function fn_debug() {
         [[ $debug =~ "i" ]] && fn_list_array "i" "Environment information"
         # list strings $s[]
         [[ $debug =~ "s" ]] && fn_list_array "s" "Strings"
+        # list timings $time_took[]
+        [[ $debug =~ "T" ]] && fn_list_array "time_took" "Function timings"
         # list this function values $t[]
         [[ $debug =~ "t" ]] && fn_list_array "t" "This function"
         # Debug footer
         print::footer "${r}Debug end$x"
         # Exit if debug mode is set to 'e' and destroy a flag that fn_make() is running
-        [[ $debug =~ "e" ]] && unset "f[run]" && f[return]=0 && return 0
+        [[ $debug =~ "e" ]] && f[return]=0
     fi
 }
 
 ##########################################################
 # Auxiliary functions
 ##########################################################
+
+# Guard function to prevent direct calls
+function fn_guard() {
+    # Self-guard for fn_guard()
+    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
+        log::error "${c}fn_guard()$x cannot be called directly."
+        return 1
+    fi
+    # Check if fn_make() was called before
+    if (( ! f[run] )); then
+        local parent_name="$c${funcstack[2]}()$x"
+        log::error "$parent_name cannot be called directly."
+        return 1
+    fi
+    return 0
+}
 
 # Load base colors (ANSI escape codes)
 function fn_load_colors() {
@@ -1190,17 +1305,6 @@ function fn_list_array() {
         echo "$indent${(r:$max_key_length:)key} $arr $q$value$q"
     done | sort
     return 0
-}
-
-# Print milliseconds from timestamp=$(gdate +%s%3N 2>/dev/null)
-function fn_how_long_it_took() {
-    local r=$(ansi bright red)
-    local x=$(ansi reset)
-    local stage="$1"
-    local start=$timestamp
-    local now=$(gdate +%s%3N 2>/dev/null)
-    local diff=$((now - start))
-    print -- "${r}[${(l:4:: :)diff} ms]${x} $stage"
 }
 
 ##########################################################
@@ -1592,15 +1696,16 @@ function fn_function_example() {
     o[format]="f,json,output format,[csv|json|xml|text|tsv]" # Only specific format values allowed
     o[name]="n,,custom name" # Empty default value, accepts any user input (no validation)
     o[path]="p,/tmp,file path,[]" # Has default value, but accepts any user input (empty brackets)
-    # Run fn_make() to parse arguments and options
-    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
+ ## Run fn_make() to parse arguments and options
+    fn_make "$@"; [[ $? -ne 0 ]] && return 1
+    [[ -n "${f[return]}" ]] && return ${f[return]}
  ## Main function goes here
     # Setting a value in 'this' t[] array
     t[example]="This a function example."
     # This is return code from fn_make()
-    print "Return code from fn_make(): ${f[return]}"
+    print "Return code from fn_make(): '${f[return]}'"
     # Accessing arguments in a[] array:
-    echo "This is the 1st argument: ${a[argument1]}"
+    echo "This is the 1st argument: '${a[arg_one]}'"
     # Accessing options in o[] array:
     echo "This is the value of the 'something' option: ${o[something]}"
     # Accessing strings in s[] array:
@@ -1620,7 +1725,9 @@ function fn_function_template() {
     f[version]="1.05"
     f[date]="2025-05-20"
     a[1]="argument1,r,description of the first argument"
-    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
+ ## Run fn_make() to parse arguments and options
+    fn_make "$@"; [[ $? -ne 0 ]] && return 1
+    [[ -n "${f[return]}" ]] && return ${f[return]}
  ## Main function goes here
     print "Main function goes here."
 }
@@ -1628,7 +1735,19 @@ function fn_function_template() {
 # Minimal function template (without arguments and extra options)
 function fn_function_template_short() {
     local -A f
-    fn_make "$@"; [[ "${f[return]}" ]] && return "${f[return]}"
+ ## Run fn_make() to parse arguments and options
+    fn_make "$@"; [[ $? -ne 0 ]] && return 1
+    [[ -n "${f[return]}" ]] && return ${f[return]}
+ ## Main function goes here
+    print "This function doesn't take any arguments."
+}
+
+# Bad function example
+function fn_bad() {
+    local -A f
+ ## Run fn_make() to parse arguments and options
+    fn_make "$@"; [[ $? -ne 0 ]] && return 1
+    [[ -n "${f[return]}" ]] && return ${f[return]}
  ## Main function goes here
     print "This function doesn't take any arguments."
 }
