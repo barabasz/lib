@@ -752,7 +752,7 @@ function fn_debug() {
             [i]="Information from $y\$i[]$x array"
             [O]="Internal $y\$o_*[]$x option arrays"
             [o]="Options from $y\$o[]$x array"
-            [S]="Simple summary"
+            [S]="Simple summary on function execution"
             [s]="Strings from $y\$s[]$x array"
             [T]="Timings from $y\$time_took[]$x array"
             [t]="This function from $y\$t[]$x array"
@@ -791,7 +791,7 @@ function fn_debug() {
                 echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
             done | sort
             echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
-            echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
+            echo "Debugging of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
             debug="e"
         fi
         if [[ $debug =~ "D" ]]; then
@@ -849,14 +849,17 @@ function _fn_guard() {
 }
 function _fn_load_colors() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
-    b=$(ansi blue)          # arrows
-    c=$(ansi cyan)          # arguments, url, file path
-    g=$(ansi green)         # function name
-    p=$(ansi bright purple) # options
-    r=$(ansi red)           # errors
-    w=$(ansi white)         # plain text
-    y=$(ansi yellow)        # highlight
-    x=$(ansi reset)         # reset
+    local is_error=0
+    time_started[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
+    b="\e[0;34m"            # arrows
+    c="\e[0;36m"            # arguments, url, file path
+    g="\e[0;32m"            # function name
+    p="\e[0;95m"            # options
+    r="\e[0;31m"            # errors
+    w="\e[0;37m"            # plain text
+    y="\e[0;33m"            # highlight
+    x="\e[0m"               # reset
+    time_finished[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
 }
 function _fn_set_properties() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
@@ -1353,7 +1356,7 @@ function _fn_usage() {
     (( f[args_max] > 0 )) && usage+=$'\n'
     if [[ $f[opts_max] -gt 0 ]]; then
         usage+="\n${p}Options$x may be submitted in any place and in any order."
-        usage+="\nTo pass a value to a supported options, use the syntax ${p}--option=value$x."
+        usage+="\nTo pass a value to a supported option, use the syntax ${p}--option=value$x."
         usage+="\n${p}Options$x without a value take the ${y}default$x value from the settings."
         usage+="\nTo list option default values, use the ${p}--debug=D$x option."
     fi
@@ -1519,15 +1522,35 @@ function _fn_handle_errors() {
 function _fn_time_took() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     for fn_name in ${(k)time_started}; do
-        local started="time_started[$fn_name]"
-        local finished="time_finished[$fn_name]"
-        if (( started && finished )); then
+        local started=${time_started[$fn_name]}
+        local finished=${time_finished[$fn_name]}
+        if [[ -n $started && -n $finished ]]; then
             time_took[$fn_name]=$(( finished - started ))
         else
-            time_took[$started]="N/A"
+            time_took[$fn_name]="N/A"
         fi
     done
     f[time_took]="${time_took[fn_make]}"
+    local sum=0 k v
+    for k v in "${(@kv)time_took}"; do
+        [[ $k == _fn_* ]] || continue
+        [[ "$v" == "N/A" ]] && continue
+        (( sum += v ))
+    done
+    local total=${time_took[fn_make]}
+    if [[ -n $total && $total != "N/A" ]]; then
+        local overhead=$(( total - sum ))
+        (( overhead < 0 )) && overhead=0
+        f[time_profile_sum]=$sum
+        f[time_profile_overhead]=$overhead
+        (( total > 0 )) && f[time_profile_overhead_pct]=$(( overhead * 100 / total )) || f[time_profile_overhead_pct]=0
+        f[time_profile_overhead_pct]+="%"
+    else
+        f[time_profile_sum]="N/A"
+        f[time_profile_overhead]="N/A"
+        f[time_profile_overhead_pct]="N/A"
+    fi
+    unset time_started time_finished
 }
 function _fn_list_array() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
@@ -1809,6 +1832,8 @@ function fn_self_test() {
     _fst_run "OPTS_STRICT_IMPLICIT"    "_fst_func_opts_extra --strict"                            "SET:strict=one" 0
     _fst_run "DEBUG_COMBINED"          "_fst_func_args one two -d=afiO"                           "Option long names" 0
     _fst_run "DEBUG_MODE_F"            "_fst_func_args one two -d=f"                              "Function properties" 0
+    _fst_run "DEBUG_MODE_S"            "_fst_func_args one two -d=S"                              "Total time:" 0
+    _fst_run "DEBUG_MODE_T"            "_fst_func_args one two -d=T"                              "Function timings" 0
     _fst_run "DEBUG_MODE_FLAG_ONLY"    "_fst_func_args one two -d"                                "Function properties" 0
     _fst_run_absent "DEBUG_EXIT_MODE"  "_fst_func_args one two -d=fe"                             "ARGS first=" 0
     _fst_run_absent "VERSION_EARLY_EXIT" "_fst_func_args one two -v"                              "ARGS first=" 0

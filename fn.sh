@@ -2,9 +2,9 @@
 # The functions below can only be used in the Zsh shell.
 #
 # fn_make() is a helper function for handling options and arguments.
-# It parses the options and arguments of parent function and checks for errors.
-# Additionally, it prints usage, help, and version information.
-# Check "Function examples and templates" section at the end of this file for usage examples.
+# It parses the options and arguments of the parent function and checks for errors.
+# Additionally, it prints usage, help, version information, and provides a debug mode.
+# Check the "Function examples and templates" section for usage examples.
 #
 # fn_make() uses associative arrays passed via dynamic scoping:
 #   f[] - function properties (always required, it carries return code)
@@ -41,7 +41,6 @@ function fn_make() {
         log::error "${c}fn_make()$x requires an initialized f[] array."
         return 1 # Cannot set f[return] as f[] is not initialized
     fi
-
  
  ## Variable initialization
 
@@ -53,7 +52,7 @@ function fn_make() {
     local -A o_default; local -A o_short; local -A o_long; local -A o_help; local -A o_allowed
     # Error messages, hints and suggestions arrays
     local -A e_msg; local -A e_hint; local -A e_dym
-    # Initialize arrays if not aleready initialized
+    # Initialize arrays if not already initialized
     [[ "${(t)o}" != *association* ]] && local -A o
     [[ "${(t)a}" != *association* ]] && local -A a
     [[ "${(t)s}" != *association* ]] && local -A s
@@ -128,7 +127,7 @@ function fn_debug() {
             [i]="Information from $y\$i[]$x array"
             [O]="Internal $y\$o_*[]$x option arrays"
             [o]="Options from $y\$o[]$x array"
-            [S]="Simple summary"
+            [S]="Simple summary on function execution"
             [s]="Strings from $y\$s[]$x array"
             [T]="Timings from $y\$time_took[]$x array"
             [t]="This function from $y\$t[]$x array"
@@ -157,20 +156,20 @@ function fn_debug() {
             fi
         done
         
-        # debug header
+        # Debug header
         print::header "${r}Debug mode$x '$debug'"
         
-        # show exit_mode info when debug mode is not set to 'e'
+        # Show exit_mode info when debug mode is not set to 'e'
         if [[ $debug =~ "e" ]]; then
             log::warning "Exit mode enabled: $s[name] will exit after debug."
             f[return]=0
         fi
-        # show debug modes when debug mode is not set to 'h'
+        # Show information about debug modes when the debug mode is not set to 'h'
         if [[ ! $debug =~ "h" ]]; then
             log::info "Use option ${c}-d=h$x to show available debug modes."
         fi
 
-        # list modes
+        # List all debug modes when the debug mode is set to 'h'
         if [[ $debug =~ "h" ]]; then
             max_key_length=2
             log::info "${y}Debug modes${x} (${#modes}):"
@@ -178,7 +177,7 @@ function fn_debug() {
                 echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
             done | sort
             echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
-            echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
+            echo "Debugging of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
             # Exit if debug mode is set to 'h'
             debug="e"
         fi
@@ -211,7 +210,7 @@ function fn_debug() {
             _fn_list_array "e_dym" "Error suggestions"
         fi
 
-        # Minimal Summary
+        # Summary of function execution
         if [[ $debug =~ "S" ]]; then
             # Number of errors (if e_msg is uninitialized or empty – 0)
             local errs=0
@@ -268,14 +267,19 @@ function _fn_guard() {
 # Load base colors (ANSI escape codes)
 function _fn_load_colors() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
-    b=$(ansi blue)          # arrows
-    c=$(ansi cyan)          # arguments, url, file path
-    g=$(ansi green)         # function name
-    p=$(ansi bright purple) # options
-    r=$(ansi red)           # errors
-    w=$(ansi white)         # plain text
-    y=$(ansi yellow)        # highlight
-    x=$(ansi reset)         # reset
+    # Save start time
+    time_started[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
+    # Load colors
+    b="\e[0;34m" # arrows
+    c="\e[0;36m" # arguments, url, file path
+    g="\e[0;32m" # function name
+    p="\e[0;95m" # options
+    r="\e[0;31m" # errors
+    w="\e[0;37m" # plain text
+    y="\e[0;33m" # highlight
+    x="\e[0m"    # reset
+    # Save end time
+    time_finished[_fn_load_colors]=$(gdate +%s%3N 2>/dev/null)
 }
 
 # Prepare function properties
@@ -995,7 +999,7 @@ function _fn_usage() {
 
     if [[ $f[opts_max] -gt 0 ]]; then
         usage+="\n${p}Options$x may be submitted in any place and in any order."
-        usage+="\nTo pass a value to a supported options, use the syntax ${p}--option=value$x."
+        usage+="\nTo pass a value to a supported option, use the syntax ${p}--option=value$x."
         usage+="\n${p}Options$x without a value take the ${y}default$x value from the settings."
         usage+="\nTo list option default values, use the ${p}--debug=D$x option."
     fi
@@ -1069,7 +1073,7 @@ function _fn_example() {
     s[example]="$example"
 }
 
-# Warpper function to set all strings
+# Wrapper function to set all strings
 function _fn_set_strings() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     # Save start time
@@ -1212,18 +1216,47 @@ function _fn_handle_errors() {
 # Set time difference
 function _fn_time_took() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
-    # Iterate over all started times and calculate the difference
+    
+    # Calculate time took for each function
     for fn_name in ${(k)time_started}; do
-        local started="time_started[$fn_name]"
-        local finished="time_finished[$fn_name]"
-        if (( started && finished )); then
+        local started=${time_started[$fn_name]}
+        local finished=${time_finished[$fn_name]}
+        if [[ -n $started && -n $finished ]]; then
             time_took[$fn_name]=$(( finished - started ))
         else
-            time_took[$started]="N/A"
+            time_took[$fn_name]="N/A"
         fi
     done
+
+    # Copy total time to main key f[]
     f[time_took]="${time_took[fn_make]}"
+
+    # Sum up individual function times (excluding total)
+    local sum=0 k v
+    for k v in "${(@kv)time_took}"; do
+        [[ $k == _fn_* ]] || continue
+        [[ "$v" == "N/A" ]] && continue
+        (( sum += v ))
+    done
+
+    local total=${time_took[fn_make]}
+    if [[ -n $total && $total != "N/A" ]]; then
+        local overhead=$(( total - sum ))
+        (( overhead < 0 )) && overhead=0
+        f[time_profile_sum]=$sum
+        f[time_profile_overhead]=$overhead
+        (( total > 0 )) && f[time_profile_overhead_pct]=$(( overhead * 100 / total )) || f[time_profile_overhead_pct]=0
+        f[time_profile_overhead_pct]+="%"
+    else
+        f[time_profile_sum]="N/A"
+        f[time_profile_overhead]="N/A"
+        f[time_profile_overhead_pct]="N/A"
+    fi
+
+    # Clean up timing variables
+    unset time_started time_finished
 }
+
 
 # List associative array contents
 function _fn_list_array() {
@@ -1514,7 +1547,7 @@ function fn_self_test() {
     }
 
     #####################################################
-    # Test set (43)
+    # Test set
     #####################################################
 
     # Basic args
@@ -1576,6 +1609,8 @@ function fn_self_test() {
     _fst_run "DEBUG_COMBINED"          "_fst_func_args one two -d=afiO"                           "Option long names" 0
     # Debug mode (normal)
     _fst_run "DEBUG_MODE_F"            "_fst_func_args one two -d=f"                              "Function properties" 0
+    _fst_run "DEBUG_MODE_S"            "_fst_func_args one two -d=S"                              "Total time:" 0
+    _fst_run "DEBUG_MODE_T"            "_fst_func_args one two -d=T"                              "Function timings" 0
     _fst_run "DEBUG_MODE_FLAG_ONLY"    "_fst_func_args one two -d"                                "Function properties" 0
     # Debug exit mode (-d=fe) – brak body
     _fst_run_absent "DEBUG_EXIT_MODE"  "_fst_func_args one two -d=fe"                             "ARGS first=" 0
