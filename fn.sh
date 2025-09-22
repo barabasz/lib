@@ -21,16 +21,19 @@
 # All other functions are private and should not be called directly.
 # Internal fn.sh functions rely on dynamic scoping to access the above arrays.
 #
-# fn_make ver. 1.50 (2025-09-22) by gh/barabasz, MIT License
+# fn_make ver. 1.51 (2025-09-22) by gh/barabasz, MIT License
 
 ##########################################################
 # Main functions
 ##########################################################
 
+# Main function to be called from the parent function
 function fn_make() {
-
+    local epoch_start=$EPOCHREALTIME
+    local inside_fn_make=1
+ 
  ## Check critical conditions
-
+    
     # Check if the function is called from a parent function
     if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
         log::error "${c}fn_make()$x cannot be called directly."
@@ -59,7 +62,10 @@ function fn_make() {
 
  ## Main function logic
 
-    # Save start time
+    # Timing information
+    f[epoch_start]=$epoch_start
+    time_started[fn_make_int]=$epoch_start
+    time_finished[fn_make_int]=$EPOCHREALTIME
     time_started[fn_make]=$EPOCHREALTIME
 
     # Create a flag that fn_make() is running
@@ -88,18 +94,23 @@ function fn_make() {
 
     # Options handling (show version, basic info/usage or help)
     _fn_handle_options
-    
+
     # Error handling
     (( f[return] != 0 )) && _fn_handle_errors
-        
+
     # Calculate the time taken by functions
     time_finished[fn_make]=$EPOCHREALTIME
 
-    # Print debug information
+    # Print debug information during fn_make() execution
     fn_debug
 
-    # Destroy a flag that fn_make() is running
-    unset "f[run]"
+    # Cleanup
+    unset inside_fn_make
+    unset a_name a_req a_help
+    unset o_default o_short o_long o_help o_allowed
+    unset e_msg e_hint e_dym
+    unset time_started time_finished time_took
+    f[epoch_body]=$epoch_start
 }
 
 # Print debug information
@@ -107,147 +118,191 @@ function fn_debug() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local debug="${1:-${o[debug]}}"
 
+    # Return if debug is not set or empty
+    [[ -z "$debug" ]] && return 0
+
+    # Remove "d" from o[debug] to prevent recursion and return
+    [[ "$debug" == *"d"* ]] && o[debug]="${debug//d/}" && return 0
+
+    # Return when not inside fn_make() and debug is set to "D"
+    [[ "$debug" == *"D"* && -z ${inside_fn_make} ]] && return 0
+    
     # Calculate timing information oly if needed
     if [[ "$debug" =~ [STf] && -z ${f[time_took]} ]]; then
         _fn_calculate_time
     fi
 
+    # Prepare variables for debug output
+    local max_key_length=15
+    local max_value_length=40
+    local count
+    local q="$y'$x"
+    local arr="$b→$x"
+    
+    # Debug modes
+    local -A modes=(
+        [A]="Internal $y\$a_*[]$x argument arrays"
+        [a]="Arguments from $y\$a[]$x array"
+        [D]="Disable debugging inside function's body"
+        [d]="Disable debugging inside ${g}fn_make$x"
+        [e]="Exit after debugging"
+        [E]="Internal $y\$e_*[]$x error arrays"
+        [f]="Function properties from $y\$f[]$x array"
+        [h]="Help $y(default)$x"
+        [I]="All internal arrays"
+        [i]="Information from $y\$i[]$x array"
+        [O]="Internal $y\$o_*[]$x option arrays"
+        [o]="Options from $y\$o[]$x array"
+        [S]="Simple summary on function execution"
+        [s]="Strings from $y\$s[]$x array"
+        [T]="Timings from $y\$time_took[]$x array"
+        [t]="This function from $y\$t[]$x array"
+        [v]="Valid values for options"
+        [V]="Default values for options"
+    )
 
-    if [[ "$debug" && ! $debug =~ "d" ]]; then
-        local max_key_length=15
-        local max_value_length=40
-        local count
-        local q="$y'$x"
-        local arr="$b→$x"
-        # Debug modes
-        local -A modes=(
-            [A]="Internal $y\$a_*[]$x argument arrays"
-            [a]="Arguments from $y\$a[]$x array"
-            [D]="Default values for options"
-            [d]="Disable debugging inside ${g}fn_make$x"
-            [e]="Exit after debugging"
-            [E]="Internal $y\$e_*[]$x error arrays"
-            [f]="Function properties from $y\$f[]$x array"
-            [h]="Help $y(default)$x"
-            [I]="All internal arrays"
-            [i]="Information from $y\$i[]$x array"
-            [O]="Internal $y\$o_*[]$x option arrays"
-            [o]="Options from $y\$o[]$x array"
-            [S]="Simple summary on function execution"
-            [s]="Strings from $y\$s[]$x array"
-            [T]="Timings from $y\$time_took[]$x array"
-            [t]="This function from $y\$t[]$x array"
-        )
-
-        # If no valid mode is set, show help
-        if [[ ! $debug =~ [AaDdeEfhIiOoSsTt] ]]; then
-            log::info "No valid debug mode set, falling back to help mode."
-            debug="h"
-        fi
-
-        # find the longest key
-        for key in "${(@k)f}"; do
-            if [[ ${#key} -gt $max_key_length ]]; then
-                max_key_length=${#key}
-            fi
-        done
-        for key in "${(@k)t}"; do
-            if [[ ${#key} -gt $max_key_length ]]; then
-                max_key_length=${#key}
-            fi
-        done
-        for key in "${(@k)time_took}"; do
-            if [[ ${#key} -gt $max_key_length ]]; then
-                max_key_length=${#key}
-            fi
-        done
-        
-        # Debug header
-        print::header "${r}Debug mode$x '$debug'"
-        
-        # Show exit_mode info when debug mode is not set to 'e'
-        if [[ $debug =~ "e" ]]; then
-            log::warning "Exit mode enabled: $s[name] will exit after debug."
-            f[return]=0
-        fi
-        # Show information about debug modes when the debug mode is not set to 'h'
-        if [[ ! $debug =~ "h" ]]; then
-            log::info "Use option ${c}-d=h$x to show available debug modes."
-        fi
-
-        # List all debug modes when the debug mode is set to 'h'
-        if [[ $debug =~ "h" ]]; then
-            max_key_length=2
-            log::info "${y}Debug modes${x} (${#modes}):"
-            for key value in "${(@kv)modes}"; do
-                echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
-            done | sort
-            echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
-            echo "Debugging of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
-            # Exit if debug mode is set to 'h'
-            debug="e"
-        fi
-
-        # List internal $o_default[] array (options default values)
-        if [[ $debug =~ "D" ]]; then
-            _fn_list_array "o_default" "Option default values"
-        fi
-
-        # List internal argument arrays
-        if [[ $debug =~ "A" ]]; then
-            _fn_list_array "a_name" "Argument names"
-            _fn_list_array "a_req" "Required arguments"
-            _fn_list_array "a_help" "Argument help strings"
-        fi
-
-        # List internal option arrays
-        if [[ $debug =~ "O" ]]; then
-            _fn_list_array "o_long" "Option long names"
-            _fn_list_array "o_short" "Option short names"
-            _fn_list_array "o_help" "Option help strings"
-            _fn_list_array "o_allowed" "Option allowed values"
-            _fn_list_array "o_default" "Option default values"
-        fi
-
-        # List internal error arrays
-        if [[ $debug =~ "E" ]]; then
-            _fn_list_array "e_msg" "Error messages"
-            _fn_list_array "e_hint" "Error hints"
-            _fn_list_array "e_dym" "Error suggestions"
-        fi
-
-        # Summary of function execution
-        if [[ $debug =~ "S" ]]; then
-            # Number of errors (if e_msg is uninitialized or empty – 0)
-            local errs=0
-            if typeset -p e_msg &>/dev/null && [[ -n "${(k)e_msg}" ]]; then
-                errs=${#e_msg}
-            fi
-            log::info "Total time: ${f[time_took]} ms"
-            log::info "Args: passed=${f[args_count]} required=${f[args_min]} optional=${f[args_opt]}"
-            log::info "Opts: passed=${f[opts_count]} defined=${f[opts_max]}"
-            log::info "Errors: $errs"
-        fi
-
-        # list arguments $a[]
-        [[ $debug =~ "a" ]] && _fn_list_array "a" "Arguments"
-        # list options $o[]
-        [[ $debug =~ "o" ]] && _fn_list_array "o" "Options"
-        # list properties $f[]
-        [[ $debug =~ "f" ]] && _fn_list_array "f" "Function properties"
-        # list info $i[]
-        [[ $debug =~ "i" ]] && _fn_list_array "i" "Environment information"
-        # list strings $s[]
-        [[ $debug =~ "s" ]] && _fn_list_array "s" "Strings"
-        # list timings $time_took[]
-        [[ $debug =~ "T" ]] && _fn_list_array "time_took" "Function timings"
-        # list this function values $t[]
-        [[ $debug =~ "t" ]] && _fn_list_array "t" "This function"
-        # Debug footer
-        print::footer "${r}Debug end$x"
-        # Exit if debug mode is set to 'e' and destroy a flag that fn_make() is running
-        [[ $debug =~ "e" ]] && f[return]=0
+    # If no valid mode is set, show help
+    local modes_string="${(@ok)modes}"
+    modes_string="${modes_string// /}"
+    if [[ ! $debug =~ [$modes_string] ]]; then
+        log::info "No valid debug mode set, falling back to help mode."
+        debug="h"
     fi
+
+    # find the longest key
+    for key in "${(@k)f}"; do
+        if [[ ${#key} -gt $max_key_length ]]; then
+            max_key_length=${#key}
+        fi
+    done
+    for key in "${(@k)t}"; do
+        if [[ ${#key} -gt $max_key_length ]]; then
+            max_key_length=${#key}
+        fi
+    done
+    for key in "${(@k)time_took}"; do
+        if [[ ${#key} -gt $max_key_length ]]; then
+            max_key_length=${#key}
+        fi
+    done
+    
+    # Debug header
+    print::header "${r}Debug mode$x '$debug'"
+    
+    # Show exit_mode info when debug mode is not set to 'e'
+    if [[ $debug =~ "e" ]]; then
+        log::warning "Exit mode enabled: $s[name] will exit after debug."
+        f[return]=0
+    fi
+    # Show information about debug modes when the debug mode is not set to 'h'
+    if [[ ! $debug =~ "h" ]]; then
+        log::info "Use option ${c}-d=h$x to show available debug modes."
+    fi
+
+    # List all debug modes when the debug mode is set to 'h'
+    if [[ $debug =~ "h" ]]; then
+        max_key_length=2
+        log::info "${y}Debug modes${x} (${#modes}):"
+        for key value in "${(@kv)modes}"; do
+            echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
+        done | sort
+        echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
+        echo "Debugging of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
+        # Exit if debug mode is set to 'h'
+        debug="e"
+    fi
+
+    # List internal $o_allowed[] array (allowed values)
+    if [[ $debug =~ "v" ]]; then
+        _fn_list_array "o_allowed" "Valid option values"
+    fi
+
+    # List internal $o_default[] array (options default values)
+    if [[ $debug =~ "V" ]]; then
+        _fn_list_array "o_default" "Option default values"
+    fi
+
+    # List internal argument arrays
+    if [[ $debug =~ "A" ]]; then
+        _fn_list_array "a_name" "Argument names"
+        _fn_list_array "a_req" "Required arguments"
+        _fn_list_array "a_help" "Argument help strings"
+    fi
+
+    # List internal option arrays
+    if [[ $debug =~ "O" ]]; then
+        _fn_list_array "o_long" "Option long names"
+        _fn_list_array "o_short" "Option short names"
+        _fn_list_array "o_help" "Option help strings"
+        _fn_list_array "o_allowed" "Option allowed values"
+        _fn_list_array "o_default" "Option default values"
+    fi
+
+    # List internal error arrays
+    if [[ $debug =~ "E" ]]; then
+        _fn_list_array "e_msg" "Error messages"
+        _fn_list_array "e_hint" "Error hints"
+        _fn_list_array "e_dym" "Error suggestions"
+    fi
+
+    # Summary of function execution
+    if [[ $debug =~ "S" ]]; then
+        # Number of errors (if e_msg is uninitialized or empty – 0)
+        local errs=0
+        if typeset -p e_msg &>/dev/null && [[ -n "${(k)e_msg}" ]]; then
+            errs=${#e_msg}
+        fi
+        log::info "Total time: ${f[time_took]} ms"
+        log::info "Args: passed=${f[args_count]} required=${f[args_min]} optional=${f[args_opt]}"
+        log::info "Opts: passed=${f[opts_count]} defined=${f[opts_max]}"
+        log::info "Errors: $errs"
+    fi
+
+    # list arguments $a[]
+    [[ $debug =~ "a" ]] && _fn_list_array "a" "Arguments"
+    # list options $o[]
+    [[ $debug =~ "o" ]] && _fn_list_array "o" "Options"
+    # list properties $f[]
+    [[ $debug =~ "f" ]] && _fn_list_array "f" "Function properties"
+    # list info $i[]
+    [[ $debug =~ "i" ]] && _fn_list_array "i" "Environment information"
+    # list strings $s[]
+    [[ $debug =~ "s" ]] && _fn_list_array "s" "Strings"
+    # list timings $time_took[]
+    [[ $debug =~ "T" ]] && _fn_list_array "time_took" "Function timings"
+    # list this function values $t[]
+    [[ $debug =~ "t" ]] && _fn_list_array "t" "This function"
+    # Debug footer
+    print::footer "${r}Debug end$x"
+    # Exit if debug mode is set to 'e'
+    [[ $debug =~ "e" ]] && f[return]=0
+    return 0
+
+}
+
+# Print the time taken from start by the parent function
+function fn_time() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
+    # Show only if the option -t option was used
+    if (( o[time] == 1 )); then
+        local description="${1:-at the end}"
+        local started="$f[time_epoch_started]"
+        local finished="$EPOCHREALTIME"
+        local total=${1:+""}; (( $# == 0 )) && total="total "
+        float diff_ms=$(( (finished - started) * 1000 ))
+        log::info "${s[name]} ${total}time ($description): $(LC_NUMERIC=C printf "%.3f" "$diff_ms") ms"
+    fi
+    return 0
+}
+
+# Closing function to be called at the end of the parent function
+function fn_done() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
+    f[epoch_done]=$EPOCHREALTIME
+    fn_debug
+    fn_time
+    unset f a o s i t
+    return 0
 }
 
 ##########################################################
@@ -341,8 +396,9 @@ function _fn_add_defaults() {
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
     [[ -z ${o[version]} ]] && o[version]="v,1,show version,[0|1]"
-    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help),[a|A|d|D|e|E|f|h|I|i|o|O|S|s|T|t]"
+    [[ -z ${o[debug]} ]] && o[debug]="d,f,enable debug mode (use ${p}-d=h$x for help)"
     [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
+    [[ -z ${o[time]} ]] && o[time]="t,1,show execution time,[0|1]"
     f[opts_max]="${#o}" # maximum number of options
     # Save end time
     time_finished[_fn_add_defaults]=$EPOCHREALTIME
@@ -1268,9 +1324,6 @@ function _fn_calculate_time() {
         f[time_profile_overhead]="N/A"
         f[time_profile_overhead_pct]="N/A"
     fi
-
-    # Cleanup raw timing maps (no longer needed after aggregation)
-    unset time_started time_finished
 }
 
 # List associative array contents
@@ -1644,12 +1697,16 @@ function fn_self_test() {
     _fst_run "ANSI_INFO"               "_fst_func_ansi -i"                                        "RED_TEXT" 0
     _fst_run "ANSI_STRIPPER_LOCAL"     "_fst_strip_ansi \$'\e[32mGREEN\e[0m plain'"               "GREEN plain" 0
 
-    #####################################################
     # Summary
-    #####################################################
     local summary="SELF-TEST: total=$total pass=$pass fail=$fail"
     local now=$EPOCHREALTIME
-    local diff=$((now - self_test_started))
+    float diff_s=$(( now - self_test_started ))
+    float diff_ms=$(( diff_s * 1000 ))
+    # Format times
+    local LC_NUMERIC=C
+    local diff_s_fmt=$(printf "%.3f" "$diff_s")
+    local diff_ms_fmt=$(printf "%.1f" "$diff_ms")
+
     if (( fail > 0 )); then
         echo "$summary"
         if (( quiet == 0 )); then
@@ -1658,10 +1715,10 @@ function fn_self_test() {
                 echo "  - $t"
             done
         fi
-        echo "Self-test interrupted after ${diff} ms."
+        echo "Self-test interrupted after ${diff_ms_fmt} ms (${diff_s_fmt} s)."
         (( fail > 255 )) && return 255 || return $fail
     else
-        echo "$summary (${g}OK$x) completed in ${diff} ms."
+        echo "$summary (${g}OK$x) completed in ${diff_ms_fmt} ms (${diff_s_fmt} s)."
         return 0
     fi
 }
@@ -1730,8 +1787,15 @@ function fn_function_example() {
     echo "This is the path to the function file: ${f[file_path]}"
     # Accessing information in i[] array:
     echo "This function was run by user: ${i[user]}"
-    # Debug the t[] array and exit
-    # fn_debug te
+
+    # Show execution time anywhere if -t option was used
+    # fn_time "in body"
+
+    # Debug anywhere if -d option was used
+    fn_debug
+ 
+ ## End of the function
+    fn_done # This must be the last line of the function
 }
 
 # Basic function template (one argument and no extra options)
@@ -1746,6 +1810,8 @@ function fn_function_template() {
     [[ -n "${f[return]}" ]] && return ${f[return]}
  ## Main function goes here
     print "Main function goes here."
+ ## End of the function
+    fn_done
 }
 
 # Minimal function template (without arguments and extra options)
@@ -1756,6 +1822,8 @@ function fn_function_template_short() {
     [[ -n "${f[return]}" ]] && return ${f[return]}
  ## Main function goes here
     print "This function doesn't take any arguments."
+ ## End of the function
+    fn_done
 }
 
 # Bad function example
@@ -1766,4 +1834,6 @@ function fn_bad() {
     [[ -n "${f[return]}" ]] && return ${f[return]}
  ## Main function goes here
     print "This function doesn't take any arguments."
+ ## End of the function
+    fn_done
 }
