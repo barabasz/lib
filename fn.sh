@@ -24,7 +24,7 @@
 # fn_make ver. 1.45 (2025-09-22) by gh/barabasz, MIT License
 
 ##########################################################
-# Main function
+# Main functions
 ##########################################################
 
 function fn_make() {
@@ -67,35 +67,35 @@ function fn_make() {
     f[run]=1
 
     # Load variables for colored output (ANSI colors)
-    fn_load_colors
+    _fn_load_colors
 
     # Gather basic environment information if i[] array is initialized    
-    [[ "${(t)i}" == *"association"* ]] &&  fn_set_info
+    [[ "${(t)i}" == *"association"* ]] &&  _fn_set_info
 
     # Prepare function properties
-    [[ -z "${f[return]}" ]] && fn_set_properties
+    [[ -z "${f[return]}" ]] && _fn_set_properties
     
     # Add default options to the $o array
-    [[ -z "${f[return]}" ]] && fn_add_defaults
+    [[ -z "${f[return]}" ]] && _fn_add_defaults
     
     # Parse arguments and options settings arrays, exit on error
-    [[ -z "${f[return]}" ]] && fn_parse_settings
+    [[ -z "${f[return]}" ]] && _fn_parse_settings
     
     # Parse function arguments
-    [[ -z "${f[return]}" ]] && fn_parse_arguments "$@"
+    [[ -z "${f[return]}" ]] && _fn_parse_arguments "$@"
     
     # Make function strings
-    fn_set_strings
+    _fn_set_strings
 
     # Options handling (show version, basic info/usage or help)
-    fn_handle_options
+    _fn_handle_options
     
     # Error handling
-    (( f[return] != 0 )) && fn_handle_errors
+    (( f[return] != 0 )) && _fn_handle_errors
         
     # Calculate the time taken by functions
     time_finished[fn_make]=$(gdate +%s%3N 2>/dev/null)
-    fn_time_took
+    _fn_time_took
     
     # Print debug information
     fn_debug
@@ -104,19 +104,189 @@ function fn_make() {
     unset "f[run]"
 }
 
+# Print debug information
+function fn_debug() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
+    local debug="${1:-${o[debug]}}"
+    if [[ "$debug" && ! $debug =~ "d" ]]; then
+        local max_key_length=15
+        local max_value_length=40
+        local count
+        local q="$y'$x"
+        local arr="$b→$x"
+        # Debug modes
+        local -A modes=(
+            [A]="Internal $y\$a_*[]$x argument arrays"
+            [a]="Arguments from $y\$a[]$x array"
+            [D]="Default values for options"
+            [d]="Disable debugging inside ${g}fn_make$x"
+            [e]="Exit after debugging"
+            [E]="Internal $y\$e_*[]$x error arrays"
+            [f]="Function properties from $y\$f[]$x array"
+            [h]="Help $y(default)$x"
+            [I]="All internal arrays"
+            [i]="Information from $y\$i[]$x array"
+            [O]="Internal $y\$o_*[]$x option arrays"
+            [o]="Options from $y\$o[]$x array"
+            [S]="Simple summary"
+            [s]="Strings from $y\$s[]$x array"
+            [T]="Timings from $y\$time_took[]$x array"
+            [t]="This function from $y\$t[]$x array"
+        )
+
+        # If no valid mode is set, show help
+        if [[ ! $debug =~ [AaDdeEfhIiOoSsTt] ]]; then
+            log::info "No valid debug mode set, falling back to help mode."
+            debug="h"
+        fi
+
+        # find the longest key
+        for key in "${(@k)f}"; do
+            if [[ ${#key} -gt $max_key_length ]]; then
+                max_key_length=${#key}
+            fi
+        done
+        for key in "${(@k)t}"; do
+            if [[ ${#key} -gt $max_key_length ]]; then
+                max_key_length=${#key}
+            fi
+        done
+        for key in "${(@k)time_took}"; do
+            if [[ ${#key} -gt $max_key_length ]]; then
+                max_key_length=${#key}
+            fi
+        done
+        
+        # debug header
+        print::header "${r}Debug mode$x '$debug'"
+        
+        # show exit_mode info when debug mode is not set to 'e'
+        if [[ $debug =~ "e" ]]; then
+            log::warning "Exit mode enabled: $s[name] will exit after debug."
+            f[return]=0
+        fi
+        # show debug modes when debug mode is not set to 'h'
+        if [[ ! $debug =~ "h" ]]; then
+            log::info "Use option ${c}-d=h$x to show available debug modes."
+        fi
+
+        # list modes
+        if [[ $debug =~ "h" ]]; then
+            max_key_length=2
+            log::info "${y}Debug modes${x} (${#modes}):"
+            for key value in "${(@kv)modes}"; do
+                echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
+            done | sort
+            echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
+            echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
+            # Exit if debug mode is set to 'h'
+            debug="e"
+        fi
+
+        # List internal $o_default[] array (options default values)
+        if [[ $debug =~ "D" ]]; then
+            _fn_list_array "o_default" "Option default values"
+        fi
+
+        # List internal argument arrays
+        if [[ $debug =~ "A" ]]; then
+            _fn_list_array "a_name" "Argument names"
+            _fn_list_array "a_req" "Required arguments"
+            _fn_list_array "a_help" "Argument help strings"
+        fi
+
+        # List internal option arrays
+        if [[ $debug =~ "O" ]]; then
+            _fn_list_array "o_long" "Option long names"
+            _fn_list_array "o_short" "Option short names"
+            _fn_list_array "o_help" "Option help strings"
+            _fn_list_array "o_allowed" "Option allowed values"
+            _fn_list_array "o_default" "Option default values"
+        fi
+
+        # List internal error arrays
+        if [[ $debug =~ "E" ]]; then
+            _fn_list_array "e_msg" "Error messages"
+            _fn_list_array "e_hint" "Error hints"
+            _fn_list_array "e_dym" "Error suggestions"
+        fi
+
+        # Minimal Summary
+        if [[ $debug =~ "S" ]]; then
+            # Number of errors (if e_msg is uninitialized or empty – 0)
+            local errs=0
+            if typeset -p e_msg &>/dev/null && [[ -n "${(k)e_msg}" ]]; then
+                errs=${#e_msg}
+            fi
+            log::info "Total time: ${f[time_took]} ms"
+            log::info "Args: passed=${f[args_count]} required=${f[args_min]} optional=${f[args_opt]}"
+            log::info "Opts: passed=${f[opts_count]} defined=${f[opts_max]}"
+            log::info "Errors: $errs"
+        fi
+
+        # list arguments $a[]
+        [[ $debug =~ "a" ]] && _fn_list_array "a" "Arguments"
+        # list options $o[]
+        [[ $debug =~ "o" ]] && _fn_list_array "o" "Options"
+        # list properties $f[]
+        [[ $debug =~ "f" ]] && _fn_list_array "f" "Function properties"
+        # list info $i[]
+        [[ $debug =~ "i" ]] && _fn_list_array "i" "Environment information"
+        # list strings $s[]
+        [[ $debug =~ "s" ]] && _fn_list_array "s" "Strings"
+        # list timings $time_took[]
+        [[ $debug =~ "T" ]] && _fn_list_array "time_took" "Function timings"
+        # list this function values $t[]
+        [[ $debug =~ "t" ]] && _fn_list_array "t" "This function"
+        # Debug footer
+        print::footer "${r}Debug end$x"
+        # Exit if debug mode is set to 'e' and destroy a flag that fn_make() is running
+        [[ $debug =~ "e" ]] && f[return]=0
+    fi
+}
+
 ##########################################################
 # Helper functions to be used exclusively by the make_fn()
 ##########################################################
 
+# Guard function to prevent direct calls
+function _fn_guard() {
+    # Self-guard for _fn_guard()
+    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
+        log::error "${c}_fn_guard()$x cannot be called directly."
+        return 1
+    fi
+    # Check if fn_make() was called before
+    if (( ! f[run] )); then
+        local parent_name="$c${funcstack[2]}()$x"
+        log::error "$parent_name cannot be called directly."
+        return 1
+    fi
+    return 0
+}
+
+# Load base colors (ANSI escape codes)
+function _fn_load_colors() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
+    b=$(ansi blue)          # arrows
+    c=$(ansi cyan)          # arguments, url, file path
+    g=$(ansi green)         # function name
+    p=$(ansi bright purple) # options
+    r=$(ansi red)           # errors
+    w=$(ansi white)         # plain text
+    y=$(ansi yellow)        # highlight
+    x=$(ansi reset)         # reset
+}
+
 # Prepare function properties
-function fn_set_properties() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_set_properties() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     
     # Initialize error flag
     local is_error=0
     
     # Save start time
-    time_started[fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
     
     # Get calling function name
     f[name]="${funcstack[3]}"
@@ -144,19 +314,19 @@ function fn_set_properties() {
     f[return]="" # return value
     
     # Save end time
-    time_finished[fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
     
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
 }
 
 # Add default options to the $o array
-function fn_add_defaults() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_add_defaults() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Initialize error flag
     local is_error=0
     # Save start time
-    time_started[fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
     # Add default options to the list
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
     [[ -z ${o[help]} ]] && o[help]="h,1,show full help,[0|1]"
@@ -165,24 +335,24 @@ function fn_add_defaults() {
     [[ -z ${o[verbose]} ]] && o[verbose]="V,1,enable verbose mode,[0|1]"
     f[opts_max]="${#o}" # maximum number of options
     # Save end time
-    time_finished[fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
 }
 
 # Parse arguments and options settings arrays
-function fn_parse_settings() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_parse_settings() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Initialize error flag
     local is_error=0
     # Save start time
-    time_started[fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
     # Parse $a arguments array if is not empty
     if (( ${#a} != 0 )); then
-        fn_parse_settings_args
+        _fn_parse_settings_args
     fi
     # Parse $o options array (it is always non-empty due to built-in options)
-    fn_parse_settings_opts
+    _fn_parse_settings_opts
     # Print error messages if any and exit
     if [[ ${#e_msg} != 0 ]]; then
         [[ ${#e_msg} -gt 1 ]] && local plr="s" || local plr=""
@@ -194,14 +364,14 @@ function fn_parse_settings() {
         is_error=1
     fi
     # Save end time
-    time_finished[fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
 }
 
 # Parse arguments settings array
-function fn_parse_settings_args() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_parse_settings_args() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Iterate over all arguments in the $a array
     for key in ${(ok)a}; do
         local value="${a[$key]}"
@@ -252,8 +422,8 @@ function fn_parse_settings_args() {
 }
 
 # Parse options settings array
-function fn_parse_settings_opts() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_parse_settings_opts() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Iterate over all options in the $o array
     for key in ${(ok)o}; do
         local value="${o[$key]}"
@@ -334,12 +504,12 @@ function fn_parse_settings_opts() {
 }
 
 # Main parsing loop to iterate over all arguments
-function fn_parse_arguments() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_parse_arguments() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Initialize error flag
     local is_error=0
     # Save start time
-    time_started[fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
     # List of used options (only long names)
     local used_opts=""
     # List of used options (full arguments)
@@ -355,13 +525,13 @@ function fn_parse_arguments() {
             # If starts with a dash, it is an option
             (( oi++ ))
             f[opts_input]+="$arg "
-            fn_parse_option "$arg" "$i" "$oi"
+            _fn_parse_option "$arg" "$i" "$oi"
             (( $? != 0 )) && is_error=1
         else
             # Otherwise, it is a regular argument
             (( ai++ ))
             f[args_input]+="'$arg' "
-            fn_parse_argument "$arg" "$i" "$ai"
+            _fn_parse_argument "$arg" "$i" "$ai"
             (( $? != 0 )) && is_error=1
         fi
     done
@@ -373,18 +543,18 @@ function fn_parse_arguments() {
     f[args_input]="${f[args_input]%" "}"
     # Get arguments count information
     if (( f[args_count] < f[args_min] || f[args_count] > f[args_max] )); then
-        fn_check_args
+        _fn_check_args
         (( $? != 0 )) && is_error=1
     fi
     # Save end time
-    time_finished[fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
     # Set return code if there was an error
     (( is_error )) && f[return]=1 && return 1
 }
 
 # Parse a single option
-function fn_parse_option() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_parse_option() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local arg="$1" i="$2" oi="$3"
     local oic="$y$oi$x"
     local dym=""  # Will hold "Did you mean" suggestion
@@ -409,7 +579,7 @@ function fn_parse_option() {
             # Empty name with equals sign (-=value or --=value)
             e_msg[o$i]="Option $oic has empty name with equals sign in $argc"
             e_hint[o$i]="Options must have a name before the equals sign."
-            fn_option_suggestion "empty_with_equals" && e_dym[o$i]="$dym"
+            _fn_option_suggestion "empty_with_equals" && e_dym[o$i]="$dym"
         else
             # Just empty name (- or --)
             e_msg[o$i]="Option $oic has empty name in $argc"
@@ -422,31 +592,31 @@ function fn_parse_option() {
             # Single character suggests short option intent
             e_msg[o$i]="Option $oic has too many leading dashes in $argc"
             e_hint[o$i]="Option with short name should start with one dash (-)."
-            fn_option_suggestion "too_many_dashes_short" && e_dym[o$i]="$dym"
+            _fn_option_suggestion "too_many_dashes_short" && e_dym[o$i]="$dym"
         else
             # Multiple characters suggests long option intent
             e_msg[o$i]="Option $oic has too many leading dashes in $argc"
             e_hint[o$i]="Option with long name should start with two dashes (--)."
-            fn_option_suggestion "too_many_dashes_long" && e_dym[o$i]="$dym"
+            _fn_option_suggestion "too_many_dashes_long" && e_dym[o$i]="$dym"
         fi
         return 1
     elif [[ $arg == *=*=* ]]; then
         # Multiple equal signs
         e_msg[o$i]="Option $oic has multiple equal signs in $argc"
         e_hint[o$i]="Option values must be specified using a single equal sign."
-        fn_option_suggestion "multiple_equals" && e_dym[o$i]="$dym"
+        _fn_option_suggestion "multiple_equals" && e_dym[o$i]="$dym"
         return 1
     elif (( dashes == 1 && namelen > 1 )); then
         # Long name with single dash
         e_msg[o$i]="Option $oic name is too long in $argc"
         e_hint[o$i]="Short option names must be a single character."
-        fn_option_suggestion "long_short" && e_dym[o$i]="$dym"
+        _fn_option_suggestion "long_short" && e_dym[o$i]="$dym"
         return 1
     elif (( dashes == 2 && namelen == 1 )); then
         # Single character with double dash - ambiguous case
         e_msg[o$i]="Option $oic name is too short in $argc"
         e_hint[o$i]="This could be either a short option with an extra dash, or an abbreviated long option."
-        fn_option_suggestion "short_long" && e_dym[o$i]="$dym"
+        _fn_option_suggestion "short_long" && e_dym[o$i]="$dym"
         return 1
     fi
     
@@ -458,7 +628,7 @@ function fn_parse_option() {
         if [[ -z "${o_short[$name]}" ]]; then
             # Unknown short option
             e_msg[o$i]="Option $oic short name $argnamec unknown in $argc"
-            fn_option_suggestion "unknown_short" && e_dym[o$i]="$dym"
+            _fn_option_suggestion "unknown_short" && e_dym[o$i]="$dym"
             return 1
         else
             # Set canonical name to the long form
@@ -469,7 +639,7 @@ function fn_parse_option() {
         if [[ ! " ${(k)o_long} " == *" $name "* ]]; then
             # Unknown long option
             e_msg[o$i]="Option $oic full name $argnamec unknown in $argc"
-            fn_option_suggestion "unknown_long" && e_dym[o$i]="$dym"
+            _fn_option_suggestion "unknown_long" && e_dym[o$i]="$dym"
             return 1
         else
             # Set canonical name to the current name (already long form)
@@ -534,8 +704,8 @@ function fn_parse_option() {
 }
 
 # Generate option suggestion based on error type
-function fn_option_suggestion() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_option_suggestion() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local error_type="$1"
     local suggestion=""
     
@@ -708,8 +878,8 @@ function fn_option_suggestion() {
 }
 
 # Parse a single argument
-function fn_parse_argument() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_parse_argument() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local aic="$y$ai$x"
     
     # Check if the argument is required and not empty
@@ -728,8 +898,8 @@ function fn_parse_argument() {
 }
 
 # Prepare the full usage information
-function fn_usage() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_usage() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local i=1
     local usage="\n"
     local max_len=0
@@ -833,8 +1003,8 @@ function fn_usage() {
 }
 
 # Prepare the version string
-function fn_version() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_version() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local version="$s[name]"
     [[ -n $f[version] ]] && version+=" $y$f[version]$x" || version+=" [version unknown]"
     [[ -n $f[date] ]] && version+=" ($f[date])"
@@ -843,7 +1013,7 @@ function fn_version() {
 
 # Prepare the hint string
 function fn_hint() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     if [[ $f[info] && $f[help] ]]; then
         log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
     elif [[ $f[info] ]]; then
@@ -859,7 +1029,7 @@ function fn_hint() {
 
 # Prepare source code location string
 function fn_source() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local file="$f[file_path]"
     local string="${f[name]}() {"
     local line="$(grep -n "$string" "$file" | head -n 1 | cut -d: -f1)"
@@ -867,8 +1037,8 @@ function fn_source() {
 }
 
 # Prepare the footer string
-function fn_footer() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_footer() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local footer=""
     footer+="$s[version] copyright © "
     [[ -n $f[date] ]] && footer+="$s[year] "
@@ -878,8 +1048,8 @@ function fn_footer() {
 }
 
 # Prepare the example string
-function fn_example() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_example() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     local indent="    " arg_pos arg_name example=""
     [[ $o[help] == 1 ]] && example+="\n"
     example+="${y}Usage example:$x" 
@@ -900,10 +1070,10 @@ function fn_example() {
 }
 
 # Warpper function to set all strings
-function fn_set_strings() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_set_strings() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Save start time
-    time_started[fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
     # Prepare all strings
     s[name]="${g}$f[name]$x"
     s[path]="${c}$f[file_path]$x"
@@ -912,26 +1082,26 @@ function fn_set_strings() {
     s[header]="$s[name]: $f[info]"
     
     if (( o[version] == 1 )); then
-        fn_version
+        _fn_version
     fi    
 
     if (( o[help] == 1 || o[info] == 1 )); then
-        fn_example
+        _fn_example
     fi
 
     if (( o[help] == 1 )); then
-        fn_version
-        fn_usage
-        fn_footer
+        _fn_version
+        _fn_usage
+        _fn_footer
         fn_source
     fi
     # Set end time
-    time_finished[fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
 }
 
 # Check if the number of arguments is correct
-function fn_check_args() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_check_args() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
 
     local expected="expected $y$f[args_min]$x"
     local given="given $y$f[args_count]$x"
@@ -956,10 +1126,10 @@ function fn_check_args() {
 }
 
 # Gather basic ennvironment information
-function fn_set_info() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_set_info() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Save start time
-    time_started[fn_set_info]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_set_info]=$(gdate +%s%3N 2>/dev/null)
     # Only populate if $i[] is initialized (to avoid unnecessary commands)
     if [[ "${(t)i}" == *"association"* ]]; then
         i[arch]=$(uname -m)             # system architecture
@@ -977,17 +1147,17 @@ function fn_set_info() {
         i[tty]=$(tty | sed 's|/dev/||') # terminal type
     fi
     # Save end time
-    time_finished[fn_set_info]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_set_info]=$(gdate +%s%3N 2>/dev/null)
 }
 
 # Options handling (show version, basic info/usage or help)
-function fn_handle_options() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_handle_options() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
 
     # Initialize match flag
     local is_match=0
     # Save start time
-    time_started[fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
     # Handle special options: version, info, help
     if (( o[version] == 1 || o[info] == 1 || o[help] == 1 )); then
         if (( o[version] == 1 )); then
@@ -1003,20 +1173,20 @@ function fn_handle_options() {
         is_match=1
     fi
     # Save end time
-    time_finished[fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_handle_options]=$(gdate +%s%3N 2>/dev/null)
     # Set return code if there was an error
     (( is_match )) && f[return]=0
 }
 
 # Error handling
-function fn_handle_errors() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_handle_errors() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     
     # Initialize error flag
     local is_error=0
     
     # Save start time
-    time_started[fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    time_started[_fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
     
     # Iterate over error messages and display them
     if [[ ${#e_msg} != 0 ]]; then
@@ -1033,15 +1203,15 @@ function fn_handle_errors() {
     fi
     
     # Save end time
-    time_finished[fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
+    time_finished[_fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
     
     # Set return code if there was an error
     (( is_error )) && f[return]=1
 }
 
 # Set time difference
-function fn_time_took() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
+function _fn_time_took() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     # Iterate over all started times and calculate the difference
     for fn_name in ${(k)time_started}; do
         local started="time_started[$fn_name]"
@@ -1055,181 +1225,9 @@ function fn_time_took() {
     f[time_took]="${time_took[fn_make]}"
 }
 
-# Print debug information
-function fn_debug() {
-    fn_guard; [[ $? -ne 0 ]] && return 1
-    local debug="${1:-${o[debug]}}"
-    if [[ "$debug" && ! $debug =~ "d" ]]; then
-        local max_key_length=15
-        local max_value_length=40
-        local count
-        local q="$y'$x"
-        local arr="$b→$x"
-        # Debug modes
-        local -A modes=(
-            [A]="Internal $y\$a_*[]$x argument arrays"
-            [a]="Arguments from $y\$a[]$x array"
-            [D]="Default values for options"
-            [d]="Disable debugging inside ${g}fn_make$x"
-            [e]="Exit after debugging"
-            [E]="Internal $y\$e_*[]$x error arrays"
-            [f]="Function properties from $y\$f[]$x array"
-            [h]="Help $y(default)$x"
-            [I]="All internal arrays"
-            [i]="Information from $y\$i[]$x array"
-            [O]="Internal $y\$o_*[]$x option arrays"
-            [o]="Options from $y\$o[]$x array"
-            [S]="Simple summary"
-            [s]="Strings from $y\$s[]$x array"
-            [T]="Timings from $y\$time_took[]$x array"
-            [t]="This function from $y\$t[]$x array"
-        )
-
-        # If no valid mode is set, show help
-        if [[ ! $debug =~ [AaDdeEfhIiOoSsTt] ]]; then
-            log::info "No valid debug mode set, falling back to help mode."
-            debug="h"
-        fi
-
-        # find the longest key
-        for key in "${(@k)f}"; do
-            if [[ ${#key} -gt $max_key_length ]]; then
-                max_key_length=${#key}
-            fi
-        done
-        for key in "${(@k)t}"; do
-            if [[ ${#key} -gt $max_key_length ]]; then
-                max_key_length=${#key}
-            fi
-        done
-        for key in "${(@k)time_took}"; do
-            if [[ ${#key} -gt $max_key_length ]]; then
-                max_key_length=${#key}
-            fi
-        done
-        
-        # debug header
-        print::header "${r}Debug mode$x '$debug'"
-        
-        # show exit_mode info when debug mode is not set to 'e'
-        if [[ $debug =~ "e" ]]; then
-            log::warning "Exit mode enabled: $s[name] will exit after debug."
-            f[return]=0
-        fi
-        # show debug modes when debug mode is not set to 'h'
-        if [[ ! $debug =~ "h" ]]; then
-            log::info "Use option ${c}-d=h$x to show available debug modes."
-        fi
-
-        # list modes
-        if [[ $debug =~ "h" ]]; then
-            max_key_length=2
-            log::info "${y}Debug modes${x} (${#modes}):"
-            for key value in "${(@kv)modes}"; do
-                echo "    ${(r:$max_key_length:)key} $arr $q$value$q"
-            done | sort
-            echo "Debug modes can be combined, e.g. $c-d=aof$x of $c--debug=aof$x."
-            echo "Debuggin of ${g}fn_make$x internal arrays (${c}i$x mode) works only if ${c}d$x is not set."
-            # Exit if debug mode is set to 'h'
-            debug="e"
-        fi
-
-        # List internal $o_default[] array (options default values)
-        if [[ $debug =~ "D" ]]; then
-            fn_list_array "o_default" "Option default values"
-        fi
-
-        # List internal argument arrays
-        if [[ $debug =~ "A" ]]; then
-            fn_list_array "a_name" "Argument names"
-            fn_list_array "a_req" "Required arguments"
-            fn_list_array "a_help" "Argument help strings"
-        fi
-
-        # List internal option arrays
-        if [[ $debug =~ "O" ]]; then
-            fn_list_array "o_long" "Option long names"
-            fn_list_array "o_short" "Option short names"
-            fn_list_array "o_help" "Option help strings"
-            fn_list_array "o_allowed" "Option allowed values"
-            fn_list_array "o_default" "Option default values"
-        fi
-
-        # List internal error arrays
-        if [[ $debug =~ "E" ]]; then
-            fn_list_array "e_msg" "Error messages"
-            fn_list_array "e_hint" "Error hints"
-            fn_list_array "e_dym" "Error suggestions"
-        fi
-
-        # Minimal Summary
-        if [[ $debug =~ "S" ]]; then
-            # Number of errors (if e_msg is uninitialized or empty – 0)
-            local errs=0
-            if typeset -p e_msg &>/dev/null && [[ -n "${(k)e_msg}" ]]; then
-                errs=${#e_msg}
-            fi
-            log::info "Total time: ${f[time_took]} ms"
-            log::info "Args: passed=${f[args_count]} required=${f[args_min]} optional=${f[args_opt]}"
-            log::info "Opts: passed=${f[opts_count]} defined=${f[opts_max]}"
-            log::info "Errors: $errs"
-        fi
-
-        # list arguments $a[]
-        [[ $debug =~ "a" ]] && fn_list_array "a" "Arguments"
-        # list options $o[]
-        [[ $debug =~ "o" ]] && fn_list_array "o" "Options"
-        # list properties $f[]
-        [[ $debug =~ "f" ]] && fn_list_array "f" "Function properties"
-        # list info $i[]
-        [[ $debug =~ "i" ]] && fn_list_array "i" "Environment information"
-        # list strings $s[]
-        [[ $debug =~ "s" ]] && fn_list_array "s" "Strings"
-        # list timings $time_took[]
-        [[ $debug =~ "T" ]] && fn_list_array "time_took" "Function timings"
-        # list this function values $t[]
-        [[ $debug =~ "t" ]] && fn_list_array "t" "This function"
-        # Debug footer
-        print::footer "${r}Debug end$x"
-        # Exit if debug mode is set to 'e' and destroy a flag that fn_make() is running
-        [[ $debug =~ "e" ]] && f[return]=0
-    fi
-}
-
-##########################################################
-# Auxiliary functions
-##########################################################
-
-# Guard function to prevent direct calls
-function fn_guard() {
-    # Self-guard for fn_guard()
-    if ! typeset -p f &>/dev/null || [[ ${funcstack[2]} == "" ]]; then
-        log::error "${c}fn_guard()$x cannot be called directly."
-        return 1
-    fi
-    # Check if fn_make() was called before
-    if (( ! f[run] )); then
-        local parent_name="$c${funcstack[2]}()$x"
-        log::error "$parent_name cannot be called directly."
-        return 1
-    fi
-    return 0
-}
-
-# Load base colors (ANSI escape codes)
-function fn_load_colors() {
-    b=$(ansi blue)          # arrows
-    c=$(ansi cyan)          # arguments, url, file path
-    g=$(ansi green)         # function name
-    p=$(ansi bright purple) # options
-    r=$(ansi red)           # errors
-    w=$(ansi white)         # plain text
-    y=$(ansi yellow)        # highlight
-    x=$(ansi reset)         # reset
-}
-
 # List associative array contents
-function fn_list_array() {
+function _fn_list_array() {
+    _fn_guard; [[ $? -ne 0 ]] && return 1
     setopt localoptions extended_glob
     local array_name=$1
     local display_name=$2
@@ -1278,9 +1276,14 @@ function fn_list_array() {
 function fn_self_test() {
     local self_test_started=$(gdate +%s%3N 2>/dev/null)
     setopt localoptions extended_glob
-    fn_load_colors
     local quiet=0
     [[ "$1" == "-q" ]] && quiet=1
+
+    # ANSI color codes
+    local g=$(ansi green)  # success
+    local r=$(ansi red)    # failure
+    local y=$(ansi yellow) # highlight
+    local x=$(ansi reset)  # reset
 
     local -i total=0 pass=0 fail=0
     local -a failed_names
