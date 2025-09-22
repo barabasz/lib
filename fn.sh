@@ -21,7 +21,7 @@
 # All other functions are private and should not be called directly.
 # Internal fn.sh functions rely on dynamic scoping to access the above arrays.
 #
-# fn_make ver. 1.49 (2025-09-22) by gh/barabasz, MIT License
+# fn_make ver. 1.50 (2025-09-22) by gh/barabasz, MIT License
 
 ##########################################################
 # Main functions
@@ -107,10 +107,12 @@ function fn_debug() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local debug="${1:-${o[debug]}}"
 
-    # Calculate timing information if debug mode is enabled
-    if [[ "$debug" ]] && _fn_calculate_time
+    # Calculate timing information oly if needed
+    if [[ "$debug" =~ [STf] && -z ${f[time_took]} ]]; then
+        _fn_calculate_time
+    fi
 
-    
+
     if [[ "$debug" && ! $debug =~ "d" ]]; then
         local max_key_length=15
         local max_value_length=40

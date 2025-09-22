@@ -732,7 +732,9 @@ function fn_make() {
 function fn_debug() {
     _fn_guard; [[ $? -ne 0 ]] && return 1
     local debug="${1:-${o[debug]}}"
-    if [[ "$debug" ]] && _fn_calculate_time
+    if [[ "$debug" =~ [STf] && -z ${f[time_took]} ]]; then
+        _fn_calculate_time
+    fi
     if [[ "$debug" && ! $debug =~ "d" ]]; then
         local max_key_length=15
         local max_value_length=40
