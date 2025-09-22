@@ -731,7 +731,7 @@ function fn_make() {
     unset "f[run]"
 }
 function fn_set_properties() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
     time_started[fn_set_properties]=$(gdate +%s%3N 2>/dev/null)
     f[name]="${funcstack[3]}"
@@ -751,7 +751,7 @@ function fn_set_properties() {
     (( is_error )) && f[return]=1 && return 1
 }
 function fn_add_defaults() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
     time_started[fn_add_defaults]=$(gdate +%s%3N 2>/dev/null)
     [[ -z ${o[info]} ]] && o[info]="i,1,show basic info and usage,[0|1]"
@@ -764,7 +764,7 @@ function fn_add_defaults() {
     (( is_error )) && f[return]=1 && return 1
 }
 function fn_parse_settings() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
     time_started[fn_parse_settings]=$(gdate +%s%3N 2>/dev/null)
     if (( ${#a} != 0 )); then
@@ -784,7 +784,7 @@ function fn_parse_settings() {
     (( is_error )) && f[return]=1 && return 1
 }
 function fn_parse_settings_args() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     for key in ${(ok)a}; do
         local value="${a[$key]}"
         local settings=(${(s:,:)value})
@@ -817,7 +817,7 @@ function fn_parse_settings_args() {
     done
 }
 function fn_parse_settings_opts() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     for key in ${(ok)o}; do
         local value="${o[$key]}"
         local comma_count=${value//[^,]/}
@@ -867,7 +867,7 @@ function fn_parse_settings_opts() {
     done
 }
 function fn_parse_arguments() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
     time_started[fn_parse_arguments]=$(gdate +%s%3N 2>/dev/null)
     local used_opts=""
@@ -879,10 +879,12 @@ function fn_parse_arguments() {
             (( oi++ ))
             f[opts_input]+="$arg "
             fn_parse_option "$arg" "$i" "$oi"
+            (( $? != 0 )) && is_error=1
         else
             (( ai++ ))
             f[args_input]+="'$arg' "
             fn_parse_argument "$arg" "$i" "$ai"
+            (( $? != 0 )) && is_error=1
         fi
     done
     f[opts_count]=$oi
@@ -897,7 +899,7 @@ function fn_parse_arguments() {
     (( is_error )) && f[return]=1 && return 1
 }
 function fn_parse_option() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local arg="$1" i="$2" oi="$3"
     local oic="$y$oi$x"
     local dym=""  # Will hold "Did you mean" suggestion
@@ -919,7 +921,7 @@ function fn_parse_option() {
             e_msg[o$i]="Option $oic has empty name in $argc"
             e_hint[o$i]="Options must have a name after the dash(es)."
         fi
-        return
+        return 1
     elif (( dashes > 2 )); then
         if (( namelen == 1 )); then
             e_msg[o$i]="Option $oic has too many leading dashes in $argc"
@@ -930,29 +932,29 @@ function fn_parse_option() {
             e_hint[o$i]="Option with long name should start with two dashes (--)."
             fn_option_suggestion "too_many_dashes_long" && e_dym[o$i]="$dym"
         fi
-        return
+        return 1
     elif [[ $arg == *=*=* ]]; then
         e_msg[o$i]="Option $oic has multiple equal signs in $argc"
         e_hint[o$i]="Option values must be specified using a single equal sign."
         fn_option_suggestion "multiple_equals" && e_dym[o$i]="$dym"
-        return
+        return 1
     elif (( dashes == 1 && namelen > 1 )); then
         e_msg[o$i]="Option $oic name is too long in $argc"
         e_hint[o$i]="Short option names must be a single character."
         fn_option_suggestion "long_short" && e_dym[o$i]="$dym"
-        return
+        return 1
     elif (( dashes == 2 && namelen == 1 )); then
         e_msg[o$i]="Option $oic name is too short in $argc"
         e_hint[o$i]="This could be either a short option with an extra dash, or an abbreviated long option."
         fn_option_suggestion "short_long" && e_dym[o$i]="$dym"
-        return
+        return 1
     fi
     local canonical_name=""
     if (( dashes == 1 )); then
         if [[ -z "${o_short[$name]}" ]]; then
             e_msg[o$i]="Option $oic short name $argnamec unknown in $argc"
             fn_option_suggestion "unknown_short" && e_dym[o$i]="$dym"
-            return
+            return 1
         else
             canonical_name="${o_short[$name]}"
         fi
@@ -960,7 +962,7 @@ function fn_parse_option() {
         if [[ ! " ${(k)o_long} " == *" $name "* ]]; then
             e_msg[o$i]="Option $oic full name $argnamec unknown in $argc"
             fn_option_suggestion "unknown_long" && e_dym[o$i]="$dym"
-            return
+            return 1
         else
             canonical_name="$name"
         fi
@@ -969,7 +971,7 @@ function fn_parse_option() {
         local previous_usage="${used_opts_full[$canonical_name]}"
         e_msg[o$i]="Option $oic name $argnamec in $argc was already used as "
         e_msg[o$i]+="'$p${previous_usage}$x'"
-        return
+        return 1
     fi
     (( has_value == 0 )) && value="${o_default[$canonical_name]}"
     if [[ -n "${o_allowed[$canonical_name]}" && "${o_allowed[$canonical_name]}" != "" && $has_value -eq 1 ]]; then
@@ -995,15 +997,16 @@ function fn_parse_option() {
         if [[ $valid -eq 0 ]]; then
             e_msg[o$i]="Option $oic has invalid value '$p$value$x' in $argc"
             e_hint[o$i]="Allowed values for this option are: ${y}[$allowed]$x"
-            return
+            return 1
         fi
     fi
     o[$canonical_name]=$value
     used_opts+=" $canonical_name "  # Add spaces to ensure exact matching
     used_opts_full[$canonical_name]="$arg"
+    return 0
 }
 function fn_option_suggestion() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local error_type="$1"
     local suggestion=""
     case $error_type in
@@ -1128,19 +1131,21 @@ function fn_option_suggestion() {
     fi
 }
 function fn_parse_argument() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local aic="$y$ai$x"
     if [[ $a_req[$a_name[$ai]] == "required" && -z $arg ]]; then
         e_msg[a$i]="Argument $aic ($y$a_name[$ai]$x) cannot be empty"
+        return 1
     fi
     if [[ $a_name[$ai] ]]; then
         a[$a_name[$ai]]="$arg"
     else
         a[$ai]="$arg"
     fi
+    return 0
 }
 function fn_usage() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local i=1
     local usage="\n"
     local max_len=0
@@ -1227,14 +1232,14 @@ function fn_usage() {
     s[usage]="$usage\n"
 }
 function fn_version() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local version="$s[name]"
     [[ -n $f[version] ]] && version+=" $y$f[version]$x" || version+=" [version unknown]"
     [[ -n $f[date] ]] && version+=" ($f[date])"
     s[version]="$version"
 }
 function fn_hint() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     if [[ $f[info] && $f[help] ]]; then
         log::info "Run $s[name] ${p}-i$x for basic usage or $s[name] ${p}-h$x for help."
     elif [[ $f[info] ]]; then
@@ -1248,14 +1253,14 @@ function fn_hint() {
     fi
 }
 function fn_source() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local file="$f[file_path]"
     local string="${f[name]}() {"
     local line="$(grep -n "$string" "$file" | head -n 1 | cut -d: -f1)"
     s[source]="This function is defined in $s[path] (line $c$line$x)"
 }
 function fn_footer() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local footer=""
     footer+="$s[version] copyright © "
     [[ -n $f[date] ]] && footer+="$s[year] "
@@ -1284,7 +1289,7 @@ function fn_example() {
     s[example]="$example"
 }
 function fn_set_strings() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     time_started[fn_set_strings]=$(gdate +%s%3N 2>/dev/null)
     s[name]="${g}$f[name]$x"
     s[path]="${c}$f[file_path]$x"
@@ -1325,7 +1330,7 @@ function fn_check_args() {
     }
 }
 function fn_set_info() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     time_started[fn_set_info]=$(gdate +%s%3N 2>/dev/null)
     if [[ "${(t)i}" == *"association"* ]]; then
         i[arch]=$(uname -m)             # system architecture
@@ -1365,7 +1370,7 @@ function fn_handle_options() {
     (( is_match )) && f[return]=0
 }
 function fn_handle_errors() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local is_error=0
     time_started[fn_handle_errors]=$(gdate +%s%3N 2>/dev/null)
     if [[ ${#e_msg} != 0 ]]; then
@@ -1384,7 +1389,7 @@ function fn_handle_errors() {
     (( is_error )) && f[return]=1
 }
 function fn_time_took() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     for fn_name in ${(k)time_started}; do
         local started="time_started[$fn_name]"
         local finished="time_finished[$fn_name]"
@@ -1397,7 +1402,7 @@ function fn_time_took() {
     f[time_took]="${time_took[fn_make]}"
 }
 function fn_debug() {
-    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
+    fn_guard; [[ $? -ne 0 ]] && return 1
     local debug="${1:-${o[debug]}}"
     if [[ "$debug" && ! $debug =~ "d" ]]; then
         local max_key_length=15
@@ -1479,6 +1484,16 @@ function fn_debug() {
             fn_list_array "e_msg" "Error messages"
             fn_list_array "e_hint" "Error hints"
             fn_list_array "e_dym" "Error suggestions"
+        fi
+        if [[ $debug =~ "S" ]]; then
+            local errs=0
+            if typeset -p e_msg &>/dev/null && [[ -n "${(k)e_msg}" ]]; then
+                errs=${#e_msg}
+            fi
+            log::info "Total time: ${f[time_took]} ms"
+            log::info "Args: passed=${f[args_count]} required=${f[args_min]} optional=${f[args_opt]}"
+            log::info "Opts: passed=${f[opts_count]} defined=${f[opts_max]}"
+            log::info "Errors: $errs"
         fi
         [[ $debug =~ "a" ]] && fn_list_array "a" "Arguments"
         [[ $debug =~ "o" ]] && fn_list_array "o" "Options"
@@ -1795,7 +1810,7 @@ function fn_self_test() {
     _fst_run_absent "INFO_EARLY_EXIT"    "_fst_func_args one two -i"                              "ARGS first=" 0
     _fst_run_absent "HELP_EARLY_EXIT"    "_fst_func_args one two -h"                              "ARGS first=" 0
     _fst_run "DEBUG_MODE_I"            "_fst_func_args_info one two -d=i"                         "Environment information" 0
-    _fst_run "TIME_MEASURE"            "_fst_func_args one two -d=f"                              "time_fnmake" 0
+    _fst_run "TIME_MEASURE"            "_fst_func_args one two -d=f"                              "time_took" 0
     _fst_run "ANSI_INFO"               "_fst_func_ansi -i"                                        "RED_TEXT" 0
     _fst_run "ANSI_STRIPPER_LOCAL"     "_fst_strip_ansi \$'\e[32mGREEN\e[0m plain'"               "GREEN plain" 0
     local summary="SELF-TEST: total=$total pass=$pass fail=$fail"
