@@ -725,7 +725,7 @@ function fn_make() {
     fn_parse_settings && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_parse_arguments "$@"
     fn_set_strings
-    fn_set_time $time_start
+    fn_set_time
     fn_debug && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_handle_options && [[ -n "${f[return]}" ]] && return "${f[return]}"
     fn_handle_errors && [[ -n "${f[return]}" ]] && return "${f[return]}"
@@ -1251,6 +1251,7 @@ function fn_footer() {
     s[footer]="$footer"
 }
 function fn_example() {
+    (( ! f[run] )) && log::error "This function cannot be called directly." && return 1
     local indent="    " arg_pos arg_name example=""
     [[ $o[help] == 1 ]] && example+="\n"
     example+="${y}Usage example:$x" 
@@ -1451,7 +1452,7 @@ function fn_debug() {
         [[ $debug =~ "s" ]] && fn_list_array "s" "Strings"
         [[ $debug =~ "t" ]] && fn_list_array "t" "This function"
         print::footer "${r}Debug end$x"
-        [[ $debug =~ "e" ]] && f[return]=0 && return 0
+        [[ $debug =~ "e" ]] && unset "f[run]" && f[return]=0 && return 0
     fi
 }
 function fn_load_colors() {
@@ -1504,12 +1505,14 @@ function fn_how_long_it_took() {
     print -- "${r}[${(l:4:: :)diff} ms]${x} $stage"
 }
 function fn_self_test() {
+    local self_test_started=$(gdate +%s%3N 2>/dev/null)
     setopt localoptions extended_glob
     fn_load_colors
     local quiet=0
     [[ "$1" == "-q" ]] && quiet=1
     local -i total=0 pass=0 fail=0
     local -a failed_names
+    local FORBIDDEN_PHRASE="function cannot be called directly"
     _fst_strip_ansi() {
         setopt localoptions extended_glob
         local s="$1"
@@ -1522,6 +1525,10 @@ function fn_self_test() {
         out=$(eval "$command" 2>&1)
         rc=$?
         clean=$(_fst_strip_ansi "$out")
+        if [[ "$clean" == *"$FORBIDDEN_PHRASE"* ]]; then
+            ok=0
+            (( quiet == 0 )) && echo "[${r}FAIL$x] [$name] Forbidden phrase detected: '$FORBIDDEN_PHRASE'"
+        fi
         if [[ -n "$expect_rc" && $rc -ne $expect_rc ]]; then
             ok=0
             (( quiet == 0 )) && echo "[${r}FAIL$x] [$name] Return code $rc (expected $expect_rc)"
@@ -1530,6 +1537,38 @@ function fn_self_test() {
             ok=0
             if (( quiet == 0 )); then
                 echo "[${r}FAIL$x] [$name] Missing substring: $expect_sub"
+                echo "---- OUTPUT (clean) ----"
+                echo "$clean"
+                echo "------------------------"
+            fi
+        fi
+        if (( ok )); then
+            (( pass++ ))
+            (( quiet == 0 )) && echo "[${g}OK  $x] [$name]"
+        else
+            (( fail++ ))
+            failed_names+=("$name")
+        fi
+    }
+    _fst_run_absent() {
+        local name="$1" command="$2" forbid_sub="$3" expect_rc="$4"
+        local out rc clean ok=1
+        (( total++ ))
+        out=$(eval "$command" 2>&1)
+        rc=$?
+        clean=$(_fst_strip_ansi "$out")
+        if [[ "$clean" == *"$FORBIDDEN_PHRASE"* ]]; then
+            ok=0
+            (( quiet == 0 )) && echo "[${r}FAIL$x] [$name] Forbidden phrase detected: '$FORBIDDEN_PHRASE'"
+        fi
+        if [[ -n "$expect_rc" && $rc -ne $expect_rc ]]; then
+            ok=0
+            (( quiet == 0 )) && echo "[${r}FAIL$x] [$name] Return code $rc (expected $expect_rc)"
+        fi
+        if [[ "$clean" == *"$forbid_sub"* ]]; then
+            ok=0
+            if (( quiet == 0 )); then
+                echo "[${r}FAIL$x] [$name] Unexpected substring present: $forbid_sub"
                 echo "---- OUTPUT (clean) ----"
                 echo "$clean"
                 echo "------------------------"
@@ -1693,6 +1732,11 @@ function fn_self_test() {
     _fst_run "OPTS_STRICT_SET_VALID"   "_fst_func_opts_extra --strict=two"                        "SET:strict=two" 0
     _fst_run "OPTS_STRICT_SET_INVALID" "_fst_func_opts_extra --strict=three"                      "invalid value" 1
     _fst_run "OPTS_SUGGESTION"         "_fst_func_suggest one two --levl=hard"                    "Did you mean" 1
+    _fst_run "OPT_TOO_MANY_DASHES_SHORT" "_fst_func_args one two ---l=hard"                       "too many leading dashes" 1
+    _fst_run "OPT_TOO_MANY_DASHES_LONG"  "_fst_func_args one two ----level=hard"                  "too many leading dashes" 1
+    _fst_run "OPT_MULTIPLE_EQUALS"       "_fst_func_args one two --level=hard=extra"              "multiple equal signs" 1
+    _fst_run "OPT_EMPTY_NAME_EQUALS_SHORT" "_fst_func_args one two -=x"                           "empty name with equals sign" 1
+    _fst_run "OPT_EMPTY_NAME_EQUALS_LONG"  "_fst_func_args one two --=x"                          "empty name with equals sign" 1
     _fst_run "DUPLICATE_SHORT_LONG"    "_fst_func_opts_dup -c=red --color=green"                  "already used" 1
     _fst_run "MULTI_ERRORS_UNKNOWN"    "_fst_func_args one two three four --badopt=1"            "unknown in" 1
     _fst_run "MULTI_ERRORS_TOOMANY"    "_fst_func_args one two three four --badopt=1"            "Too many arguments" 1
@@ -1701,11 +1745,18 @@ function fn_self_test() {
     _fst_run "OPTS_STRICT_IMPLICIT"    "_fst_func_opts_extra --strict"                            "SET:strict=one" 0
     _fst_run "DEBUG_COMBINED"          "_fst_func_args one two -d=afiO"                           "Option long names" 0
     _fst_run "DEBUG_MODE_F"            "_fst_func_args one two -d=f"                              "Function properties" 0
+    _fst_run "DEBUG_MODE_FLAG_ONLY"    "_fst_func_args one two -d"                                "Function properties" 0
+    _fst_run_absent "DEBUG_EXIT_MODE"  "_fst_func_args one two -d=fe"                             "ARGS first=" 0
+    _fst_run_absent "VERSION_EARLY_EXIT" "_fst_func_args one two -v"                              "ARGS first=" 0
+    _fst_run_absent "INFO_EARLY_EXIT"    "_fst_func_args one two -i"                              "ARGS first=" 0
+    _fst_run_absent "HELP_EARLY_EXIT"    "_fst_func_args one two -h"                              "ARGS first=" 0
     _fst_run "DEBUG_MODE_I"            "_fst_func_args_info one two -d=i"                         "Environment information" 0
     _fst_run "TIME_MEASURE"            "_fst_func_args one two -d=f"                              "time_fnmake" 0
     _fst_run "ANSI_INFO"               "_fst_func_ansi -i"                                        "RED_TEXT" 0
     _fst_run "ANSI_STRIPPER_LOCAL"     "_fst_strip_ansi \$'\e[32mGREEN\e[0m plain'"               "GREEN plain" 0
     local summary="SELF-TEST: total=$total pass=$pass fail=$fail"
+    local now=$(gdate +%s%3N 2>/dev/null)
+    local diff=$((now - self_test_started))
     if (( fail > 0 )); then
         echo "$summary"
         if (( quiet == 0 )); then
@@ -1714,9 +1765,10 @@ function fn_self_test() {
                 echo "  - $t"
             done
         fi
+        echo "Self-test interrupted after ${diff} ms."
         (( fail > 255 )) && return 255 || return $fail
     else
-        echo "$summary (OK)"
+        echo "$summary (${g}OK$x) completed in ${diff} ms."
         return 0
     fi
 }
