@@ -2308,6 +2308,9 @@ function shellfiles() {
     printf "${f}zlogin$r"
     printf "\n"
 }
+function imginf() {
+    exiftool "$1" | grep -m 1 'Date/Time Original' | sed 's/.*: //'
+}
 
 #
 # File: install.sh

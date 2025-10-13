@@ -148,3 +148,8 @@ function shellfiles() {
     printf "${f}zlogin$r"
     printf "\n"
 }
+
+# Get image original date (date/time digitized)
+function imginf() {
+    exiftool "$1" | grep -m 1 'Date/Time Original' | sed 's/.*: //'
+}
