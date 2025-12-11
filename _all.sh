@@ -2319,8 +2319,10 @@ function imginf() {
 function isinstalled() {
     if [[ $(utype $1) == 'file' || "$(uwhich $1)" == /* ]]; then
         echo 1
+        return 0
     else
         echo 0
+        return 1
     fi
 }
 function isinstalledbybrew() {
