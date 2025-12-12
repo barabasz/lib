@@ -343,6 +343,15 @@ function www() {
 # File: files.sh
 #
 
+isfile() {
+    [[ $# -eq 1 && -f "$1" ]]
+}
+isdir() {
+    [[ $# -eq 1 && -d "$1" ]]
+}
+islink() {
+    [[ $# -eq 1 && -L "$1" ]]
+}
 ftype() {
     local -A f; local -A o; local -A a; local -A s; local -A t
     f[info]="Detects the type of file system object for a given path."
@@ -627,44 +636,28 @@ function lnsconfdir() {
 }
 utype() {
     [[ $# -eq 1 ]] || return 1
-    local cmd="$1"
-    if [[ -n "$BASH_VERSION" ]]; then
-        local type_result=$(type -t -- "$cmd" 2>/dev/null)
-        if [[ -n "$type_result" ]]; then
-            printf '%s\n' "$type_result"
+    local cmd=$1
+    if [[ -n $BASH_VERSION ]]; then
+        local result=$(type -t -- "$cmd" 2>/dev/null)
+        if [[ -n $result ]]; then
+            printf '%s\n' "$result"
             return 0
         else
-            printf '%s\n' "notfound"
+            printf 'notfound\n'
             return 1
         fi
-    elif [[ -n "$ZSH_VERSION" ]]; then
+    elif [[ -n $ZSH_VERSION ]]; then
         case $(whence -w -- "$cmd" 2>/dev/null) in
-            (*: alias*) printf 'alias\n'; return 0 ;;
-            (*: function*) printf 'function\n'; return 0 ;;
-            (*: builtin*) printf 'builtin\n'; return 0 ;;
-            (*: command*) printf 'file\n'; return 0 ;;
-            (*: reserved*) printf 'keyword\n'; return 0 ;;
-            (*: none*) printf 'notfound\n'; return 1 ;;
-            (*: file*) printf 'file\n'; return 0 ;;
+            (*: alias) printf 'alias\n'; return 0 ;;
+            (*: function) printf 'function\n'; return 0 ;;
+            (*: builtin) printf 'builtin\n'; return 0 ;;
+            (*: command) printf 'file\n'; return 0 ;;
+            (*: hashed) printf 'file\n'; return 0 ;;
+            (*: reserved) printf 'keyword\n'; return 0 ;;
             (*) printf 'notfound\n'; return 1 ;;
         esac
     fi
-    local command_result
-    if ! command_result=$(LC_ALL=C command -V -- "$cmd" 2>/dev/null); then
-        printf '%s\n' "notfound"
-        return 1
-    else
-        case $command_result in
-            (*alias*) printf 'alias\n'; return 0 ;;
-            (*function*) printf 'function\n'; return 0 ;;
-            (*keyword*) printf 'keyword\n'; return 0 ;;
-            (*word*) printf 'keyword\n'; return 0 ;;
-            (*builtin*) printf 'builtin\n'; return 0 ;;
-            (*"not found"*) printf 'notfound\n'; return 1 ;;
-            (*"is"* | *"file"*) printf 'file\n'; return 0 ;;
-            (*) printf 'notfound\n'; return 1 ;;
-        esac
-    fi
+    return 1
 }
 function wheref() {
     local f_name="wheref"
@@ -1975,14 +1968,14 @@ function fn_bad() {
 # File: helpers.sh
 #
 
-function clean_string() {
-  local input="$1"
-  input="${input//$'\n'/ }"
-  input="${input//$'\t'/ }"
-  input="${(j: :)${(z)input}}"
-  echo "$input"
+clean_string() {
+    if [[ $# -ne 1 ]]; then
+        print -u2 "clean_string: requires exactly one argument, given $#"
+        return 1
+    fi
+    print -r -- "${(j: :)${=1}}"
 }
-function clean_ansi() {
+clean_ansi() {
   local input="$1"
   echo "$input" | sed $'s/\x1b\\[[0-9;]*m//g'
 }
@@ -1991,18 +1984,15 @@ function timet() {
     local arg=$2
     echo "$((time (eval $cmd \$$arg)) 2>&1 | awk '/total/ {print $(NF-1)}')"
 }
-function sourceif() {
-    [[ $# -eq 0 ]] && echo "Usage: sourceif <file> [error message]" && return 1
-    if [[ $# -eq 1 ]]; then
-        script="${redi}sourceif error${reset}"
+sourceif() {
+    [[ $# -eq 1 ]] && isfile "$1" && source "$1"
+}
+sourcefile() {
+    [[ $# -eq 1 ]] || return 1
+    if isfile "$1"; then
+        source "$1"
     else
-        script="${redi}sourceif error${reset} in ${yellow}$2${reset}"
-    fi
-    if [[ -f $1 ]]; then
-        source $1
-    else
-        [[ $# -ge 2 ]] && printf "$1 not found\n" || printf "$2: $1 not found\n"
-        printf "$script: ${cyan}$1${reset} not found\n"
+        print -u2 "$1 not found"
         return 1
     fi
 }
@@ -2028,12 +2018,26 @@ check_function_name() {
     fi
 }
 utime2iso() {
-    local timestamp=$1
-    date -r $timestamp -u +"%Y-%m-%dT%H:%M:%SZ"
+    if [[ $# -ne 1 ]]; then
+        print -u2 "utime2iso: requires exactly one argument, given $#"
+        return 1
+    fi
+    if [[ ! $1 =~ ^[0-9]+$ ]]; then
+        print -u2 "utime2iso: argument must be a positive integer"
+        return 1
+    fi
+    command date -r "$1" -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 iso2utime() {
-    local date=$1
-    date -j -f "%Y-%m-%dT%H:%M:%SZ" $date "+%s"
+    if [[ $# -ne 1 ]]; then
+        print -u2 "iso2utime: requires exactly one argument, given $#"
+        return 1
+    fi
+    if [[ ! $1 =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+        print -u2 "iso2utime: argument must be ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)"
+        return 1
+    fi
+    command date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$1" "+%s"
 }
 extract_url() {
     if [[ $1 =~ (https?://[^ ]+) ]]; then
@@ -2162,23 +2166,27 @@ function isdirwritable() {
         printf "0" && return 1
     fi
 }
-function uwhich() {
-    local type=$(utype $1)
-    if [[ $type == "file" ]]; then
-        echo $(which $1)
-    elif [[ $type == "alias" ]]; then
-        if [[ $(shellname) = "zsh" ]]; then
-            echo $(whence -p $1)
-        else
-            echo $(which $1)
-        fi
-    elif [[ $type == "not found" ]]; then
-        echo "${yellow}$1${reset} $type"
-        return 1
-    else
-        echo "${yellow}$1${reset} is a ${green}$type${reset}"
-        return 1
-    fi
+uwhich() {
+    [[ $# -eq 1 ]] || return 1
+    local cmd=$1
+    local cmd_type=$(utype "$cmd")
+    case $cmd_type in
+        file|alias)
+            if [[ -n $ZSH_VERSION ]]; then
+                whence -p -- "$cmd"
+            else
+                type -P -- "$cmd"
+            fi
+            ;;
+        notfound)
+            printf '%s: not found\n' "$cmd"
+            return 1
+            ;;
+        *)
+            printf '%s is a %s\n' "$cmd" "$cmd_type"
+            return 1
+            ;;
+    esac
 }
 
 #
@@ -2316,13 +2324,12 @@ function imginf() {
 # File: install.sh
 #
 
-function isinstalled() {
-    if [[ $(utype $1) == 'file' || "$(uwhich $1)" == /* ]]; then
-        echo 1
-        return 0
+isinstalled() {
+    [[ $# -eq 1 ]] || return 1
+    if [[ -n $ZSH_VERSION ]]; then
+        whence -p -- "$1" &>/dev/null
     else
-        echo 0
-        return 1
+        type -P -- "$1" &>/dev/null
     fi
 }
 function isinstalledbybrew() {

@@ -2,17 +2,18 @@
 #
 # Helper functions for the script functions
 
-# Clean a string by removing newlines and tabs
-function clean_string() {
-  local input="$1"
-  input="${input//$'\n'/ }"
-  input="${input//$'\t'/ }"
-  input="${(j: :)${(z)input}}"
-  echo "$input"
+# Clean a string (normalize whitespace)
+# collapse multiple spaces/tabs/newlines into single spaces
+clean_string() {
+    if [[ $# -ne 1 ]]; then
+        print -u2 "clean_string: requires exactly one argument, given $#"
+        return 1
+    fi
+    print -r -- "${(j: :)${=1}}"
 }
 
 # Clean a string by removing ANSI escape codes
-function clean_ansi() {
+clean_ansi() {
   local input="$1"
   echo "$input" | sed $'s/\x1b\\[[0-9;]*m//g'
 }
@@ -24,20 +25,18 @@ function timet() {
     echo "$((time (eval $cmd \$$arg)) 2>&1 | awk '/total/ {print $(NF-1)}')"
 }
 
-# Source file if exists
-function sourceif() {
-    [[ $# -eq 0 ]] && echo "Usage: sourceif <file> [error message]" && return 1
-    if [[ $# -eq 1 ]]; then
-        script="${redi}sourceif error${reset}"
-    else
-        script="${redi}sourceif error${reset} in ${yellow}$2${reset}"
-    fi
+# Source file if it exists, silently skip otherwise
+sourceif() {
+    [[ $# -eq 1 ]] && isfile "$1" && source "$1"
+}
 
-    if [[ -f $1 ]]; then
-        source $1
+# Source file or report error
+sourcefile() {
+    [[ $# -eq 1 ]] || return 1
+    if isfile "$1"; then
+        source "$1"
     else
-        [[ $# -ge 2 ]] && printf "$1 not found\n" || printf "$2: $1 not found\n"
-        printf "$script: ${cyan}$1${reset} not found\n"
+        print -u2 "$1 not found"
         return 1
     fi
 }
@@ -76,15 +75,29 @@ check_function_name() {
 # Convert unix timestamp to ISO 8601 date
 # Returns: ISO 8601 date string in UTC
 utime2iso() {
-    local timestamp=$1
-    date -r $timestamp -u +"%Y-%m-%dT%H:%M:%SZ"
+    if [[ $# -ne 1 ]]; then
+        print -u2 "utime2iso: requires exactly one argument, given $#"
+        return 1
+    fi
+    if [[ ! $1 =~ ^[0-9]+$ ]]; then
+        print -u2 "utime2iso: argument must be a positive integer"
+        return 1
+    fi
+    command date -r "$1" -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
 # Convert ISO 8601 date to unix timestamp
 # Returns: Unix timestamp
 iso2utime() {
-    local date=$1
-    date -j -f "%Y-%m-%dT%H:%M:%SZ" $date "+%s"
+    if [[ $# -ne 1 ]]; then
+        print -u2 "iso2utime: requires exactly one argument, given $#"
+        return 1
+    fi
+    if [[ ! $1 =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+        print -u2 "iso2utime: argument must be ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)"
+        return 1
+    fi
+    command date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$1" "+%s"
 }
 
 # Extract URL from a string
@@ -260,22 +273,29 @@ function isdirwritable() {
     fi
 }
 
-# Universal better which command for bash and zsh
-function uwhich() {
-    local type=$(utype $1)
-    if [[ $type == "file" ]]; then
-        echo $(which $1)
-    elif [[ $type == "alias" ]]; then
-        if [[ $(shellname) = "zsh" ]]; then
-            echo $(whence -p $1)
-        else
-            echo $(which $1)
-        fi
-    elif [[ $type == "not found" ]]; then
-        echo "${yellow}$1${reset} $type"
-        return 1
-    else
-        echo "${yellow}$1${reset} is a ${green}$type${reset}"
-        return 1
-    fi
+# uwhich: find executable path, even if shadowed by alias/function
+# Returns (stdout + exit 0): absolute path to executable
+# Returns (stdout + exit 1): info message (not a file or not found)
+uwhich() {
+    [[ $# -eq 1 ]] || return 1
+    local cmd=$1
+    local cmd_type=$(utype "$cmd")
+
+    case $cmd_type in
+        file|alias)
+            if [[ -n $ZSH_VERSION ]]; then
+                whence -p -- "$cmd"
+            else
+                type -P -- "$cmd"
+            fi
+            ;;
+        notfound)
+            printf '%s: not found\n' "$cmd"
+            return 1
+            ;;
+        *)
+            printf '%s is a %s\n' "$cmd" "$cmd_type"
+            return 1
+            ;;
+    esac
 }

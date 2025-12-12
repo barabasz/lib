@@ -2,14 +2,13 @@
 #
 # Functions for installing applications
 
-# Check if programm is installed
-function isinstalled() {
-    if [[ $(utype $1) == 'file' || "$(uwhich $1)" == /* ]]; then
-        echo 1
-        return 0
+# Check if program is installed (executable exists in PATH)
+isinstalled() {
+    [[ $# -eq 1 ]] || return 1
+    if [[ -n $ZSH_VERSION ]]; then
+        whence -p -- "$1" &>/dev/null
     else
-        echo 0
-        return 1
+        type -P -- "$1" &>/dev/null
     fi
 }
 

@@ -3,6 +3,21 @@
 # Better versions of some functions
 # Unless otherwise noted, they work with both bash and zsh
 
+# Check if path exists and is a regular file
+isfile() {
+    [[ $# -eq 1 && -f "$1" ]]
+}
+
+# Check if path exists and is a directory
+isdir() {
+    [[ $# -eq 1 && -d "$1" ]]
+}
+
+# Check if path exists and is a symbolic link
+islink() {
+    [[ $# -eq 1 && -L "$1" ]]
+}
+
 # Detects the type of file system object for a given path.
 # Usage: ftype <path>
 # Returns object type or 'not_found'
@@ -353,53 +368,31 @@ function lnsconfdir() {
 # Returns (stdout + exit 1): notfound (command does not exist)
 # Returns (no stdout, exit 1): usage / internal error
 utype() {
-    # echo "called by: ${funcstack[2]}"
-    # Argument validation (exactly one argument)
     [[ $# -eq 1 ]] || return 1
-    local cmd="$1"
+    local cmd=$1
 
-    # Use shell-specific methods for faster detection
-    if [[ -n "$BASH_VERSION" ]]; then
-        # In bash, use type -t which returns a single word
-        local type_result=$(type -t -- "$cmd" 2>/dev/null)
-        if [[ -n "$type_result" ]]; then
-            printf '%s\n' "$type_result"
+    if [[ -n $BASH_VERSION ]]; then
+        local result=$(type -t -- "$cmd" 2>/dev/null)
+        if [[ -n $result ]]; then
+            printf '%s\n' "$result"
             return 0
         else
-            printf '%s\n' "notfound"
+            printf 'notfound\n'
             return 1
         fi
-    elif [[ -n "$ZSH_VERSION" ]]; then
-        # In zsh, use whence -w for precise results
+    elif [[ -n $ZSH_VERSION ]]; then
         case $(whence -w -- "$cmd" 2>/dev/null) in
-            (*: alias*) printf 'alias\n'; return 0 ;;
-            (*: function*) printf 'function\n'; return 0 ;;
-            (*: builtin*) printf 'builtin\n'; return 0 ;;
-            (*: command*) printf 'file\n'; return 0 ;;
-            (*: reserved*) printf 'keyword\n'; return 0 ;;
-            (*: none*) printf 'notfound\n'; return 1 ;;
-            (*: file*) printf 'file\n'; return 0 ;;
+            (*: alias) printf 'alias\n'; return 0 ;;
+            (*: function) printf 'function\n'; return 0 ;;
+            (*: builtin) printf 'builtin\n'; return 0 ;;
+            (*: command) printf 'file\n'; return 0 ;;
+            (*: hashed) printf 'file\n'; return 0 ;;
+            (*: reserved) printf 'keyword\n'; return 0 ;;
             (*) printf 'notfound\n'; return 1 ;;
         esac
     fi
 
-    # Fallback to POSIX-compliant method using command -V
-    local command_result
-    if ! command_result=$(LC_ALL=C command -V -- "$cmd" 2>/dev/null); then
-        printf '%s\n' "notfound"
-        return 1
-    else
-        case $command_result in
-            (*alias*) printf 'alias\n'; return 0 ;;
-            (*function*) printf 'function\n'; return 0 ;;
-            (*keyword*) printf 'keyword\n'; return 0 ;;
-            (*word*) printf 'keyword\n'; return 0 ;;
-            (*builtin*) printf 'builtin\n'; return 0 ;;
-            (*"not found"*) printf 'notfound\n'; return 1 ;;
-            (*"is"* | *"file"*) printf 'file\n'; return 0 ;;
-            (*) printf 'notfound\n'; return 1 ;;
-        esac
-    fi
+    return 1
 }
 
 # Finds the file where a function is defined
