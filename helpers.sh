@@ -41,14 +41,27 @@ sourcefile() {
     fi
 }
 
-# Source remote file
-# Usage: source_remote <url> <name>
-function source_remote() {
-    local url=$1 name=$(basename $1) file_content=""
-    file_content=$(wget -q -O - $url)
-    [[ $? -ne 0 ]] && { echo "Error getting $name ($url)."; return 1; }
+# Function to source remote files
+# Usage: source_remote <url>
+# Compatible with both bash and zsh
+source_remote() {
+    if [[ $# -ne 1 ]]; then
+        echo "${r}source_remote: requires exactly one argument, given $#${x}"
+        return 1
+    fi
+    local url=$1 name file_content=""
+    name=$(basename "$1")
+    
+    # Check if the file is accessible
+    wget -q --spider "$url" || { echo "${r}Error: $name is not accessible ($url).${x}"; return 1; }
+    
+    file_content=$(wget -q -O - "$url")
+    [[ $? -ne 0 ]] && { echo "${r}Error getting $name ($url).${x}"; return 1; }
+    
     source /dev/stdin <<< "$file_content"
-    [[ $? -ne 0 ]] && { echo "Error sourcing $name."; return 1; }
+    [[ $? -ne 0 ]] && { echo "${r}Error sourcing $name.${x}"; return 1; }
+    
+    echo "$name successfully loaded."
 }
 
 # Execute external script
