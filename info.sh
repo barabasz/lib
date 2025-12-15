@@ -132,10 +132,6 @@ function shellfiles() {
     printf "${f}zshenv$r $arrow"
     [[ $ZFILE_VARS -eq 1 ]] && f=$g || f=$error
     printf "${f}zvars$r $arrow"
-    if [[ $(osname) != "macos" ]]; then
-        [[ $ZFILE_LINUX -eq 1 ]] && f=$g || f=$error
-        printf "${f}zlinux$r $arrow"
-    fi
     [[ $ZFILE_LOCALE -eq 1 ]] && f=$g || f=$error
     printf "${f}zlocale$r $arrow"
     [[ $ZFILE_PROFILE -eq 1 ]] && f=$c || f=$error
