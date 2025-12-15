@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Functions for oh-my-zsh
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Display oh-my-zsh version
 function omzversion() {

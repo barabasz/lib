@@ -1,7 +1,7 @@
 #!/bin/zsh
 #
-# Better versions of some functions
-# Unless otherwise noted, they work with both bash and zsh
+# Filesystem related functions
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Check if path exists and is a regular file
 isfile() {
@@ -193,150 +193,57 @@ function rmln() {
     fi
 }
 
-# Better ln command for creating symbolic links
-function lns() {
-    local -A f; local -A o; local -A a; local -A s; local -A t
-    f[info]="A better ln command for creating symbolic links."
-    f[help]="It creates a symbolic link only if such does not yet exist."
-    f[help]+="\nSource and target may be provided as relative or absolute paths."
-    f[help]+="\nOption '-f' (force) removes the existing link/file/directory."
-    f[args_required]="existing_target new_link"
-    f[opts]="debug force help info test version"
-    f[version]="0.35"; f[date]="2025-05-09"
-    fn_make2 "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[opts_count]"
-### main function
-    # target (existing file or directory)
-    f[target_input]="$1"
-    f[target]="${f[target_input]:A}"
-    f[target_parent]="${f[target]:h}"
-    f[target_name]="${f[target]:t}"
-    f[target_parent_readable]=$(isdirreadable "$f[target_parent]")
-    # link (new symbolic link)
-    f[link_input]="$2"
-    f[link]="${f[link_input]:A}"
-    f[link_parent]="${f[link]:h}"
-    f[link_parent_writable]=$(isdirwritable "$f[link_parent]")
-    f[link_name]="${f[link]:t}"
-    f[target_type]=$(ftype "$f[target]")
-    f[target_type_info]=$(ftypeinfo "$f[target_type]")
-
-
-
-    # get absolute paths
-    local src="${1:A}"
-    local dst="${2:A}"
-    # get parent dirs
-    local src_dir="$(dirname "$src")"
-    local dst_dir="$(dirname "$dst")"
-    # get options
-    local debug=$o[d]
-    local force=$o[f]
-    local test=$o[t]
-    # prepare strings
-    local dst_c="${cyan}$dst${reset}"
-    local src_c="${cyan}$src${reset}"
-    local src_dir_c="${cyan}$src_dir${reset}"
-    local dst_dir_c="${cyan}$dst_dir${reset}"
-    local arr="${yellowi}→${reset}"
-
-    # Print debug information if debug is enabled
-    if [[ $debug -eq 1 ]]; then
-        log::info "$s[name]: source: \t$src_c"
-        log::info "$s[name]: source dir: \t$src_dir"
-        log::info "$s[name]: target: \t$dst_c"
-        log::info "$s[name]: target dir: \t$dst_dir"
-    fi
-
-    # Check if the destination exists
-    if [[ ! -e "$dst" ]]; then
-        log::error "$s[name]: target $dst_c does not exist."
+# Create symbolic link safely
+# Usage: lns source target
+lns() {
+    # Validate: exactly two arguments required
+    if (( $# != 2 )); then
+        print_error "Usage: lns source target"
         return 1
     fi
-
-    # Check if the source exists
-    if [[ -d "$src" ]]; then
-        log::error "$s[name]: source $src_c already exists."
-        log::info "$src_c is a directory."
-        return 1
-    elif [[ -f "$src" ]]; then
-        log::error "$s[name]: source $src_c already exists."
-        log::info "$src_c is a file."
-        return 1
-    elif [[ -L "$src" ]]; then
-        log::error "$s[name]: source $src_c already exists."
-        log::info "$src_c is a symbolic link."
+    
+    local source=${1:a}
+    local target=${2:a}
+    local target_parent_dir=${target:h}
+    
+    # Validate: source must exist
+    if [[ ! -e $source ]]; then
+        print_error "Source does not exist: $source"
         return 1
     fi
-
-    # Check if the destination is different from the source
-    if [[ "$dst" == "$src" ]]; then
-        log::error "$s[name]: target and source cannot be the same."
+    
+    # Validate: source and target must be different
+    if [[ $source == $target ]]; then
+        print_error "Source and target are the same: $source"
         return 1
     fi
-
-    # Check if the destination is readable
-    if [[ ! -r "$dst" ]]; then
-        log::error "$s[name]: target $dst_c is not readable."
+    
+    # Create target's parent directory if needed
+    if [[ ! -d $target_parent_dir ]]; then
+        mkdir -p $target_parent_dir
+    fi
+    
+    # Validate: target's parent directory must be writable
+    if [[ ! -w $target_parent_dir ]]; then
+        print_error "Cannot write to directory: $target_parent_dir"
         return 1
     fi
-
-    # Check if the destination is a folder or file
-    if [[ ! -d "$dst" ]] && [[ ! -f "$dst" ]]; then
-        log::error "$s[name]: target $dst_c is neither a directory nor a file."
-        return 1
-    fi
-
-    # Check if the current process can write to the source's folder
-    if [[ ! -w "$src_dir" ]]; then
-        log::error "$s[name]: cannot write to the source's folder $src_dir_c"
-        return 1
-    fi
-
-    # Check if exactly such a symbolic link does not already exist
-    if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
-        log::info "$s[name]: symlink $src_c $arr $dst_c already exists."
-        return 0
-    fi
-
-    # Check if source and target are pointing to the same file
-    if [[ "$src" == $(realpath "$dst") ]]; then
-        log::error "$s[name]: source and target are the same file."
-        log::info "$s[name]: check for folder symlinks in file paths."
-        return 1
-    fi
-
-    # Remove the existing source (file, folder, or wrong symbolic link)
-    if [[ -e "$src" ]]; then
-        if [[ $force -eq 1 ]]; then
-            rm -rf "$src"
-            if [[ $? -ne 0 ]]; then
-                log::error "$s[name]: failed while rmoving $src_c (error rissed by rm)."
-                return 1
-            else
-                log::info "$s[name]: removed existing source $src_c."
-            fi
+    
+    # Handle existing target
+    if [[ -L $target ]]; then
+        # Target is a symlink - check if it already points to source
+        local current=${target:A}
+        if [[ $current == $source ]]; then
+            return 0  # Already correct, nothing to do
         else
-            log::error "$s[name]: source $src_c already exists."
-            log::info "$s[name]: to override use the $purple--force$reset switch."
-            return 1
+            rm $target  # Points elsewhere, remove and recreate
         fi
+    elif [[ -e $target ]]; then
+        # Target is a real file/directory - backup before replacing
+        mv $target ${target}.bak
     fi
-
-    # Create the symbolic link
-    if [[ $test -eq 1 ]]; then
-        log::info "$s[name]: test mode: not creating symbolic link."
-        return 0
-    else
-        ln -s "$dst" "$src"
-        if [[ $? != 0 ]]; then
-            log::error "$s[name]: failed to create symbolic link (error rissed by ln).\n"
-            return 1
-        else
-            log::info "$s[name]: symbolic link $src_c $arr $dst_c created.\n"
-            return 0
-        fi
-    fi
+    
+    ln -s $source $target
 }
 
 # Creates a symbolic link for configuration dirs using lns

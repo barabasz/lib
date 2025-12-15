@@ -1,2 +1,4 @@
 # lib
-Common libraries for shell scripts and other languages
+
+Common libraries for zsh shell scripts
+Requires zsh 5.9+, will not work in bash

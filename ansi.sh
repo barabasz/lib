@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # ANSI escape code warper
+# zsh-specific functions - requires zsh, will not work in bash
 # https://raw.githubusercontent.com/barabasz/lib/main/ansi.sh
 #
 # SGR (Select Graphic Rendition) parameters of ANSI escape codes

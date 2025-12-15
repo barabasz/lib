@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Functions for information
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Short version info, usage: verinfo cliname appname versioncommand
 # Example: verinfo gzip "GNU Zip" --version

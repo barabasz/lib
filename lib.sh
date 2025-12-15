@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Functions for handling library files
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Reload library files and concatenate them into _all.sh file
 # Usage: relib

@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Helper functions for the script functions
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Clean a string (normalize whitespace)
 # collapse multiple spaces/tabs/newlines into single spaces

@@ -1,6 +1,7 @@
 #!/bin/zsh
 
 # Networking functions
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Function to retrieve the public IP address (IPv4 or IPv6)
 # Usage: wanip [-6] [-v] [-t TIMEOUT]

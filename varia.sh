@@ -1,4 +1,7 @@
 #!/bin/zsh
+#
+# Various functions
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Search man with fzf
 function fman() {

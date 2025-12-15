@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Functions for OS detection and information
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Get OS name
 function osname() {

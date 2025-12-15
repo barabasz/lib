@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Functions for shell detection and information
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Get shell name
 function shellname() {

@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Text functions
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Convert text to lowercase
 text::lower() {

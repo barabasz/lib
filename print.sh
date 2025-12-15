@@ -1,6 +1,7 @@
 #!/bin/zsh
 
 # Console print library
+# zsh-specific functions - requires zsh, will not work in bash
 # https://raw.githubusercontent.com/barabasz/lib/main/print.sh
 
 # Pretty print serialized array (indexed or associative)

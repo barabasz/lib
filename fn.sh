@@ -1,5 +1,5 @@
 #!/bin/zsh
-# The functions below can only be used in the Zsh shell.
+# # zsh-specific functions - requires zsh, will not work in bash
 #
 # fn_make() is a helper function for handling options and arguments.
 # It parses the options and arguments of the parent function and checks for errors.

@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Test functions
+# zsh-specific functions - requires zsh, will not work in bash
 
 function test_print_arr() {
 

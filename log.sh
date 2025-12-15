@@ -1,6 +1,7 @@
 #!/bin/zsh
 
 # Simple log library for stdrout
+# zsh-specific functions - requires zsh, will not work in bash
 # https://raw.githubusercontent.com/barabasz/lib/main/log.sh
 
 # Color and icon assignments

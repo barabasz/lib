@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Development functions
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Start a local HTTP server in the specified directory
 # Usage: www <directory> 

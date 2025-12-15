@@ -1,6 +1,7 @@
 #!/bin/zsh
 #
 # Functions for installing applications
+# zsh-specific functions - requires zsh, will not work in bash
 
 # Check if program is installed (executable exists in PATH)
 isinstalled() {

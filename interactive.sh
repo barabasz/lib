@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Interactive shell script functions
+# zsh-specific functions - requires zsh, will not work in bash
+
 
 # Function to prompt the user for continuation
 # Usage: prompt_continue ["Custom question?"]
