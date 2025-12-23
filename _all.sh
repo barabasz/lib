@@ -502,117 +502,40 @@ function rmln() {
         fi
     fi
 }
-function lns() {
-    local -A f; local -A o; local -A a; local -A s; local -A t
-    f[info]="A better ln command for creating symbolic links."
-    f[help]="It creates a symbolic link only if such does not yet exist."
-    f[help]+="\nSource and target may be provided as relative or absolute paths."
-    f[help]+="\nOption '-f' (force) removes the existing link/file/directory."
-    f[args_required]="existing_target new_link"
-    f[opts]="debug force help info test version"
-    f[version]="0.35"; f[date]="2025-05-09"
-    fn_make2 "$@" && [[ -n "${f[return]}" ]] && return "${f[return]}"
-    shift "$f[opts_count]"
-    f[target_input]="$1"
-    f[target]="${f[target_input]:A}"
-    f[target_parent]="${f[target]:h}"
-    f[target_name]="${f[target]:t}"
-    f[target_parent_readable]=$(isdirreadable "$f[target_parent]")
-    f[link_input]="$2"
-    f[link]="${f[link_input]:A}"
-    f[link_parent]="${f[link]:h}"
-    f[link_parent_writable]=$(isdirwritable "$f[link_parent]")
-    f[link_name]="${f[link]:t}"
-    f[target_type]=$(ftype "$f[target]")
-    f[target_type_info]=$(ftypeinfo "$f[target_type]")
-    local src="${1:A}"
-    local dst="${2:A}"
-    local src_dir="$(dirname "$src")"
-    local dst_dir="$(dirname "$dst")"
-    local debug=$o[d]
-    local force=$o[f]
-    local test=$o[t]
-    local dst_c="${cyan}$dst${reset}"
-    local src_c="${cyan}$src${reset}"
-    local src_dir_c="${cyan}$src_dir${reset}"
-    local dst_dir_c="${cyan}$dst_dir${reset}"
-    local arr="${yellowi}→${reset}"
-    if [[ $debug -eq 1 ]]; then
-        log::info "$s[name]: source: \t$src_c"
-        log::info "$s[name]: source dir: \t$src_dir"
-        log::info "$s[name]: target: \t$dst_c"
-        log::info "$s[name]: target dir: \t$dst_dir"
-    fi
-    if [[ ! -e "$dst" ]]; then
-        log::error "$s[name]: target $dst_c does not exist."
+lns() {
+    if (( $# != 2 )); then
+        print_error "Usage: lns source target"
         return 1
     fi
-    if [[ -d "$src" ]]; then
-        log::error "$s[name]: source $src_c already exists."
-        log::info "$src_c is a directory."
-        return 1
-    elif [[ -f "$src" ]]; then
-        log::error "$s[name]: source $src_c already exists."
-        log::info "$src_c is a file."
-        return 1
-    elif [[ -L "$src" ]]; then
-        log::error "$s[name]: source $src_c already exists."
-        log::info "$src_c is a symbolic link."
+    local source=${1:a}
+    local target=${2:a}
+    local target_parent_dir=${target:h}
+    if [[ ! -e $source ]]; then
+        print_error "Source does not exist: $source"
         return 1
     fi
-    if [[ "$dst" == "$src" ]]; then
-        log::error "$s[name]: target and source cannot be the same."
+    if [[ $source == $target ]]; then
+        print_error "Source and target are the same: $source"
         return 1
     fi
-    if [[ ! -r "$dst" ]]; then
-        log::error "$s[name]: target $dst_c is not readable."
+    if [[ ! -d $target_parent_dir ]]; then
+        mkdir -p $target_parent_dir
+    fi
+    if [[ ! -w $target_parent_dir ]]; then
+        print_error "Cannot write to directory: $target_parent_dir"
         return 1
     fi
-    if [[ ! -d "$dst" ]] && [[ ! -f "$dst" ]]; then
-        log::error "$s[name]: target $dst_c is neither a directory nor a file."
-        return 1
-    fi
-    if [[ ! -w "$src_dir" ]]; then
-        log::error "$s[name]: cannot write to the source's folder $src_dir_c"
-        return 1
-    fi
-    if [[ -L "$src" ]] && [[ "$(readlink "$src")" == "$dst" ]]; then
-        log::info "$s[name]: symlink $src_c $arr $dst_c already exists."
-        return 0
-    fi
-    if [[ "$src" == $(realpath "$dst") ]]; then
-        log::error "$s[name]: source and target are the same file."
-        log::info "$s[name]: check for folder symlinks in file paths."
-        return 1
-    fi
-    if [[ -e "$src" ]]; then
-        if [[ $force -eq 1 ]]; then
-            rm -rf "$src"
-            if [[ $? -ne 0 ]]; then
-                log::error "$s[name]: failed while rmoving $src_c (error rissed by rm)."
-                return 1
-            else
-                log::info "$s[name]: removed existing source $src_c."
-            fi
+    if [[ -L $target ]]; then
+        local current=${target:A}
+        if [[ $current == $source ]]; then
+            return 0  # Already correct, nothing to do
         else
-            log::error "$s[name]: source $src_c already exists."
-            log::info "$s[name]: to override use the $purple--force$reset switch."
-            return 1
+            rm $target  # Points elsewhere, remove and recreate
         fi
+    elif [[ -e $target ]]; then
+        mv $target ${target}.bak
     fi
-    if [[ $test -eq 1 ]]; then
-        log::info "$s[name]: test mode: not creating symbolic link."
-        return 0
-    else
-        ln -s "$dst" "$src"
-        if [[ $? != 0 ]]; then
-            log::error "$s[name]: failed to create symbolic link (error rissed by ln).\n"
-            return 1
-        else
-            log::info "$s[name]: symbolic link $src_c $arr $dst_c created.\n"
-            return 0
-        fi
-    fi
+    ln -s $source $target
 }
 function lnsconfdir() {
     local -A f; local -A o; local -A a; local -A s; local -A t
@@ -1996,12 +1919,19 @@ sourcefile() {
         return 1
     fi
 }
-function source_remote() {
-    local url=$1 name=$(basename $1) file_content=""
-    file_content=$(wget -q -O - $url)
-    [[ $? -ne 0 ]] && { echo "Error getting $name ($url)."; return 1; }
+source_remote() {
+    if [[ $# -ne 1 ]]; then
+        echo "${r}source_remote: requires exactly one argument, given $#${x}"
+        return 1
+    fi
+    local url=$1 name file_content=""
+    name=$(basename "$1")
+    wget -q --spider "$url" || { echo "${r}Error: $name is not accessible ($url).${x}"; return 1; }
+    file_content=$(wget -q -O - "$url")
+    [[ $? -ne 0 ]] && { echo "${r}Error getting $name ($url).${x}"; return 1; }
     source /dev/stdin <<< "$file_content"
-    [[ $? -ne 0 ]] && { echo "Error sourcing $name."; return 1; }
+    [[ $? -ne 0 ]] && { echo "${r}Error sourcing $name.${x}"; return 1; }
+    echo "$name successfully loaded."
 }
 function extscript() {
     /bin/bash -c "$(curl -fsSL $1)"
@@ -2300,10 +2230,6 @@ function shellfiles() {
     printf "${f}zshenv$r $arrow"
     [[ $ZFILE_VARS -eq 1 ]] && f=$g || f=$error
     printf "${f}zvars$r $arrow"
-    if [[ $(osname) != "macos" ]]; then
-        [[ $ZFILE_LINUX -eq 1 ]] && f=$g || f=$error
-        printf "${f}zlinux$r $arrow"
-    fi
     [[ $ZFILE_LOCALE -eq 1 ]] && f=$g || f=$error
     printf "${f}zlocale$r $arrow"
     [[ $ZFILE_PROFILE -eq 1 ]] && f=$c || f=$error
@@ -2411,18 +2337,21 @@ function installapp() {
 #
 
 prompt_continue() {
-  while true; do
-      if [ -n "$BASH_VERSION" ]; then
-          read -p "Do you want to continue? (Y/N): " yn
-      else
-          read "yn?Do you want to continue? (Y/N): "
-      fi
-      case $yn in
-          [Yy]* ) return 0;;
-          [Nn]* ) echo "You chose not to continue."; return 1;;
-          * ) echo "Please answer Y/y or N/n.";;
-      esac
-  done
+    local prompt="${1:-Do you want to continue?}"
+    local yn
+    while true; do
+        if [[ -n "$BASH_VERSION" ]]; then
+            read -r -p "$prompt (Y/N): " yn
+        else
+            read -r "yn?$prompt (Y/N): "
+        fi
+        case $yn in
+            [Yy]*) return 0 ;;
+            [Nn]*) echo "Aborted."; return 1 ;;
+            "") ;;
+            *) echo "Please answer Y or N." ;;
+        esac
+    done
 }
 
 #
@@ -2469,6 +2398,7 @@ function source_sh_files() {
     [[ ! -n $(echo $dir/*.sh(N)) ]] && {
         log::warn "No ${c}.sh$r files found in $c$dir$r" && return 1
     }
+    local f=""
     for f in "$dir"/*.sh; do
         if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
             source "$f"
@@ -2487,6 +2417,7 @@ concatenate_sh_files() {
     local output_dir="${output_file:h}"
     local i=0 sf="" shebang='#!/bin/zsh'
     local c=$(ansi cyan) r=$(ansi reset) g=$(ansi green)
+    local f=""
     [[ $# -ne 2 ]] && {
         log::error "${r}Usage: ${g}concatenate_sh_files$r $c<directory> <output_file>$r" && return 1
     }
@@ -2518,40 +2449,6 @@ concatenate_sh_files() {
         fi
     done
     export concatenate_sh_files_count=$i
-}
-
-#
-# File: linux.sh
-#
-
-function set-warsaw-timezone() {
-    if [[ "$(osname)" != "macos" ]]; then
-        printhead 'Setting timezone...'
-        if [[ "$(cat /etc/timezone | grep -o 'Warsaw')" != "Warsaw" ]]; then
-            sudo timedatectl set-timezone Europe/Warsaw
-            sudo dpkg-reconfigure -f noninteractive tzdata
-        else
-            echo "Timezone: $(cat /etc/timezone)"
-        fi
-    fi
-}
-function needrestart-mod() {
-    filename=/etc/needrestart/needrestart.conf
-    if [[ -f $filename ]]; then
-        sudo sed -i "s/^#\?\s\?\$nrconf{$1}.*/\$nrconf{$1} = $2;/" $filename
-    fi
-}
-function needrestart-quiet() {
-    needrestart-mod verbosity 0
-    needrestart-mod systemctl_combine 0
-    needrestart-mod kernelhints 0
-    needrestart-mod ucodehints 0
-}
-function needrestart-verbose() {
-    needrestart-mod verbosity 1
-    needrestart-mod systemctl_combine 1
-    needrestart-mod kernelhints 1
-    needrestart-mod ucodehints 1
 }
 
 #

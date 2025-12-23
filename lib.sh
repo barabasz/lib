@@ -52,7 +52,7 @@ function source_sh_files() {
     [[ ! -n $(echo $dir/*.sh(N)) ]] && {
         log::warn "No ${c}.sh$r files found in $c$dir$r" && return 1
     }
-
+    local f=""
     for f in "$dir"/*.sh; do
         if [[ -f "$f" && ! "$(basename "$f")" =~ ^_ ]]; then
             source "$f"
@@ -74,6 +74,7 @@ concatenate_sh_files() {
     local output_dir="${output_file:h}"
     local i=0 sf="" shebang='#!/bin/zsh'
     local c=$(ansi cyan) r=$(ansi reset) g=$(ansi green)
+    local f=""
     
     [[ $# -ne 2 ]] && {
         log::error "${r}Usage: ${g}concatenate_sh_files$r $c<directory> <output_file>$r" && return 1
