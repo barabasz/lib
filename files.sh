@@ -18,6 +18,15 @@ islink() {
     [[ $# -eq 1 && -L "$1" ]]
 }
 
+# Make directory and change to it
+mdcd() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: mdcd <directory>"
+        return 1
+    fi
+    mkdir -p "$1" && cd "$1"
+}
+
 # Detects the type of file system object for a given path.
 # Usage: ftype <path>
 # Returns object type or 'not_found'
