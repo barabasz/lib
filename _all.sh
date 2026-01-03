@@ -1908,11 +1908,11 @@ function timet() {
     echo "$((time (eval $cmd \$$arg)) 2>&1 | awk '/total/ {print $(NF-1)}')"
 }
 sourceif() {
-    [[ $# -eq 1 ]] && isfile "$1" && source "$1"
+    [[ $# -eq 1 ]] && is_file "$1" && source "$1"
 }
 sourcefile() {
     [[ $# -eq 1 ]] || return 1
-    if isfile "$1"; then
+    if is_file "$1"; then
         source "$1"
     else
         print -u2 "$1 not found"

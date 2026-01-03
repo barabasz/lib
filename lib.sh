@@ -7,7 +7,12 @@
 # Usage: relib
 function relib() {
     local f="" i=0 e=0 n=0 t="" t1="" t2="" tpattern="+%s%3N"
-    local c=$(ansi cyan) g=$(ansi green) r=$(ansi reset) y=$(ansi yellow)
+    # colors
+    local c="\033[0;36m"  # cyan
+    local g="\033[0;32m"  # green
+    local r="\033[0m"     # reset
+    local y="\033[0;33m"  # yellow
+
     local dir="${LIBDIR:-$HOME/lib}" file="_all.sh"
 
     [[ $(isinstalled gdate) -eq 1 ]] && alias date=gdate

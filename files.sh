@@ -1,22 +1,25 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 #
 # Filesystem related functions
 # zsh-specific functions - requires zsh, will not work in bash
 
 # Check if path exists and is a regular file
-isfile() {
+is_file() {
     [[ $# -eq 1 && -f "$1" ]]
 }
 
 # Check if path exists and is a directory
-isdir() {
+is_dir() {
     [[ $# -eq 1 && -d "$1" ]]
 }
 
 # Check if path exists and is a symbolic link
-islink() {
+is_link() {
     [[ $# -eq 1 && -L "$1" ]]
 }
+
+
+
 
 # Make directory and change to it
 mdcd() {

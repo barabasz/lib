@@ -28,13 +28,13 @@ function timet() {
 
 # Source file if it exists, silently skip otherwise
 sourceif() {
-    [[ $# -eq 1 ]] && isfile "$1" && source "$1"
+    [[ $# -eq 1 ]] && is_file "$1" && source "$1"
 }
 
 # Source file or report error
 sourcefile() {
     [[ $# -eq 1 ]] || return 1
-    if isfile "$1"; then
+    if is_file "$1"; then
         source "$1"
     else
         print -u2 "$1 not found"
