@@ -4,7 +4,7 @@
 # zsh-specific functions - requires zsh, will not work in bash
 
 # Get shell name
-function shellname() {
+function shell_name() {
     case "$(ps -p $$ -o comm=)" in
     *zsh) echo "zsh" ;;
     *bash) echo "bash" ;;
@@ -13,17 +13,8 @@ function shellname() {
 }
 
 # Get shell version
-function shellver() {
-    if [[ $(shellname) == 'zsh' ]]; then
-        local version=$(zsh --version)
-    elif [[ $(shellname) == 'bash' ]]; then
-        local version=$(bash --version)
-        version="${version#*version }"
-    else
-        echo "extractver: unknown shell"
-        return 1
-    fi
-    echo $(extract_version $version)
+function shell_ver() {
+    print $(get_version "$(zsh --version 2>&1)")
 }
 
 # Get default shell name
